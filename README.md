@@ -25,8 +25,11 @@ Concluído até aqui:
   `auth.users`/`auth.uid()`. Sem RLS/grants (autorização vai para a app na F4).
 - **F3** — auth própria (substitui o GoTrue): bcrypt + JWT (access) + refresh
   opaco rotacionável, rotas `/auth/*` e `/admin/users`, middleware
-  `authenticate`/`requireAdmin` e `withActor()` (seta `app.user_id` por
+  `requireUser`/`ensureAdmin` e `withActor()` (seta `app.user_id` por
   transação). `npm run create-admin -- <email> <senha> [nome]` cria o 1º admin.
+- **F4** — módulos REST (`/projects`, `/dailies`, `/notifications`,
+  `/users`+`/profiles`) espelhando o que o frontend acessava via `supabase-js`;
+  autorização por papel/atribuição na aplicação (substitui a RLS). 22/22 no E2E.
 
 ## Rodando localmente
 
