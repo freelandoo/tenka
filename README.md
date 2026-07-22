@@ -23,6 +23,10 @@ Concluído até aqui:
 - **F2** — migrations portadas para `backend/migrations/` (schema, triggers e
   RPCs), com `public.users` próprio e `current_user_id()` no lugar de
   `auth.users`/`auth.uid()`. Sem RLS/grants (autorização vai para a app na F4).
+- **F3** — auth própria (substitui o GoTrue): bcrypt + JWT (access) + refresh
+  opaco rotacionável, rotas `/auth/*` e `/admin/users`, middleware
+  `authenticate`/`requireAdmin` e `withActor()` (seta `app.user_id` por
+  transação). `npm run create-admin -- <email> <senha> [nome]` cria o 1º admin.
 
 ## Rodando localmente
 
