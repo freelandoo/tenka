@@ -20,6 +20,9 @@ Concluído até aqui:
 - **F0** — repositório reorganizado em `frontend/` + `backend/`.
 - **F1** — esqueleto do backend: Fastify escutando em `$PORT`, `/health`,
   conexão Postgres e runner de migrations (`schema_migrations` + advisory lock).
+- **F2** — migrations portadas para `backend/migrations/` (schema, triggers e
+  RPCs), com `public.users` próprio e `current_user_id()` no lugar de
+  `auth.users`/`auth.uid()`. Sem RLS/grants (autorização vai para a app na F4).
 
 ## Rodando localmente
 

@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { env, hasDatabase } from '../env';
 
@@ -51,6 +51,34 @@ export async function closeDb(): Promise<void> {
   else if (pool) await pool.end();
   db = null;
   pool = null;
+}
+
+/**
+ * Executa `fn` dentro de uma transação com o ator definido para os triggers e
+ * RPCs do banco. Faz `set_config('app.user_id', <uuid>, true)` (escopo de
+ * transação) antes de qualquer query — é o que faz `public.current_user_id()`
+ * enxergar quem está agindo (ver docs/MIGRACAO-VERCEL-RAILWAY.md §6).
+ *
+ * Passe `userId = null` para operações de sistema (seed/admin), em que os
+ * guards do banco tratam o ator como NULL (equivalente ao antigo service role).
+ */
+export async function withActor<T>(
+  userId: string | null,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query('begin');
+    await client.query("select set_config('app.user_id', $1, true)", [userId ?? '']);
+    const result = await fn(client);
+    await client.query('commit');
+    return result;
+  } catch (err) {
+    await client.query('rollback').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** Ping simples para o healthcheck — nunca lança, devolve boolean. */

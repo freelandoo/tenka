@@ -1,18 +1,23 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { env, hasDatabase } from './env';
+import { env, hasDatabase, assertAuthEnv } from './env';
 import { pingDb, closeDb } from './db/pool';
 import { runMigrations } from './db/migrate';
+import { authRoutes } from './auth/routes';
 
 const app = Fastify({
   logger: { level: env.nodeEnv === 'production' ? 'info' : 'debug' },
 });
 
 async function main(): Promise<void> {
+  assertAuthEnv();
+
   await app.register(cors, {
     origin: env.corsOrigin === '*' ? true : env.corsOrigin.split(',').map((o) => o.trim()),
     credentials: true,
   });
+
+  await app.register(authRoutes);
 
   // Liveness/healthcheck do Railway. Sempre 200 — o status do banco é
   // informativo, para o serviço subir verde mesmo antes de o Postgres existir.
