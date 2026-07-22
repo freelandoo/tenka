@@ -4,6 +4,10 @@ import { env, hasDatabase, assertAuthEnv } from './env';
 import { pingDb, closeDb } from './db/pool';
 import { runMigrations } from './db/migrate';
 import { authRoutes } from './auth/routes';
+import { projectRoutes } from './modules/projects';
+import { dailyRoutes } from './modules/dailies';
+import { notificationRoutes } from './modules/notifications';
+import { userRoutes } from './modules/users';
 
 const app = Fastify({
   logger: { level: env.nodeEnv === 'production' ? 'info' : 'debug' },
@@ -18,6 +22,10 @@ async function main(): Promise<void> {
   });
 
   await app.register(authRoutes);
+  await app.register(projectRoutes);
+  await app.register(dailyRoutes);
+  await app.register(notificationRoutes);
+  await app.register(userRoutes);
 
   // Liveness/healthcheck do Railway. Sempre 200 — o status do banco é
   // informativo, para o serviço subir verde mesmo antes de o Postgres existir.

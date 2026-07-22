@@ -1,8 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { getPool } from '../db/pool';
-import { authenticate, requireAdmin } from './middleware';
-import { AuthError, createUser, loadProfile, login, logout, refresh } from './service';
+import { requireUser, ensureAdmin } from './middleware';
+import { AuthError, createUser, login, logout, refresh } from './service';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -61,18 +60,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true });
   });
 
-  app.get('/auth/me', { preHandler: authenticate }, async (req, reply) => {
-    const profile = await loadProfile(getPool(), req.userId!);
-    if (!profile || !profile.active) {
-      return reply.code(401).send({ error: 'user-disabled' });
-    }
-    return reply.send({ profile });
+  app.get('/auth/me', { preHandler: requireUser }, async (req, reply) => {
+    return reply.send({ profile: req.profile });
   });
 
   // Porte da ação create_user da Edge Function admin-users.
   app.post(
     '/admin/users',
-    { preHandler: [authenticate, requireAdmin] },
+    { preHandler: [requireUser, ensureAdmin] },
     async (req, reply) => {
       const parsed = createUserSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });

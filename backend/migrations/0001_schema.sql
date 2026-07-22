@@ -316,11 +316,11 @@ begin
     return new;
   end if;
 
-  if new.name is distinct from old.name then v_changed := v_changed || 'name'; end if;
-  if new.description is distinct from old.description then v_changed := v_changed || 'description'; end if;
-  if new.value_cents is distinct from old.value_cents then v_changed := v_changed || 'value_cents'; end if;
-  if new.due_date is distinct from old.due_date then v_changed := v_changed || 'due_date'; end if;
-  if new.color_key is distinct from old.color_key then v_changed := v_changed || 'color_key'; end if;
+  if new.name is distinct from old.name then v_changed := array_append(v_changed, 'name'); end if;
+  if new.description is distinct from old.description then v_changed := array_append(v_changed, 'description'); end if;
+  if new.value_cents is distinct from old.value_cents then v_changed := array_append(v_changed, 'value_cents'); end if;
+  if new.due_date is distinct from old.due_date then v_changed := array_append(v_changed, 'due_date'); end if;
+  if new.color_key is distinct from old.color_key then v_changed := array_append(v_changed, 'color_key'); end if;
 
   if array_length(v_changed, 1) is not null then
     insert into public.project_activity (project_id, actor_id, action, metadata)
