@@ -1,0 +1,210 @@
+/*
+ * TENKA // WORLD FORGE — design tokens and page-scoped styles.
+ * Everything is scoped under .wf-root so the rest of the site is untouched.
+ */
+
+.wf-root {
+  --wf-bg: #050505;
+  --wf-bg-elev: #0b0b0d;
+  --wf-text: #f5f5f2;
+  --wf-text-dim: #98989f;
+  --wf-border: rgba(255, 255, 255, 0.12);
+  --wf-energy: #ff4d00;
+  --wf-energy-2: #ffb000;
+  --wf-ok: #79ffb1;
+
+  --wf-font-display: 'Unbounded', 'Space Grotesk', sans-serif;
+  --wf-font-body: 'Space Grotesk', 'Inter', sans-serif;
+  --wf-font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+
+  background-color: var(--wf-bg);
+  color: var(--wf-text);
+  font-family: var(--wf-font-body);
+  font-size: 16px;
+  overflow-x: clip;
+}
+
+/* Film grain for placeholder media — reads as intentional texture, not noise
+   dumped over the whole page. Scoped to elements that opt in. */
+.wf-grain {
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Horizontal scrollers (mobile category selector) — no visible scrollbar. */
+.wf-carousel-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.wf-carousel-x::-webkit-scrollbar {
+  display: none;
+}
+
+.wf-display {
+  font-family: var(--wf-font-display);
+  letter-spacing: -0.01em;
+}
+
+.wf-mono {
+  font-family: var(--wf-font-mono);
+  letter-spacing: 0.08em;
+}
+
+/* Custom cursor hides the native one only while the overlay cursor is mounted. */
+.wf-root.wf-cursor-active,
+.wf-root.wf-cursor-active a,
+.wf-root.wf-cursor-active button,
+.wf-root.wf-cursor-active [role='button'] {
+  cursor: none;
+}
+
+/* Energy border used by interactive modules — a border that reads as circuitry,
+   not as a decorative rounded box. */
+.wf-module {
+  border: 1px solid var(--wf-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.wf-module:hover,
+.wf-module:focus-within {
+  border-color: color-mix(in srgb, var(--wf-energy) 65%, transparent);
+}
+
+/* Connection line that travels from a capability module toward the Core. */
+.wf-module .wf-module-line {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 1px;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--wf-energy), transparent);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wf-module:hover .wf-module-line,
+.wf-module:focus-within .wf-module-line {
+  transform: scaleX(1);
+}
+
+/* Headline lines are revealed through clipping masks, never plain fade-up. */
+.wf-line-mask {
+  display: block;
+  overflow: hidden;
+}
+
+.wf-line-mask > span {
+  display: block;
+  will-change: transform;
+}
+
+/* Vertical technical status column (hero). */
+.wf-status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.625rem;
+  color: var(--wf-text-dim);
+}
+
+.wf-status-item::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--wf-ok);
+  box-shadow: 0 0 8px var(--wf-ok);
+}
+
+/* CTA with border that fills like a progress bar on hover. */
+.wf-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.wf-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--wf-energy);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wf-cta:hover::after,
+.wf-cta:focus-visible::after {
+  transform: scaleX(1);
+}
+
+.wf-cta:hover,
+.wf-cta:focus-visible {
+  color: #050505;
+}
+
+/* Scanline texture for boot screen / technical overlays. Purely decorative. */
+.wf-scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+/* Mobile world carousel: native horizontal snap scrolling. */
+.wf-carousel {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.wf-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.wf-carousel > * {
+  scroll-snap-align: center;
+  flex-shrink: 0;
+}
+
+/* This stylesheet loads after Tailwind's (lazy chunk), so its display:flex
+   would win over lg:hidden — hide the carousel on desktop here instead. */
+@media (min-width: 64rem) {
+  .wf-carousel {
+    display: none;
+  }
+}
+
+/* Keyboard focus on dark surfaces. */
+.wf-root :focus-visible {
+  outline: 2px solid var(--wf-energy-2);
+  outline-offset: 3px;
+}
+
+/* Respect users who disabled animations at the OS level. */
+@media (prefers-reduced-motion: reduce) {
+  .wf-root *,
+  .wf-root *::before,
+  .wf-root *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

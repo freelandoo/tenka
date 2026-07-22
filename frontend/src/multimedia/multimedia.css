@@ -1,0 +1,512 @@
+/*
+ * TENKA MULTIMÍDIA // CULTURE MACHINE — tokens e estilos da página.
+ * Tudo escopado sob .mmx-root para não vazar para o resto do site.
+ *
+ * Linguagem: palco, campanha, editorial, entretenimento. Vermelho é luz de
+ * palco e urgência — o resto da cena alterna entre preto, papel e paletas
+ * temporárias de campanha (via --mmx-accent-*).
+ */
+
+.mmx-root {
+  --mmx-bg: #0b0506;
+  --mmx-bg-2: #160708;
+  --mmx-bg-elev: #220b0d;
+
+  --mmx-red: #ff2929;
+  --mmx-red-deep: #a90e19;
+  --mmx-coral: #ff6047;
+  --mmx-magenta: #ff2e88;
+  --mmx-yellow: #ffd84d;
+
+  --mmx-white: #fff8f2;
+  --mmx-text-2: #bba8a7;
+  --mmx-text-mute: #7c6868;
+
+  --mmx-black: #050203;
+  --mmx-border: rgba(255, 255, 255, 0.16);
+
+  /* Paleta viva — projetos e energias de campanha sobrescrevem via GSAP. */
+  --mmx-accent: #ff2929;
+  --mmx-accent-2: #ff6047;
+  --mmx-accent-3: #ffd84d;
+
+  --mmx-font-display: 'Anton', 'Archivo Black', sans-serif;
+  --mmx-font-cond: 'Barlow Condensed', 'Anton', sans-serif;
+  --mmx-font-stamp: 'Archivo Black', 'Anton', sans-serif;
+  --mmx-font-body: 'Archivo', 'Inter', sans-serif;
+  --mmx-font-mono: 'IBM Plex Mono', monospace;
+
+  background-color: var(--mmx-bg);
+  color: var(--mmx-white);
+  font-family: var(--mmx-font-body);
+  font-size: 16px;
+  overflow-x: clip;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mmx-root.mmx-cursor-active,
+  .mmx-root.mmx-cursor-active a,
+  .mmx-root.mmx-cursor-active button,
+  .mmx-root.mmx-cursor-active [role='button'] {
+    cursor: none;
+  }
+}
+
+/* ---------- tipografia ---------- */
+
+.mmx-display {
+  font-family: var(--mmx-font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.92;
+  letter-spacing: 0.005em;
+}
+
+.mmx-cond {
+  font-family: var(--mmx-font-cond);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 0.95;
+}
+
+.mmx-stamp {
+  font-family: var(--mmx-font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.mmx-mono {
+  font-family: var(--mmx-font-mono);
+}
+
+.mmx-outline {
+  color: transparent;
+  -webkit-text-stroke: 2px var(--mmx-white);
+}
+
+.mmx-headline {
+  font-size: clamp(2.6rem, 8.5vw, 8.2rem);
+}
+
+.mmx-line-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+  margin-bottom: -0.06em;
+}
+
+.mmx-line {
+  display: block;
+  will-change: transform;
+}
+
+/* ---------- botões ---------- */
+
+.mmx-btn {
+  font-family: var(--mmx-font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  min-height: 48px;
+  padding: 0.9rem 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.mmx-btn-primary {
+  background: var(--mmx-red);
+  color: var(--mmx-white);
+  box-shadow: 0.35rem 0.35rem 0 var(--mmx-black);
+}
+
+.mmx-btn-primary:hover,
+.mmx-btn-primary:focus-visible {
+  background: var(--mmx-coral);
+  transform: translate(-2px, -2px);
+  box-shadow: 0.55rem 0.55rem 0 var(--mmx-black);
+}
+
+.mmx-btn-primary:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0.1rem 0.1rem 0 var(--mmx-black);
+}
+
+.mmx-btn-ghost {
+  border: 2px solid var(--mmx-border);
+  color: var(--mmx-white);
+  background: transparent;
+}
+
+.mmx-btn-ghost:hover,
+.mmx-btn-ghost:focus-visible {
+  border-color: var(--mmx-white);
+  background: rgba(255, 248, 242, 0.06);
+}
+
+/* Chips do configurador e dos filtros — carimbo de produção, não pílula SaaS. */
+.mmx-chip {
+  font-family: var(--mmx-font-cond);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1rem;
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border: 2px solid var(--mmx-border);
+  color: var(--mmx-text-2);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mmx-chip:hover {
+  border-color: var(--mmx-white);
+  color: var(--mmx-white);
+}
+
+.mmx-chip[data-active='true'] {
+  background: var(--mmx-white);
+  border-color: var(--mmx-white);
+  color: var(--mmx-black);
+  transform: rotate(-1deg);
+}
+
+.mmx-chip[data-active='true']:nth-child(even) {
+  transform: rotate(1deg);
+}
+
+/* ---------- etiquetas de produção ---------- */
+
+.mmx-tape {
+  font-family: var(--mmx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  background: var(--mmx-yellow);
+  color: var(--mmx-black);
+  padding: 0.35rem 0.9rem;
+  display: inline-block;
+}
+
+.mmx-onair {
+  font-family: var(--mmx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mmx-onair::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: mmx-blink 1.4s steps(2, start) infinite;
+}
+
+@keyframes mmx-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* ---------- palco persistente ---------- */
+
+.mmx-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.mmx-spot {
+  position: absolute;
+  width: 130vmax;
+  height: 130vmax;
+  left: 50%;
+  top: 30%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mmx-accent) 32%, transparent) 0%,
+    color-mix(in srgb, var(--mmx-accent) 10%, transparent) 32%,
+    transparent 62%
+  );
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+}
+
+.mmx-spot-2 {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mmx-accent-2) 20%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+.mmx-tile {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  will-change: transform, opacity;
+  box-shadow: 0 24px 70px rgba(5, 2, 3, 0.55);
+}
+
+.mmx-stage-word {
+  position: absolute;
+  font-family: var(--mmx-font-display);
+  text-transform: uppercase;
+  line-height: 0.9;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 248, 242, 0.22);
+  will-change: transform, opacity;
+  user-select: none;
+}
+
+/* granulação de filme sobre o palco */
+.mmx-grain {
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.07;
+  animation: mmx-grain 0.9s steps(4) infinite;
+}
+
+@keyframes mmx-grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 3%); }
+  50% { transform: translate(3%, -2%); }
+  75% { transform: translate(-3%, -3%); }
+  100% { transform: translate(2%, 2%); }
+}
+
+/* ---------- frame vertical 9:16 ---------- */
+
+.mmx-vframe {
+  aspect-ratio: 9 / 16;
+  background: var(--mmx-bg-2);
+  border: 1px solid var(--mmx-border);
+  overflow: hidden;
+  position: relative;
+}
+
+.mmx-timecode {
+  font-family: var(--mmx-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
+/* ---------- letreiros e feed ---------- */
+
+.mmx-marquee {
+  display: flex;
+  width: max-content;
+  animation: mmx-marquee var(--mmx-marquee-duration, 30s) linear infinite;
+}
+
+@keyframes mmx-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.mmx-reaction {
+  position: absolute;
+  bottom: -10%;
+  will-change: transform, opacity;
+  font-family: var(--mmx-font-stamp);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--mmx-yellow);
+}
+
+/* ---------- transição de canal (portfólio) ---------- */
+
+.mmx-channel-static {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.7' numOctaves='1'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23s)'/%3E%3C/svg%3E");
+  mix-blend-mode: screen;
+}
+
+/* ---------- cursor customizado ---------- */
+
+.mmx-cursor {
+  position: fixed;
+  z-index: 90;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.mmx-cursor-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--mmx-red);
+  transform: translate(-50%, -50%) rotate(45deg);
+  transition: width 0.15s ease, height 0.15s ease;
+}
+
+.mmx-cursor-label {
+  position: absolute;
+  left: 16px;
+  top: 10px;
+  font-family: var(--mmx-font-stamp);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--mmx-white);
+  color: var(--mmx-black);
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .mmx-cursor {
+    display: none;
+  }
+}
+
+/* ---------- navegação ---------- */
+
+.mmx-nav-link {
+  font-family: var(--mmx-font-cond);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mmx-text-2);
+  padding: 0.4rem 0.15rem;
+  position: relative;
+  transition: color 0.15s ease;
+}
+
+.mmx-nav-link:hover,
+.mmx-nav-link:focus-visible {
+  color: var(--mmx-white);
+}
+
+.mmx-nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: 0;
+  height: 3px;
+  background: var(--mmx-red);
+  transition: right 0.2s ease;
+}
+
+.mmx-nav-link:hover::after,
+.mmx-nav-link[data-active='true']::after {
+  right: 0;
+}
+
+.mmx-nav-link[data-active='true'] {
+  color: var(--mmx-white);
+}
+
+/* ---------- serviços / processo ---------- */
+
+.mmx-progress-digits {
+  font-family: var(--mmx-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* linha de corte pontilhada, linguagem de impressão */
+.mmx-cutline {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--mmx-border) 0 10px,
+    transparent 10px 20px
+  );
+  height: 1px;
+}
+
+/* nota manuscrita do processo criativo */
+.mmx-scribble {
+  font-family: 'Courier Prime', var(--mmx-font-mono);
+  transform: rotate(-1.5deg);
+  border: 1px dashed rgba(255, 216, 77, 0.5);
+  background: rgba(255, 216, 77, 0.06);
+}
+
+/* ---------- modal ---------- */
+
+.mmx-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(5, 2, 3, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.mmx-field {
+  width: 100%;
+  min-height: 48px;
+  background: var(--mmx-bg-2);
+  border: 2px solid var(--mmx-border);
+  color: var(--mmx-white);
+  font-family: var(--mmx-font-body);
+  font-size: 15px;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s ease;
+}
+
+.mmx-field:focus {
+  outline: none;
+  border-color: var(--mmx-red);
+}
+
+.mmx-field[aria-invalid='true'] {
+  border-color: var(--mmx-coral);
+}
+
+/* ---------- barra de rolagem da programação ---------- */
+
+.mmx-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--mmx-red-deep) transparent;
+  scroll-snap-type: x mandatory;
+}
+
+.mmx-scroll-x > * {
+  scroll-snap-align: start;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .mmx-root *,
+  .mmx-root *::before,
+  .mmx-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .mmx-grain {
+    animation: none;
+    opacity: 0.05;
+  }
+
+  .mmx-marquee {
+    animation: none;
+  }
+}

@@ -1,0 +1,3 @@
+# As migrations do schema (portadas de supabase/migrations na fase F2) entram
+# aqui como 0001_*.sql, 0002_*.sql, ... O runner (src/db/migrate.ts) aplica em
+# ordem alfabética e registra cada uma em schema_migrations.

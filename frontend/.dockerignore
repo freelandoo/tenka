@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.claude
+docs
+supabase/.temp
+npm-debug.log*
+Dockerfile
+.dockerignore
+docker-compose.yml
