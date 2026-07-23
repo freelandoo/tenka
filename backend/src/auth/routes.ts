@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { requireUser, ensureAdmin } from './middleware';
-import { AuthError, createUser, login, logout, refresh } from './service';
+import { AuthError, changePassword, createUser, login, logout, refresh } from './service';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -9,6 +9,8 @@ const loginSchema = z.object({
 });
 
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
+
+const passwordSchema = z.object({ newPassword: z.string().min(8) });
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -62,6 +64,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/auth/me', { preHandler: requireUser }, async (req, reply) => {
     return reply.send({ profile: req.profile });
+  });
+
+  // Troca de senha do próprio usuário (autenticado). Porte do
+  // `auth.updateUser({ password })` do Supabase.
+  app.post('/auth/password', { preHandler: requireUser }, async (req, reply) => {
+    const parsed = passwordSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    await changePassword(req.userId!, parsed.data.newPassword);
+    return reply.send({ ok: true });
   });
 
   // Porte da ação create_user da Edge Function admin-users.

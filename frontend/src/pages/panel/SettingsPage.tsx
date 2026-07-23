@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useToast } from '../../features/panel/ToastContext';
-import { getSupabase } from '../../lib/supabase/client';
+import { changePassword } from '../../features/auth/authService';
+import { updateMyProfile } from '../../features/users/usersService';
 import { initials } from '../../features/panel/format';
 
 const nameSchema = z.object({
@@ -44,11 +45,7 @@ export default function SettingsPage() {
     if (!profile) return;
     setSavingName(true);
     try {
-      const { error } = await getSupabase()
-        .from('profiles')
-        .update({ name })
-        .eq('id', profile.id);
-      if (error) throw new Error(error.message);
+      await updateMyProfile({ name });
       await refreshProfile();
       toast('success', 'Nome atualizado.');
     } catch {
@@ -61,8 +58,7 @@ export default function SettingsPage() {
   const savePassword = passwordForm.handleSubmit(async ({ password }) => {
     setSavingPassword(true);
     try {
-      const { error } = await getSupabase().auth.updateUser({ password });
-      if (error) throw new Error(error.message);
+      await changePassword(password);
       passwordForm.reset();
       toast('success', 'Senha alterada com sucesso.');
     } catch {

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import gsap from 'gsap';
 import { Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useAuth, type SignInResult } from '../../features/auth/AuthContext';
-import { isSupabaseConfigured, getSupabase } from '../../lib/supabase/client';
+import { isApiConfigured } from '../../lib/api/client';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const loginSchema = z.object({
@@ -27,10 +27,9 @@ const ERROR_MESSAGES: Record<NonNullable<SignInResult['error']>, string> = {
 function MissingConfig() {
   return (
     <div className="panel-login__banner" role="alert" style={{ marginBottom: 18 }}>
-      Supabase não configurado. Copie <code>.env.example</code> para{' '}
-      <code>.env.local</code>, preencha <code>VITE_SUPABASE_URL</code> e{' '}
-      <code>VITE_SUPABASE_ANON_KEY</code> e reinicie o servidor de
-      desenvolvimento. Veja <code>docs/PAINEL.md</code>.
+      API não configurada. Defina <code>VITE_API_URL</code> no <code>.env.local</code>{' '}
+      apontando para o backend TENKA e reinicie o servidor de desenvolvimento.
+      Veja <code>docs/PAINEL.md</code>.
     </div>
   );
 }
@@ -49,7 +48,6 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
-    getValues,
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -82,21 +80,11 @@ export default function LoginPage() {
     });
   });
 
-  const onForgotPassword = async () => {
+  // O backend próprio não envia e-mail: a recuperação de senha é feita por um
+  // administrador (redefine a senha na aba Usuários). Orientamos o usuário.
+  const onForgotPassword = () => {
     setServerError(null);
-    const email = getValues('email').trim();
-    if (!email) {
-      setServerError('Preencha o e-mail para receber o link de recuperação.');
-      return;
-    }
-    try {
-      await getSupabase().auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/painel/login`,
-      });
-      setResetSent(true);
-    } catch {
-      setServerError('Não foi possível enviar o e-mail de recuperação agora.');
-    }
+    setResetSent(true);
   };
 
   return (
@@ -125,7 +113,7 @@ export default function LoginPage() {
             </h1>
           </header>
 
-          {!isSupabaseConfigured && <MissingConfig />}
+          {!isApiConfigured && <MissingConfig />}
 
           {sessionExpired && !serverError && (
             <div className="panel-login__banner" role="alert" style={{ marginBottom: 18 }}>
@@ -139,7 +127,8 @@ export default function LoginPage() {
               role="status"
               style={{ marginBottom: 18 }}
             >
-              Se o e-mail existir, você receberá um link de recuperação em instantes.
+              Para redefinir sua senha, peça a um administrador do painel — ele
+              gera uma nova senha para você na aba Usuários.
             </div>
           )}
 
@@ -206,8 +195,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 className="panel-btn panel-btn--ghost panel-btn--sm"
-                onClick={() => void onForgotPassword()}
-                disabled={!isSupabaseConfigured}
+                onClick={onForgotPassword}
+                disabled={!isApiConfigured}
               >
                 Esqueci a senha
               </button>
@@ -216,7 +205,7 @@ export default function LoginPage() {
             <button
               type="submit"
               className="panel-btn panel-btn--primary"
-              disabled={isSubmitting || !isSupabaseConfigured}
+              disabled={isSubmitting || !isApiConfigured}
               style={{ minHeight: 48 }}
             >
               {isSubmitting ? (

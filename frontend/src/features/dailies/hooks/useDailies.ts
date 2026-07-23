@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getSupabase } from '../../../lib/supabase/client';
 import type { DailyRowKey, DailyTaskRow } from '../../../lib/supabase/database.types';
 import * as service from '../services/dailiesService';
+
+/** Polling provisório da grade da semana (realtime SSE virá na F5). */
+const POLL_INTERVAL_MS = 12_000;
 
 export const DAILY_ROWS: readonly DailyRowKey[] = ['planejamento', 'execucao'] as const;
 
@@ -55,11 +57,10 @@ export function useDailies(
 ): UseDailiesResult {
   const [tasks, setTasks] = useState<DailyTaskRow[]>([]);
   const [status, setStatus] = useState<DailiesStatus>('loading');
-  // Segura o refetch do realtime enquanto há movimento otimista em voo, para
+  // Segura o refetch do polling enquanto há movimento otimista em voo, para
   // não sobrescrever o estado local com posições intermediárias.
   const inFlight = useRef(0);
   const pendingRefresh = useRef(false);
-  const refreshTimer = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!startDay || !endDay) return;
@@ -80,23 +81,15 @@ export function useDailies(
     setStatus('loading');
     void refresh();
 
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel(`dailies:${startDay}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_tasks' },
-        () => {
-          // Debounce: um único move gera várias mudanças de posição em rajada.
-          if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-          refreshTimer.current = window.setTimeout(() => void refresh(), 450);
-        },
-      )
-      .subscribe();
+    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-      void supabase.removeChannel(channel);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, startDay, endDay, refresh]);
 

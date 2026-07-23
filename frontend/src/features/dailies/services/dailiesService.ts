@@ -1,4 +1,4 @@
-import { getSupabase } from '../../../lib/supabase/client';
+import { apiRequest } from '../../../lib/api/client';
 import type {
   DailyRowKey,
   DailyTaskRow,
@@ -23,54 +23,29 @@ export interface UpdateDailyTaskInput {
   assignee_id?: string | null;
 }
 
-function fail(context: string, message?: string): never {
-  throw new Error(message ? `${context}: ${message}` : context);
-}
-
 /**
  * Post-its de um intervalo fechado de dias, já na ordem de renderização.
  * A tela carrega uma semana por vez — nunca o mês inteiro.
  */
 export async function fetchRange(startDay: string, endDay: string): Promise<DailyTaskRow[]> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('daily_tasks')
-    .select('*')
-    .gte('day', startDay)
-    .lte('day', endDay)
-    .order('day')
-    .order('row_key')
-    .order('position');
-  if (error) fail('Falha ao carregar as diárias', error.message);
-  return (data ?? []) as DailyTaskRow[];
+  const data = await apiRequest<{ tasks: DailyTaskRow[] }>('/dailies', {
+    query: { start: startDay, end: endDay },
+  });
+  return data.tasks;
 }
 
 /** Criação via RPC: a posição final é calculada sob lock da célula. */
 export async function createDailyTask(input: CreateDailyTaskInput): Promise<string> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase.rpc('create_daily_task', {
-    p_title: input.title,
-    p_day: input.day,
-    p_row: input.rowKey,
-    p_color_key: input.colorKey,
-    p_description: input.description,
-    p_project_id: input.projectId,
-    p_assignee_id: input.assigneeId,
-  });
-  if (error) fail('Falha ao criar o post-it', error.message);
-  return data as string;
+  const data = await apiRequest<{ id: string }>('/dailies', { method: 'POST', body: input });
+  return data.id;
 }
 
 export async function updateDailyTask(id: string, patch: UpdateDailyTaskInput): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.from('daily_tasks').update(patch).eq('id', id);
-  if (error) fail('Falha ao salvar o post-it', error.message);
+  await apiRequest(`/dailies/${id}`, { method: 'PATCH', body: patch });
 }
 
 export async function deleteDailyTask(id: string): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.from('daily_tasks').delete().eq('id', id);
-  if (error) fail('Falha ao excluir o post-it', error.message);
+  await apiRequest(`/dailies/${id}`, { method: 'DELETE' });
 }
 
 /**
@@ -83,12 +58,8 @@ export async function moveDailyTask(
   toRow: DailyRowKey,
   toIndex: number,
 ): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc('move_daily_task', {
-    p_task_id: id,
-    p_new_day: toDay,
-    p_new_row: toRow,
-    p_new_index: toIndex,
+  await apiRequest(`/dailies/${id}/move`, {
+    method: 'POST',
+    body: { day: toDay, rowKey: toRow, index: toIndex },
   });
-  if (error) fail('Falha ao mover o post-it', error.message);
 }

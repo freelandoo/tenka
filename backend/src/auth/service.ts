@@ -125,6 +125,20 @@ export async function logout(rawToken: string): Promise<void> {
 }
 
 /**
+ * Troca a senha do próprio usuário (rota autenticada). Não pede a senha atual:
+ * a sessão já prova a identidade — mesmo comportamento do antigo
+ * `auth.updateUser({ password })` do Supabase. As demais sessões seguem
+ * válidas (o refresh continua funcionando); revogá-las é decisão futura.
+ */
+export async function changePassword(userId: string, newPassword: string): Promise<void> {
+  const passwordHash = await hashPassword(newPassword);
+  await getPool().query('update public.users set password_hash = $2 where id = $1', [
+    userId,
+    passwordHash,
+  ]);
+}
+
+/**
  * Cria um usuário (porte da ação create_user da Edge Function admin-users).
  * Operação de sistema: roda com ator NULL — os guards do banco a tratam como
  * privilegiada, e a autorização (admin ativo) é feita na camada de rota.

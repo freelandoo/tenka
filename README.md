@@ -30,6 +30,12 @@ Concluído até aqui:
 - **F4** — módulos REST (`/projects`, `/dailies`, `/notifications`,
   `/users`+`/profiles`) espelhando o que o frontend acessava via `supabase-js`;
   autorização por papel/atribuição na aplicação (substitui a RLS). 22/22 no E2E.
+- **F6** — frontend religado ao backend próprio: `lib/api/client` (fetch + JWT
+  com refresh transparente single-flight) no lugar do `supabase-js`; os 5
+  services, o `AuthContext` e a troca de senha reescritos contra o REST; o
+  realtime (`postgres_changes`) virou polling provisório nos 3 pontos (Kanban,
+  sino, diárias) — o SSE fica para a F5. `@supabase/supabase-js` removido do
+  bundle. Configuração via `VITE_API_URL`. Build + 65/65 testes verdes.
 
 ## Rodando localmente
 

@@ -1,4 +1,4 @@
-import { getSupabase } from '../../lib/supabase/client';
+import { apiRequest } from '../../lib/api/client';
 import type { DailyRowKey } from '../../lib/supabase/database.types';
 
 /**
@@ -59,22 +59,15 @@ export function tallyRows(rows: StatRow[]): MonthStats {
   return stats;
 }
 
-function fail(context: string, message?: string): never {
-  throw new Error(message ? `${context}: ${message}` : context);
-}
-
 /**
  * Post-its de um mês fechado. A agregação roda no cliente porque o volume é
- * de dezenas por mês — uma RPC de group by aqui só adicionaria superfície.
+ * de dezenas por mês — o backend só devolve as linhas cruas de /dailies/stats.
  */
 export async function fetchMonthStats(startDay: string, endDay: string): Promise<MonthStats> {
-  const { data, error } = await getSupabase()
-    .from('daily_tasks')
-    .select('assignee_id, project_id, row_key')
-    .gte('day', startDay)
-    .lte('day', endDay);
-  if (error) fail('Falha ao carregar os indicadores', error.message);
-  return tallyRows((data ?? []) as StatRow[]);
+  const data = await apiRequest<{ rows: StatRow[] }>('/dailies/stats', {
+    query: { start: startDay, end: endDay },
+  });
+  return tallyRows(data.rows);
 }
 
 /**
@@ -84,15 +77,12 @@ export async function fetchMonthStats(startDay: string, endDay: string): Promise
  * ainda está acumulando hoje.
  */
 export async function fetchBacklogByProject(today: string): Promise<Map<string | null, number>> {
-  const { data, error } = await getSupabase()
-    .from('daily_tasks')
-    .select('project_id')
-    .eq('row_key', 'planejamento')
-    .lt('day', today);
-  if (error) fail('Falha ao carregar o acúmulo', error.message);
+  const data = await apiRequest<{ rows: { project_id: string | null }[] }>('/dailies/backlog', {
+    query: { today },
+  });
 
   const backlog = new Map<string | null, number>();
-  for (const row of (data ?? []) as { project_id: string | null }[]) {
+  for (const row of data.rows) {
     backlog.set(row.project_id, (backlog.get(row.project_id) ?? 0) + 1);
   }
   return backlog;

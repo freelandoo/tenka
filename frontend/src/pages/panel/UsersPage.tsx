@@ -416,7 +416,7 @@ function CreateUserModal({
       <form onSubmit={onSubmit} noValidate style={{ display: 'grid', gap: 18 }}>
         <div>
           <p className="panel-eyebrow" style={{ marginBottom: 8 }}>
-            Fluxo seguro via Edge Function
+            Criação segura no servidor
           </p>
           <h2 id="create-user-title">Novo usuário</h2>
         </div>

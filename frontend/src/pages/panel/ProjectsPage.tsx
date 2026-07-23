@@ -26,7 +26,7 @@ import {
 import { useAuth } from '../../features/auth/AuthContext';
 import { useToast } from '../../features/panel/ToastContext';
 import { TeamView } from '../../features/team/TeamView';
-import { isSupabaseConfigured } from '../../lib/supabase/client';
+import { isApiConfigured } from '../../lib/api/client';
 
 type FormState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; project: BoardProject };
 type Aba = 'kanban' | 'diarias' | 'carteira' | 'leads' | 'equipe';
@@ -46,7 +46,7 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
 
   const { status, columns, projectById, history, allProjects, refresh, move } =
-    useKanban(isSupabaseConfigured);
+    useKanban(isApiConfigured);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [form, setForm] = useState<FormState>({ mode: 'closed' });
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export default function ProjectsPage() {
 
   // ---- Perfis (nomes/avatares para atribuição e exibição) ----------------
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!isApiConfigured) return;
     let cancelled = false;
     service
       .fetchProfiles()
@@ -147,7 +147,7 @@ export default function ProjectsPage() {
   const detailsProject = detailsId ? findProject(detailsId) : null;
   const notesProject = notesId ? findProject(notesId) : null;
 
-  if (!isSupabaseConfigured) {
+  if (!isApiConfigured) {
     return (
       <div style={{ margin: 'auto', maxWidth: 520, textAlign: 'center' }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>

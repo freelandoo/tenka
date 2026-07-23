@@ -9,9 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { getSupabase, isSupabaseConfigured, setRememberSession } from '../../lib/supabase/client';
+import { ApiError, loadTokens, onUnauthorized } from '../../lib/api/client';
 import type { ProfileRow } from '../../lib/supabase/database.types';
+import * as auth from './authService';
 
 export type AuthStatus = 'loading' | 'signed-out' | 'signed-in';
 
@@ -21,9 +21,18 @@ export interface SignInResult {
   error?: 'invalid-credentials' | 'user-disabled' | 'network' | 'unknown';
 }
 
+/**
+ * Sessão enxuta derivada do perfil — mantém a forma `{ user: { id, email } }`
+ * que os consumidores (NotificationsContext, SettingsPage) já esperavam do
+ * supabase-js, sem arrastar o SDK.
+ */
+export interface AuthSession {
+  user: { id: string; email: string | null };
+}
+
 interface AuthContextValue {
   status: AuthStatus;
-  session: Session | null;
+  session: AuthSession | null;
   profile: ProfileRow | null;
   isAdmin: boolean;
   /** Sessão anterior expirou (para mensagem na tela de login). */
@@ -35,116 +44,97 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchProfile(userId: string): Promise<ProfileRow | null> {
-  const { data, error } = await getSupabase()
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  if (error) return null;
-  return data as ProfileRow;
+function sessionFromProfile(profile: ProfileRow | null): AuthSession | null {
+  return profile ? { user: { id: profile.id, email: profile.email } } : null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>(
-    isSupabaseConfigured ? 'loading' : 'signed-out',
+  // Se há tokens guardados, começa carregando (valida via /auth/me); senão já
+  // está deslogado.
+  const [status, setStatus] = useState<AuthStatus>(() =>
+    loadTokens() ? 'loading' : 'signed-out',
   );
-  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const hadSessionRef = useRef(false);
 
+  // Revalida a sessão no boot e reage a uma sessão morta (refresh falhou).
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    const supabase = getSupabase();
     let cancelled = false;
 
-    const applySession = async (next: Session | null) => {
+    const unsubscribe = onUnauthorized(() => {
       if (cancelled) return;
-      setSession(next);
-      if (!next) {
-        setProfile(null);
-        setStatus('signed-out');
-        if (hadSessionRef.current) setSessionExpired(true);
-        hadSessionRef.current = false;
-        return;
-      }
-      hadSessionRef.current = true;
-      setSessionExpired(false);
-      const nextProfile = await fetchProfile(next.user.id);
-      if (cancelled) return;
-      if (nextProfile && !nextProfile.active) {
-        // Conta desativada: encerra a sessão imediatamente.
-        await supabase.auth.signOut();
-        return;
-      }
-      setProfile(nextProfile);
-      setStatus('signed-in');
-    };
-
-    supabase.auth
-      .getSession()
-      .then(({ data }) => applySession(data.session))
-      .catch(() => {
-        if (!cancelled) setStatus('signed-out');
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void applySession(nextSession);
+      if (hadSessionRef.current) setSessionExpired(true);
+      hadSessionRef.current = false;
+      setProfile(null);
+      setStatus('signed-out');
     });
+
+    if (loadTokens()) {
+      auth
+        .me()
+        .then((next) => {
+          if (cancelled) return;
+          hadSessionRef.current = true;
+          setProfile(next);
+          setStatus('signed-in');
+        })
+        .catch(() => {
+          // onUnauthorized já cobre 401; qualquer outra falha = deslogado.
+          if (!cancelled) setStatus('signed-out');
+        });
+    }
 
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
   const signIn = useCallback(
     async (email: string, password: string, remember: boolean): Promise<SignInResult> => {
-      if (!isSupabaseConfigured) return { ok: false, error: 'network' };
-      const supabase = getSupabase();
-      setRememberSession(remember);
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          const message = error.message.toLowerCase();
-          if (message.includes('fetch') || message.includes('network')) {
-            return { ok: false, error: 'network' };
-          }
-          return { ok: false, error: 'invalid-credentials' };
-        }
-        const nextProfile = await fetchProfile(data.user.id);
-        if (nextProfile && !nextProfile.active) {
-          await supabase.auth.signOut();
-          return { ok: false, error: 'user-disabled' };
-        }
+        const next = await auth.login(email, password, remember);
+        hadSessionRef.current = true;
         setSessionExpired(false);
+        setProfile(next);
+        setStatus('signed-in');
         return { ok: true };
-      } catch {
-        return { ok: false, error: 'network' };
+      } catch (error) {
+        if (error instanceof ApiError) {
+          if (error.code === 'network') return { ok: false, error: 'network' };
+          if (error.code === 'user-disabled') return { ok: false, error: 'user-disabled' };
+          if (error.code === 'invalid-credentials') {
+            return { ok: false, error: 'invalid-credentials' };
+          }
+          return { ok: false, error: 'unknown' };
+        }
+        return { ok: false, error: 'unknown' };
       }
     },
     [],
   );
 
   const signOut = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
     hadSessionRef.current = false;
-    await getSupabase().auth.signOut();
+    await auth.logout();
+    setProfile(null);
+    setStatus('signed-out');
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!session) return;
-    const next = await fetchProfile(session.user.id);
-    if (next) setProfile(next);
-  }, [session]);
+    try {
+      const next = await auth.me();
+      setProfile(next);
+    } catch {
+      /* mantém o último perfil conhecido */
+    }
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
-      session,
+      session: sessionFromProfile(profile),
       profile,
       isAdmin: profile?.role === 'admin' && profile.active,
       sessionExpired,
@@ -152,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
     }),
-    [status, session, profile, sessionExpired, signIn, signOut, refreshProfile],
+    [status, profile, sessionExpired, signIn, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -9,10 +9,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { getSupabase } from '../../lib/supabase/client';
 import type { NotificationRow } from '../../lib/supabase/database.types';
 import { useAuth } from '../auth/AuthContext';
 import * as service from './notificationsService';
+
+/** Polling provisório do sino (realtime SSE virá na F5). */
+const POLL_INTERVAL_MS = 20_000;
 
 interface NotificationsContextValue {
   notifications: NotificationRow[];
@@ -52,23 +54,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
     void refresh();
 
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel(`notifications:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        () => void refresh(),
-      )
-      .subscribe();
+    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      void supabase.removeChannel(channel);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [userId, refresh]);
 

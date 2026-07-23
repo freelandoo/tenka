@@ -9,20 +9,6 @@ vi.mock('../services/projectsService', () => ({
   moveProject: vi.fn(),
 }));
 
-vi.mock('../../../lib/supabase/client', () => {
-  const channel = {
-    on: vi.fn().mockReturnThis(),
-    subscribe: vi.fn().mockReturnThis(),
-  };
-  return {
-    isSupabaseConfigured: true,
-    getSupabase: () => ({
-      channel: () => channel,
-      removeChannel: vi.fn(),
-    }),
-  };
-});
-
 function project(id: string, status: BoardProject['status'], position: number): BoardProject {
   return {
     id,

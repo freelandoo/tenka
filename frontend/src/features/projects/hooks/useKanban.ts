@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getSupabase } from '../../../lib/supabase/client';
 import type { ProjectStatus } from '../../../lib/supabase/database.types';
 import * as service from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
+
+/**
+ * Sincronização provisória por polling (o realtime SSE chega na F5). Recarrega
+ * o board em intervalo fixo e também quando a aba volta ao foco, para outra
+ * pessoa mexendo no mural aparecer sem F5.
+ */
+const POLL_INTERVAL_MS = 12_000;
 
 export const COLUMN_ORDER: readonly ProjectStatus[] = [
   'inicio',
@@ -56,11 +62,10 @@ export function useKanban(enabled: boolean): UseKanbanResult {
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [history, setHistory] = useState<BoardProject[]>([]);
   const [status, setStatus] = useState<BoardStatus>('loading');
-  // Enquanto houver operação otimista em voo, segura o refetch do realtime
+  // Enquanto houver operação otimista em voo, segura o refetch do polling
   // para não sobrescrever o estado local com dados intermediários.
   const inFlight = useRef(0);
   const pendingRefresh = useRef(false);
-  const refreshTimer = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (inFlight.current > 0) {
@@ -87,31 +92,15 @@ export function useKanban(enabled: boolean): UseKanbanResult {
     setStatus('loading');
     void refresh();
 
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel('kanban:projects')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'projects' },
-        () => {
-          // Debounce: movimentos geram várias mudanças de posição em rajada.
-          if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-          refreshTimer.current = window.setTimeout(() => void refresh(), 450);
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'project_assignees' },
-        () => {
-          if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-          refreshTimer.current = window.setTimeout(() => void refresh(), 450);
-        },
-      )
-      .subscribe();
+    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-      void supabase.removeChannel(channel);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, refresh]);
 
