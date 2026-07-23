@@ -28,24 +28,24 @@ function makeSphere(count: number, radius: number, jitter: number): Float32Array
 }
 
 function Globe({ reducedMotion, hot, interactive }: { reducedMotion: boolean; hot: boolean; interactive: boolean }) {
-  const shell = useMemo(() => makeSphere(3000, 1.4, 0.05), []);
-  const hubs = useMemo(() => makeSphere(160, 1.43, 0.02), []);
-  const halo = useMemo(() => makeSphere(700, 1.68, 0.2), []);
+  const shell = useMemo(() => makeSphere(5200, 1.4, 0.045), []);
+  const hubs = useMemo(() => makeSphere(180, 1.43, 0.02), []);
+  const halo = useMemo(() => makeSphere(900, 1.7, 0.2), []);
 
   return (
     <>
       <group rotation={[0.5, 0, 0.16]}>
         {/* atmosphere haze */}
         <Points positions={halo} stride={3} frustumCulled={false}>
-          <PointMaterial transparent color="#1d6bff" size={0.016} sizeAttenuation depthWrite={false} opacity={0.5} blending={THREE.AdditiveBlending} />
+          <PointMaterial transparent color="#1d6bff" size={0.011} sizeAttenuation depthWrite={false} opacity={0.45} blending={THREE.AdditiveBlending} />
         </Points>
         {/* dense surface shell */}
         <Points positions={shell} stride={3} frustumCulled={false}>
-          <PointMaterial transparent color="#2f7dff" size={0.021} sizeAttenuation depthWrite={false} opacity={0.9} blending={THREE.AdditiveBlending} />
+          <PointMaterial transparent color="#2f7dff" size={0.014} sizeAttenuation depthWrite={false} opacity={0.95} blending={THREE.AdditiveBlending} />
         </Points>
         {/* brighter hub nodes */}
         <Points positions={hubs} stride={3} frustumCulled={false}>
-          <PointMaterial transparent color="#a8caff" size={0.05} sizeAttenuation depthWrite={false} opacity={1} blending={THREE.AdditiveBlending} />
+          <PointMaterial transparent color="#a8caff" size={0.036} sizeAttenuation depthWrite={false} opacity={1} blending={THREE.AdditiveBlending} />
         </Points>
       </group>
       <OrbitControls
@@ -88,8 +88,8 @@ export function HeroPlanet({ reducedMotion, hot }: HeroPlanetProps) {
         }}
       />
       <Canvas
-        dpr={[1, 1.8]}
-        camera={{ position: [0, 0, 3.7], fov: 42 }}
+        dpr={[1, 2]}
+        camera={{ position: [0, 0, 4.6], fov: 38 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         frameloop={reducedMotion ? 'demand' : 'always'}
         style={{ pointerEvents: interactive ? 'auto' : 'none' }}

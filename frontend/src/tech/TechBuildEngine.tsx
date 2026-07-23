@@ -57,9 +57,12 @@ function BuildExperience() {
     const previousTitle = document.title;
     const previousHtmlBackground = document.documentElement.style.backgroundColor;
     const previousBodyBackground = document.body.style.backgroundColor;
+    const previousFontSize = document.documentElement.style.fontSize;
     document.title = PAGE_TITLE;
     document.documentElement.style.backgroundColor = '#ffffff';
     document.body.style.backgroundColor = '#ffffff';
+    // Scale the whole page down a notch — reads as "less zoom", denser layout.
+    document.documentElement.style.fontSize = '82%';
     const restoreMeta = [
       upsertMeta('name', 'description', PAGE_DESCRIPTION),
       upsertMeta('property', 'og:title', PAGE_TITLE),
@@ -71,6 +74,7 @@ function BuildExperience() {
       document.title = previousTitle;
       document.documentElement.style.backgroundColor = previousHtmlBackground;
       document.body.style.backgroundColor = previousBodyBackground;
+      document.documentElement.style.fontSize = previousFontSize;
       restoreMeta.forEach((restore) => restore());
       ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
     };
