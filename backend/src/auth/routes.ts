@@ -3,8 +3,13 @@ import { z } from 'zod';
 import { requireUser, ensureAdmin } from './middleware';
 import { AuthError, changePassword, createUser, login, logout, refresh } from './service';
 
+// O identificador de login pode ser um e-mail OU um usuário simples (ex.:
+// "alex.rodriguus"). É guardado na coluna `email` (é só uma chave única de
+// texto); a UI o chama de "usuário".
+const identifier = z.string().trim().min(3);
+
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: identifier,
   password: z.string().min(1),
 });
 
@@ -13,7 +18,7 @@ const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 const passwordSchema = z.object({ newPassword: z.string().min(8) });
 
 const createUserSchema = z.object({
-  email: z.string().email(),
+  email: identifier,
   password: z.string().min(8),
   name: z.string().min(1),
   role: z.enum(['admin', 'collaborator']).default('collaborator'),

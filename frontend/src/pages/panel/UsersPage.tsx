@@ -13,7 +13,7 @@ import { formatDate, initials } from '../../features/panel/format';
 
 const createUserSchema = z.object({
   name: z.string().trim().min(2, 'Informe o nome completo.'),
-  email: z.string().trim().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
+  email: z.string().trim().min(3, 'Informe o usuário.'),
   password: z.string().min(8, 'A senha precisa de no mínimo 8 caracteres.'),
   role: z.enum(['admin', 'collaborator']),
 });
@@ -428,10 +428,11 @@ function CreateUserModal({
         </div>
 
         <div className="panel-field">
-          <label htmlFor="new-user-email">E-mail *</label>
+          <label htmlFor="new-user-email">Usuário *</label>
           <input
             id="new-user-email"
-            type="email"
+            type="text"
+            autoComplete="username"
             className="panel-input"
             {...register('email')}
           />

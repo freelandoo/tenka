@@ -10,7 +10,8 @@ import { isApiConfigured } from '../../lib/api/client';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const loginSchema = z.object({
-  email: z.string().trim().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
+  // Identificador de login: usuário simples (ex.: "alex.rodriguus") ou e-mail.
+  email: z.string().trim().min(3, 'Informe o usuário.'),
   password: z.string().min(1, 'Informe a senha.'),
   remember: z.boolean(),
 });
@@ -18,7 +19,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 const ERROR_MESSAGES: Record<NonNullable<SignInResult['error']>, string> = {
-  'invalid-credentials': 'E-mail ou senha incorretos. Confira e tente novamente.',
+  'invalid-credentials': 'Usuário ou senha incorretos. Confira e tente novamente.',
   'user-disabled': 'Este usuário foi desativado. Fale com um administrador.',
   network: 'Sem conexão com o servidor. Verifique sua internet e tente de novo.',
   unknown: 'Algo deu errado ao entrar. Tente novamente.',
@@ -140,13 +141,13 @@ export default function LoginPage() {
 
           <form onSubmit={onSubmit} noValidate style={{ display: 'grid', gap: 18 }}>
             <div className="panel-field">
-              <label htmlFor="login-email">E-mail</label>
+              <label htmlFor="login-email">Usuário</label>
               <input
                 id="login-email"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
                 className="panel-input"
-                placeholder="voce@tenka.com.br"
+                placeholder="alex.rodriguus"
                 aria-invalid={Boolean(errors.email)}
                 {...register('email')}
               />
