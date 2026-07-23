@@ -28,7 +28,7 @@ function ProductWindow({ project, stage = 'live' }: { project: TechnologyProject
         <div className="min-w-0 flex-[1.6]">
           <MockDashboard stage={stage} accent={accent} rows={['Lead: Marina — proposta', 'Lead: Nexo Corp — follow-up', 'Lead: Atlas — fechado']} />
         </div>
-        <div className="w-[34%] border-l border-white/10">
+        <div className="w-[34%] border-l border-[#0b1b33]/10">
           <MockChat stage={stage} accent={accent} />
         </div>
       </div>
@@ -73,14 +73,14 @@ function ProjectDetails({ project, onOpenBrief, onNavigate }: { project: Technol
 
       <div className="mt-5 flex flex-wrap gap-2" aria-label="Plataformas">
         {project.platforms.map((platform) => (
-          <span key={platform} className="tbe-mono border border-white/12 px-2 py-1 text-[10px] text-[var(--tbe-text-2)]">
+          <span key={platform} className="tbe-mono border border-[#0b1b33]/12 px-2 py-1 text-[10px] text-[var(--tbe-text-2)]">
             {platform}
           </span>
         ))}
       </div>
       <ul className="mt-2 flex flex-wrap gap-2" aria-label="Tecnologias">
         {project.technologies.map((tech) => (
-          <li key={tech} className="tbe-mono border border-white/12 px-2 py-1 text-[10px] text-[var(--tbe-text-mute)]">
+          <li key={tech} className="tbe-mono border border-[#0b1b33]/12 px-2 py-1 text-[10px] text-[var(--tbe-text-mute)]">
             {tech}
           </li>
         ))}
@@ -94,13 +94,13 @@ function ProjectDetails({ project, onOpenBrief, onNavigate }: { project: Technol
           className="tbe-cta tbe-mono min-h-[44px] border px-5 py-3 text-[11px] tracking-[0.2em] text-[var(--tbe-text)]"
           style={{ borderColor: project.accent }}
         >
-          ABRIR PROJETO
+          QUERO UM PROJETO ASSIM
         </button>
         <button
           type="button"
           data-cursor="ABRIR"
           onClick={() => onNavigate(TBE_SECTIONS.pipeline)}
-          className="tbe-mono min-h-[44px] border border-white/15 px-5 py-3 text-[11px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors hover:border-white/40 hover:text-[var(--tbe-text)]"
+          className="tbe-mono min-h-[44px] border border-[#0b1b33]/15 px-5 py-3 text-[11px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]"
         >
           VER PROCESSO
         </button>
@@ -183,7 +183,7 @@ export function PortfolioSection({ reducedMotion, onOpenBrief, onNavigate }: Por
         {/* Desktop: floating product desktop + detail panel */}
         <div className="mt-12 hidden gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px]">
           <motion.div
-            className="tbe-blueprint relative h-[560px] overflow-hidden border border-white/12 bg-[var(--tbe-bg-2)]/60"
+            className="tbe-blueprint relative h-[560px] overflow-hidden border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/60"
             role="group"
             aria-label="Área de trabalho com janelas de produtos — selecione uma janela para ver os detalhes"
           >
@@ -263,13 +263,13 @@ export function PortfolioSection({ reducedMotion, onOpenBrief, onNavigate }: Por
             ))}
           </div>
           <div className="mt-6 flex items-center justify-center gap-4">
-            <button type="button" onClick={() => cycle(-1)} aria-label="Projeto anterior" className="border border-white/15 p-3 text-[var(--tbe-text-2)]">
+            <button type="button" onClick={() => cycle(-1)} aria-label="Projeto anterior" className="border border-[#0b1b33]/15 p-3 text-[var(--tbe-text-2)]">
               <ChevronLeft size={18} aria-hidden="true" />
             </button>
             <span className="tbe-mono text-sm tracking-[0.2em] text-[var(--tbe-text-2)]">
               {String(PROJECTS.findIndex((p) => p.id === selectedId) + 1).padStart(2, '0')} / {String(PROJECTS.length).padStart(2, '0')}
             </span>
-            <button type="button" onClick={() => cycle(1)} aria-label="Próximo projeto" className="border border-white/15 p-3 text-[var(--tbe-text-2)]">
+            <button type="button" onClick={() => cycle(1)} aria-label="Próximo projeto" className="border border-[#0b1b33]/15 p-3 text-[var(--tbe-text-2)]">
               <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>

@@ -79,12 +79,12 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
       id={TBE_SECTIONS.hero}
       ref={sectionRef}
       className="relative flex min-h-[100dvh] items-center overflow-hidden pb-16 pt-28 lg:pt-16"
-      aria-label="Abertura — Tenka Tecnologia"
+      aria-label="Abertura — Tenka Dev"
     >
       <div className="relative z-10 mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,46%)] lg:items-center lg:px-10">
         <div>
           <p className="tbe-hero-support tbe-mono mb-6 text-xs tracking-[0.35em] text-[var(--tbe-tq)]">
-            TENKA // TECNOLOGIA
+            TENKA // DEV
           </p>
 
           <h1 className="tbe-display text-[clamp(2.4rem,6.5vw,4.9rem)] font-bold leading-[1.02] text-[var(--tbe-text)]">
@@ -104,8 +104,8 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
           </h1>
 
           <p className="tbe-hero-support mt-7 max-w-xl text-[17px] leading-relaxed text-[var(--tbe-text)]/80">
-            Criamos sites, aplicativos e sistemas digitais que conectam design, tecnologia, dados e
-            estratégia.
+            <span className="font-semibold text-[var(--tbe-text)]">Você foca no negócio, a gente resolve o digital.</span>{' '}
+            Criamos sites, aplicativos e sistemas que conectam design, tecnologia, dados e estratégia.
           </p>
 
           {/* Product type selector */}
@@ -124,7 +124,7 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
                     className={`tbe-corners tbe-mono min-h-[44px] border px-5 py-3 text-xs tracking-[0.2em] transition-colors ${
                       active
                         ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]'
-                        : 'border-white/15 text-[var(--tbe-text-2)] hover:border-white/40 hover:text-[var(--tbe-text)]'
+                        : 'border-[#0b1b33]/15 text-[var(--tbe-text-2)] hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]'
                     }`}
                     data-active={active}
                   >
@@ -160,16 +160,16 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
                 onBlur={() => setCtaHot(false)}
                 className="tbe-cta tbe-mono min-h-[44px] border border-[var(--tbe-tq)] px-7 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text)]"
               >
-                INICIAR UM PROJETO
+                COMEÇAR MEU PROJETO
               </button>
             </div>
             <button
               type="button"
               data-cursor="ABRIR"
               onClick={() => onNavigate(TBE_SECTIONS.portfolio)}
-              className="tbe-mono min-h-[44px] border border-white/15 px-7 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors hover:border-white/40 hover:text-[var(--tbe-text)]"
+              className="tbe-mono min-h-[44px] border border-[#0b1b33]/15 px-7 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]"
             >
-              VER O QUE CONSTRUÍMOS
+              VER PORTFÓLIO
             </button>
           </div>
         </div>

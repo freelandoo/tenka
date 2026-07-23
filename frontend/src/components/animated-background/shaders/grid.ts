@@ -100,16 +100,12 @@ export const gridFragment = /* glsl */ `
     float fade = exp(-vDist * 0.032);
     float activity = clamp(uActivity + vLift + near * 0.8, 0.0, 1.0);
 
-    vec3 color =
-      NEUTRAL * line * 0.05 +
-      TQ_DARK * line * (0.35 + uIntensity * 0.5) +
-      TQ * dotMask * (0.06 + activity * 0.3) +
-      TQ * tick * (0.25 + activity * 0.5) +
-      TQ * streak * 0.9 +
-      TQ_LIGHT * vLift * line * 0.9;
+    // Ink on white: hue stays blue, darkness rises with activity.
+    float hot = clamp(activity + tick * 0.8 + streak, 0.0, 1.0);
+    vec3 color = mix(INK, INK_DEEP, hot);
 
     float alpha = (line * (0.16 + uIntensity * 0.28) + dotMask * 0.1 + streak * 0.5 + tick * 0.2) * fade * mapped;
     if (alpha <= 0.003) discard;
-    gl_FragColor = vec4(color * fade * mapped, alpha);
+    gl_FragColor = vec4(color, alpha);
   }
 `;

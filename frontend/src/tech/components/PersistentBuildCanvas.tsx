@@ -56,16 +56,16 @@ function phaseForProgress(progress: number, phases: NarrativePhase[]): Narrative
 function ProductSurface({ projectTitle, productType, modules }: { projectTitle: string; productType: string; modules: Set<string> }) {
   return (
     <div className="pc-product-surface absolute inset-0 grid grid-cols-[22%_1fr] opacity-0" aria-hidden="true">
-      <aside className="border-r border-white/10 p-3">
+      <aside className="border-r border-[#0b1b33]/10 p-3">
         <span className="block h-2 w-12 bg-[var(--tbe-tq)]/55" />
-        <div className="mt-7 space-y-3">{Array.from({ length: 5 }).map((_, index) => <span key={index} className={`block h-1.5 ${index === 1 ? 'w-4/5 bg-[var(--tbe-tq)]/35' : 'w-3/5 bg-white/15'}`} />)}</div>
+        <div className="mt-7 space-y-3">{Array.from({ length: 5 }).map((_, index) => <span key={index} className={`block h-1.5 ${index === 1 ? 'w-4/5 bg-[var(--tbe-tq)]/35' : 'w-3/5 bg-[#0b1b33]/15'}`} />)}</div>
       </aside>
       <div className="grid grid-rows-[auto_auto_1fr] gap-3 p-3">
         <header className="flex items-center justify-between"><div><span className="tbe-mono block text-[7px] tracking-[0.18em] text-[var(--tbe-text-mute)]">{productType.toUpperCase()} // LIVE PRODUCT</span><span className="tbe-display text-xs font-bold">{projectTitle}</span></div><span className="h-5 w-5 border border-[var(--tbe-tq)]/35" /></header>
-        <div className="grid grid-cols-3 gap-2">{['USERS', 'REVENUE', 'ACTIVITY'].map((label, index) => <div key={label} className="border border-white/10 p-2"><span className="tbe-mono block text-[6px] text-[var(--tbe-text-mute)]">{label}</span><span className="tbe-mono mt-1 block text-[9px]">{['2.847', 'R$ 38,2K', '+17,4%'][index]}</span></div>)}</div>
-        <div className="grid min-h-0 grid-cols-[1.4fr_1fr] gap-2"><div className="flex items-end gap-1 border border-white/10 p-2">{[42, 68, 53, 82, 61, 91, 74].map((height, index) => <span key={index} className="flex-1 bg-[var(--tbe-tq)]/35" style={{ height: `${height}%` }} />)}</div><div className="space-y-2 border border-white/10 p-2">{Array.from({ length: 4 }).map((_, index) => <span key={index} className="block h-3 border-l border-[var(--tbe-tq)]/35 bg-white/[0.04]" />)}</div></div>
+        <div className="grid grid-cols-3 gap-2">{['USERS', 'REVENUE', 'ACTIVITY'].map((label, index) => <div key={label} className="border border-[#0b1b33]/10 p-2"><span className="tbe-mono block text-[6px] text-[var(--tbe-text-mute)]">{label}</span><span className="tbe-mono mt-1 block text-[9px]">{['2.847', 'R$ 38,2K', '+17,4%'][index]}</span></div>)}</div>
+        <div className="grid min-h-0 grid-cols-[1.4fr_1fr] gap-2"><div className="flex items-end gap-1 border border-[#0b1b33]/10 p-2">{[42, 68, 53, 82, 61, 91, 74].map((height, index) => <span key={index} className="flex-1 bg-[var(--tbe-tq)]/35" style={{ height: `${height}%` }} />)}</div><div className="space-y-2 border border-[#0b1b33]/10 p-2">{Array.from({ length: 4 }).map((_, index) => <span key={index} className="block h-3 border-l border-[var(--tbe-tq)]/35 bg-[#0b1b33]/[0.04]" />)}</div></div>
       </div>
-      <div className="absolute inset-0">{PRODUCT_FEATURES.map(([id, label], index) => <div key={id} className="pc-feature absolute border border-[var(--tbe-tq)]/35 bg-[#071719] px-2 py-1 opacity-0" data-feature={id} data-installed={modules.has(id)} style={{ left: `${30 + (index % 3) * 19}%`, top: `${19 + Math.floor(index / 3) * 22}%` }}><span className="tbe-mono block text-[5px] tracking-[0.08em] text-[var(--tbe-tq)]">{label}</span><span className="mt-1 block h-px w-8 bg-white/15" /></div>)}</div>
+      <div className="absolute inset-0">{PRODUCT_FEATURES.map(([id, label], index) => <div key={id} className="pc-feature absolute border border-[var(--tbe-tq)]/35 bg-[#eef4fc] px-2 py-1 opacity-0" data-feature={id} data-installed={modules.has(id)} style={{ left: `${30 + (index % 3) * 19}%`, top: `${19 + Math.floor(index / 3) * 22}%` }}><span className="tbe-mono block text-[5px] tracking-[0.08em] text-[var(--tbe-tq)]">{label}</span><span className="mt-1 block h-px w-8 bg-[#0b1b33]/15" /></div>)}</div>
     </div>
   );
 }
@@ -243,17 +243,17 @@ export const PersistentBuildCanvas = memo(function PersistentBuildCanvas({ reduc
   return (
     <div ref={rootRef} className="tbe-persistent-canvas pointer-events-none fixed z-20 opacity-0" data-product={productType} data-project={project.kind} data-focus={canvasFocus ?? ''} style={{ '--pc-accent': project.accent } as CSSProperties} aria-hidden="true">
       <div className="pc-perspective" style={{ perspective: 1200 }}>
-        <div ref={frameRef} className="pc-frame tbe-blueprint relative overflow-hidden border border-white/15 bg-[rgba(3,11,12,0.94)]" style={{ transform: 'rotateX(2deg) rotateY(-3deg)', transformStyle: 'preserve-3d' }}>
-          <header className="flex h-9 items-center justify-between border-b border-white/10 bg-[#061012] px-3">
+        <div ref={frameRef} className="pc-frame tbe-blueprint relative overflow-hidden border border-[#0b1b33]/15 bg-[rgba(11,27,51,0.96)]" style={{ transform: 'rotateX(2deg) rotateY(-3deg)', transformStyle: 'preserve-3d' }}>
+          <header className="flex h-9 items-center justify-between border-b border-[#0b1b33]/10 bg-[#eef4fc] px-3">
             <p className="tbe-mono text-[8px] tracking-[0.2em] text-[var(--tbe-text-2)]">BUILD CANVAS // <span ref={phaseRef}>BLUEPRINT</span></p>
             <p className="tbe-mono flex items-center gap-1.5 text-[7px] tracking-[0.12em] text-[var(--tbe-tq)]"><span className="tbe-status-dot" /><span ref={statusRef}>WAITING FOR INPUT</span></p>
           </header>
           <div className="pc-coordinate absolute inset-x-0 top-11 flex justify-between px-3 text-[6px] text-[var(--tbe-text-mute)] opacity-0"><span>X 000 / Y 000</span><span>GRID 028 / 16:10</span></div>
-          <div className="pc-device relative mx-auto mt-7 aspect-[16/10] w-[88%] overflow-hidden border border-white/15 bg-[#061012]">
+          <div className="pc-device relative mx-auto mt-7 aspect-[16/10] w-[88%] overflow-hidden border border-[#0b1b33]/15 bg-[#eef4fc]">
             <div className="pc-analysis-scan absolute inset-y-0 -left-1/2 z-20 w-1/3 bg-gradient-to-r from-transparent via-[var(--tbe-tq)]/10 to-transparent" />
             <div className="pc-compile-scan absolute inset-y-0 -left-1/2 z-30 w-1/3 bg-gradient-to-r from-transparent via-[var(--tbe-tq)]/16 to-transparent opacity-0" />
             <div className="pc-wire-layer absolute inset-3 grid grid-cols-6 grid-rows-5 gap-2">
-              {BLOCKS.map(([role, label], index) => <div key={role} className={`pc-block pc-block-${role} relative border border-dashed border-white/25 bg-white/[0.02] p-1`} data-role={role}><span className="pc-technical-label tbe-mono text-[5px] tracking-[0.1em] text-[var(--tbe-text-mute)]">{label}</span><span className="pc-anchor absolute -left-1 -top-1 h-1.5 w-1.5 border border-[var(--tbe-tq-dark)]" /><span className="pc-anchor absolute -bottom-1 -right-1 h-1.5 w-1.5 border border-[var(--tbe-tq-dark)]" />{index === 4 && <span className="pc-action-test absolute inset-2 border border-[var(--tbe-tq)]/30" />}</div>)}
+              {BLOCKS.map(([role, label], index) => <div key={role} className={`pc-block pc-block-${role} relative border border-dashed border-[#0b1b33]/25 bg-[#0b1b33]/[0.02] p-1`} data-role={role}><span className="pc-technical-label tbe-mono text-[5px] tracking-[0.1em] text-[var(--tbe-text-mute)]">{label}</span><span className="pc-anchor absolute -left-1 -top-1 h-1.5 w-1.5 border border-[var(--tbe-tq-dark)]" /><span className="pc-anchor absolute -bottom-1 -right-1 h-1.5 w-1.5 border border-[var(--tbe-tq-dark)]" />{index === 4 && <span className="pc-action-test absolute inset-2 border border-[var(--tbe-tq)]/30" />}</div>)}
             </div>
             <svg className="pc-architecture absolute inset-0 h-full w-full" viewBox="0 0 600 360" preserveAspectRatio="none">
               <path className="pc-arch-route" d="M70 70H220L300 150L470 82M110 280L250 210L430 276M300 150L250 210" fill="none" stroke="var(--tbe-tq)" strokeWidth="1" strokeDasharray="900" strokeDashoffset="900" />
@@ -261,7 +261,7 @@ export const PersistentBuildCanvas = memo(function PersistentBuildCanvas({ reduc
             </svg>
             <div className="pc-data-layer absolute inset-0 opacity-0"><span className="pc-data-packet absolute left-[12%] top-[20%] h-1 w-1 bg-[var(--tbe-tq)]" /><span className="pc-data-packet absolute left-[51%] top-[43%] h-1 w-1 bg-[var(--tbe-tq)]" /><span className="pc-result-row absolute bottom-[14%] right-[8%] h-5 w-[34%] translate-x-6 border-l border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/[0.06] opacity-0" /></div>
             <ProductSurface projectTitle={project.title} productType={productType} modules={installed} />
-            <div className="pc-skeleton absolute inset-0 bg-[linear-gradient(105deg,transparent_35%,rgba(255,255,255,0.04)_45%,transparent_55%)]" />
+            <div className="pc-skeleton absolute inset-0 bg-[linear-gradient(105deg,transparent_35%,rgba(11,27,51,0.04)_45%,transparent_55%)]" />
           </div>
 
           <div className="absolute inset-x-5 bottom-3 flex items-center justify-between">
@@ -269,11 +269,11 @@ export const PersistentBuildCanvas = memo(function PersistentBuildCanvas({ reduc
             <p className="tbe-mono text-[6px] tracking-[0.14em] text-[var(--pc-accent)]">{String(visibleModules.length).padStart(2, '0')} MODULES</p>
           </div>
 
-          <div className="pc-requirements absolute inset-0">{REQUIREMENTS.map((item, index) => <span key={item} className="pc-requirement tbe-mono absolute border border-[var(--tbe-tq)]/30 bg-[#061012] px-2 py-1 text-[6px] tracking-[0.1em] text-[var(--tbe-tq)]" style={{ left: index % 2 ? '82%' : '2%', top: `${16 + index * 9}%` }}>{item}<i className="absolute top-1/2 h-px w-5 bg-[var(--tbe-tq)]/40" style={{ left: index % 2 ? '-20px' : '100%' }} /></span>)}</div>
+          <div className="pc-requirements absolute inset-0">{REQUIREMENTS.map((item, index) => <span key={item} className="pc-requirement tbe-mono absolute border border-[var(--tbe-tq)]/30 bg-[#eef4fc] px-2 py-1 text-[6px] tracking-[0.1em] text-[var(--tbe-tq)]" style={{ left: index % 2 ? '82%' : '2%', top: `${16 + index * 9}%` }}>{item}<i className="absolute top-1/2 h-px w-5 bg-[var(--tbe-tq)]/40" style={{ left: index % 2 ? '-20px' : '100%' }} /></span>)}</div>
 
-          <div className="pc-module-layer absolute inset-x-3 bottom-10 grid grid-cols-5 gap-1">{BUILDER_MODULES.map((module) => <div key={module.id} className="pc-module translate-y-4 scale-75 border border-[var(--tbe-tq)]/30 bg-[#061012] px-1.5 py-1 opacity-0" data-module={module.id} data-installed={installed.has(module.id)}><span className="tbe-mono block truncate text-[5px] tracking-[0.08em] text-[var(--tbe-tq)]">{module.name.toUpperCase()}</span></div>)}</div>
+          <div className="pc-module-layer absolute inset-x-3 bottom-10 grid grid-cols-5 gap-1">{BUILDER_MODULES.map((module) => <div key={module.id} className="pc-module translate-y-4 scale-75 border border-[var(--tbe-tq)]/30 bg-[#eef4fc] px-1.5 py-1 opacity-0" data-module={module.id} data-installed={installed.has(module.id)}><span className="tbe-mono block truncate text-[5px] tracking-[0.08em] text-[var(--tbe-tq)]">{module.name.toUpperCase()}</span></div>)}</div>
           <svg className="absolute inset-0 h-full w-full"><path className="pc-module-route" d="M40 315H180L240 270H440L500 315" fill="none" stroke="var(--tbe-tq)" strokeWidth="1" strokeDasharray="700" strokeDashoffset="700" /></svg>
-          <div className="pc-deploy-layer absolute inset-0 opacity-0"><div className="pc-package absolute left-[12%] top-1/2 h-10 w-14 -translate-y-1/2 border border-[var(--tbe-tq)] bg-[#061012]" /><div className="pc-derived-device absolute left-1/2 top-[34%] aspect-[10/14] w-24 border border-white/20 bg-[#061012]" /><div className="pc-derived-device absolute left-1/2 top-[39%] aspect-[10/16] w-20 border border-white/20 bg-[#061012]" /><svg className="absolute inset-0 h-full w-full"><path className="pc-deploy-route" d="M45 190H190L260 130H410L520 190" fill="none" stroke="var(--tbe-tq)" strokeWidth="1" strokeDasharray="800" strokeDashoffset="800" /></svg></div>
+          <div className="pc-deploy-layer absolute inset-0 opacity-0"><div className="pc-package absolute left-[12%] top-1/2 h-10 w-14 -translate-y-1/2 border border-[var(--tbe-tq)] bg-[#eef4fc]" /><div className="pc-derived-device absolute left-1/2 top-[34%] aspect-[10/14] w-24 border border-[#0b1b33]/20 bg-[#eef4fc]" /><div className="pc-derived-device absolute left-1/2 top-[39%] aspect-[10/16] w-20 border border-[#0b1b33]/20 bg-[#eef4fc]" /><svg className="absolute inset-0 h-full w-full"><path className="pc-deploy-route" d="M45 190H190L260 130H410L520 190" fill="none" stroke="var(--tbe-tq)" strokeWidth="1" strokeDasharray="800" strokeDashoffset="800" /></svg></div>
         </div>
       </div>
     </div>

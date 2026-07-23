@@ -102,7 +102,7 @@ export function PipelineSection({ reducedMotion, isTouch }: PipelineSectionProps
 
       <div className={horizontal ? 'relative mt-14 overflow-hidden' : 'relative mt-8'}>
         {horizontal && (
-          <div className="absolute left-0 top-[38px] h-px w-full bg-white/10" aria-hidden="true">
+          <div className="absolute left-0 top-[38px] h-px w-full bg-[#0b1b33]/10" aria-hidden="true">
             <div
               ref={lineRef}
               className="h-px origin-left bg-[var(--tbe-tq)]"
@@ -116,7 +116,7 @@ export function PipelineSection({ reducedMotion, isTouch }: PipelineSectionProps
           className={
             horizontal
               ? 'flex w-max gap-8 px-[10vw]'
-              : 'mx-auto flex max-w-3xl flex-col gap-10 border-l border-white/10 px-6 lg:px-10'
+              : 'mx-auto flex max-w-3xl flex-col gap-10 border-l border-[#0b1b33]/10 px-6 lg:px-10'
           }
           role="list"
         >
@@ -129,7 +129,7 @@ export function PipelineSection({ reducedMotion, isTouch }: PipelineSectionProps
                   aria-hidden="true"
                   className={`absolute block h-2.5 w-2.5 border transition-all duration-500 ${horizontal ? 'left-0 top-[34px]' : 'left-[-6px] top-1'}`}
                   style={{
-                    borderColor: active ? 'var(--tbe-tq)' : 'rgba(255,255,255,0.25)',
+                    borderColor: active ? 'var(--tbe-tq)' : 'rgba(11,27,51,0.25)',
                     background: active ? 'var(--tbe-tq)' : 'transparent',
                     boxShadow: active ? '0 0 8px rgba(0,240,208,0.6)' : 'none',
                   }}

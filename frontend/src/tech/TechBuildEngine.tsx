@@ -25,8 +25,8 @@ import { TechnologySection } from './sections/TechnologySection';
 import { LabSection } from './sections/LabSection';
 import { FinalDeploySection } from './sections/FinalDeploySection';
 
-const PAGE_TITLE = 'Tenka Tecnologia — Sites, Aplicativos e Sistemas Digitais';
-const PAGE_DESCRIPTION = 'A Tenka constrói sites, aplicativos, sistemas, integrações e produtos digitais do briefing à operação.';
+const PAGE_TITLE = 'Tenka Dev — Sites, Aplicativos e Sistemas Digitais';
+const PAGE_DESCRIPTION = 'A Tenka Dev constrói sites, aplicativos, sistemas, integrações e produtos digitais do briefing à operação. Você foca no negócio, a gente resolve o digital.';
 
 function upsertMeta(attribute: 'name' | 'property', key: string, content: string): () => void {
   let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
@@ -58,8 +58,8 @@ function BuildExperience() {
     const previousHtmlBackground = document.documentElement.style.backgroundColor;
     const previousBodyBackground = document.body.style.backgroundColor;
     document.title = PAGE_TITLE;
-    document.documentElement.style.backgroundColor = '#020708';
-    document.body.style.backgroundColor = '#020708';
+    document.documentElement.style.backgroundColor = '#ffffff';
+    document.body.style.backgroundColor = '#ffffff';
     const restoreMeta = [
       upsertMeta('name', 'description', PAGE_DESCRIPTION),
       upsertMeta('property', 'og:title', PAGE_TITLE),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+﻿import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { packetVertex, packetFragment } from './shaders/points';
@@ -81,7 +81,7 @@ export function DataPackets({ data, count }: { data: FabricData; count: number }
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </points>
   );

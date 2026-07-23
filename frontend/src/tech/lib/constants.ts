@@ -1,16 +1,16 @@
 export const TBE_COLORS = {
-  bg: '#020708',
-  bgElev: '#091719',
-  bgUi: '#0C1D1F',
-  tq: '#00F0D0',
-  tq2: '#00B8A9',
-  tqLight: '#8CFFF1',
-  tqDark: '#006F68',
-  text: '#F1F8F7',
-  text2: '#8BA3A0',
-  error: '#FF5D67',
-  warning: '#FFBE55',
-  success: '#65FFB5',
+  bg: '#ffffff',
+  bgElev: '#eef4fc',
+  bgUi: '#eaf1fb',
+  tq: '#1d6bff',
+  tq2: '#1552d6',
+  tqLight: '#5b93ff',
+  tqDark: '#0a2f9e',
+  text: '#0b1b33',
+  text2: '#47597a',
+  error: '#e5484d',
+  warning: '#d68000',
+  success: '#12a150',
 } as const;
 
 export const TBE_SECTIONS = {

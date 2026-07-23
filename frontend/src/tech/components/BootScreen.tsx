@@ -61,7 +61,7 @@ export function BootScreen({ reducedMotion, onComplete }: BootScreenProps) {
       {/* grid-opening wipe cells */}
       <div className="absolute inset-0 flex" aria-hidden="true">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="tbe-boot-cell h-full flex-1 border-r border-white/[0.03] bg-[#020708]" />
+          <div key={i} className="tbe-boot-cell h-full flex-1 border-r border-[#0b1b33]/[0.03] bg-[#ffffff]" />
         ))}
       </div>
 
@@ -70,7 +70,7 @@ export function BootScreen({ reducedMotion, onComplete }: BootScreenProps) {
         <p className="text-sm text-[var(--tbe-text-2)]">Inicializando ambiente de desenvolvimento...</p>
 
         <div className="w-72 max-w-full">
-          <div className="h-px w-full bg-white/10">
+          <div className="h-px w-full bg-[#0b1b33]/10">
             <div className="h-px bg-[var(--tbe-tq)] transition-[width] duration-75" style={{ width: `${progress}%` }} />
           </div>
           <div className="tbe-mono mt-2 flex justify-between text-[10px] text-[var(--tbe-text-mute)]">
@@ -82,7 +82,7 @@ export function BootScreen({ reducedMotion, onComplete }: BootScreenProps) {
         <button
           type="button"
           onClick={exit}
-          className="tbe-mono mt-6 border border-white/15 px-4 py-2 text-[10px] tracking-[0.3em] text-[var(--tbe-text-2)] transition-colors hover:border-[var(--tbe-tq)] hover:text-[var(--tbe-text)]"
+          className="tbe-mono mt-6 border border-[#0b1b33]/15 px-4 py-2 text-[10px] tracking-[0.3em] text-[var(--tbe-text-2)] transition-colors hover:border-[var(--tbe-tq)] hover:text-[var(--tbe-text)]"
         >
           PULAR INTRODUÇÃO
         </button>

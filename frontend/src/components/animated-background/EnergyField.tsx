@@ -1,11 +1,11 @@
-import { useMemo, useRef } from 'react';
+﻿import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { energyVertex, energyFragment } from './shaders/energy';
 import { fabric } from './lib/fabric';
 import { fabricSmooth } from './lib/smooth';
 
-/** Far flowing turquoise bands — atmosphere behind everything. */
+/** Far flowing turquoise bands â€” atmosphere behind everything. */
 export function EnergyField() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(
@@ -30,7 +30,7 @@ export function EnergyField() {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </mesh>
   );

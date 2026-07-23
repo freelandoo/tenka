@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+﻿import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { streamVertex, streamFragment } from './shaders/deployment';
@@ -81,7 +81,7 @@ export function DeploymentStream({ count }: { count: number }) {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </lineSegments>
   );

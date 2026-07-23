@@ -51,7 +51,7 @@ export function OperationsSection({ reducedMotion }: { reducedMotion: boolean })
           <p className="mt-6 max-w-lg text-[17px] leading-relaxed text-[var(--tbe-text)]/80">
             Monitoramos estabilidade, comportamento e desempenho para transformar uso real em ciclos objetivos de evolução.
           </p>
-          <dl className="tbe-mono mt-12 grid grid-cols-2 gap-px border border-white/10 bg-white/10">
+          <dl className="tbe-mono mt-12 grid grid-cols-2 gap-px border border-[#0b1b33]/10 bg-[#0b1b33]/10">
             {[
               ['UPTIME / 30D', '99,94%'],
               ['DEPLOYS / MÊS', '18'],
@@ -68,15 +68,15 @@ export function OperationsSection({ reducedMotion }: { reducedMotion: boolean })
 
         <div className="self-end">
           <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Cenários de operação">
-            {SCENARIOS.map((item) => <button key={item.id} type="button" role="tab" aria-selected={scenarioId === item.id} onClick={() => { setScenarioId(item.id); setCanvasFocus(item.focus); }} className={`tbe-mono min-h-[40px] border px-3 py-2 text-[9px] tracking-[0.16em] transition-colors active:translate-y-px ${scenarioId === item.id ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]' : 'border-white/10 text-[var(--tbe-text-mute)]'}`}>{item.label}</button>)}
+            {SCENARIOS.map((item) => <button key={item.id} type="button" role="tab" aria-selected={scenarioId === item.id} onClick={() => { setScenarioId(item.id); setCanvasFocus(item.focus); }} className={`tbe-mono min-h-[40px] border px-3 py-2 text-[9px] tracking-[0.16em] transition-colors active:translate-y-px ${scenarioId === item.id ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]' : 'border-[#0b1b33]/10 text-[var(--tbe-text-mute)]'}`}>{item.label}</button>)}
           </div>
-          <div className="border-y border-white/10" role="region" aria-label="Painel de saúde dos serviços em produção">
-          <div className="flex items-center justify-between border-b border-white/10 py-3">
+          <div className="border-y border-[#0b1b33]/10" role="region" aria-label="Painel de saúde dos serviços em produção">
+          <div className="flex items-center justify-between border-b border-[#0b1b33]/10 py-3">
             <span className="tbe-mono text-[10px] tracking-[0.25em] text-[var(--tbe-text-2)]">PRODUCTION // HEALTH</span>
             <span className="tbe-mono flex items-center gap-2 text-[9px] tracking-[0.2em] text-[var(--tbe-success)]"><span className="tbe-status-dot" /> TODOS OS SISTEMAS OPERACIONAIS</span>
           </div>
           {SERVICES.map((service, index) => (
-            <div key={service.name} className="tbe-op-row grid grid-cols-[1fr_auto] gap-6 border-b border-white/[0.07] py-5 last:border-0 sm:grid-cols-[1fr_1fr_auto]">
+            <div key={service.name} className="tbe-op-row grid grid-cols-[1fr_auto] gap-6 border-b border-[#0b1b33]/[0.07] py-5 last:border-0 sm:grid-cols-[1fr_1fr_auto]">
               <div><p className="tbe-mono text-[11px] tracking-[0.18em]">{service.name}</p><p className="mt-1 text-xs text-[var(--tbe-text-mute)] sm:hidden">{service.detail}</p></div>
               <p className="hidden text-sm text-[var(--tbe-text-2)] sm:block">{service.detail}</p>
               <p className="tbe-mono text-[10px] text-[var(--tbe-tq)]">{index === SCENARIOS.findIndex((item) => item.id === scenarioId) ? `${Number.parseInt(service.latency) + scenario.latency} ms` : service.latency}</p>

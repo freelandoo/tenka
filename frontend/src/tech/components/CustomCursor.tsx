@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 
 /**
  * Desktop-only precision cursor: instant center dot, short-lag square
@@ -56,7 +56,7 @@ export function CustomCursor() {
       <div
         ref={ringRef}
         className={`absolute flex h-7 w-7 items-center justify-center border transition-colors duration-200 ${
-          label ? 'border-[var(--tbe-tq)]' : 'border-white/25'
+          label ? 'border-[var(--tbe-tq)]' : 'border-[#0b1b33]/25'
         }`}
         style={{ transform: 'translate(-100px, -100px)' }}
       >

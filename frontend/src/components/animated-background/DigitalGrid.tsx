@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+﻿import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { gridVertex, gridFragment } from './shaders/grid';
@@ -11,7 +11,7 @@ const PLANE_Z = -6;
 const ndc = new THREE.Vector3();
 const dir = new THREE.Vector3();
 
-/** The architectural workspace floor — the base surface of the fabric. */
+/** The architectural workspace floor â€” the base surface of the fabric. */
 export function DigitalGrid({ segments }: { segments: [number, number] }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -77,7 +77,7 @@ export function DigitalGrid({ segments }: { segments: [number, number] }) {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </mesh>
   );

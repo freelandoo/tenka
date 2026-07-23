@@ -28,7 +28,7 @@ export const energyFragment = /* glsl */ `
     // Fade toward every edge so the plane never reads as a rectangle.
     float edge = smoothstep(0.0, 0.25, vUv.x) * smoothstep(1.0, 0.75, vUv.x)
                * smoothstep(0.0, 0.3, vUv.y) * smoothstep(1.0, 0.7, vUv.y);
-    vec3 color = mix(TQ_DARK, TQ, flow * 0.4);
-    gl_FragColor = vec4(color, flow * edge * uEnergy * 0.35);
+    vec3 color = mix(INK_SOFT, INK, flow * 0.5);
+    gl_FragColor = vec4(color, flow * edge * uEnergy * 0.3);
   }
 `;

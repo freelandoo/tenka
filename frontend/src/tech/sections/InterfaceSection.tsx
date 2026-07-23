@@ -120,7 +120,7 @@ export function InterfaceSection({ reducedMotion }: InterfaceSectionProps) {
                     className={`tbe-mono min-h-[44px] border px-4 py-3 text-[11px] tracking-[0.2em] transition-colors ${
                       active
                         ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]'
-                        : 'border-white/15 text-[var(--tbe-text-2)] hover:border-white/40 hover:text-[var(--tbe-text)]'
+                        : 'border-[#0b1b33]/15 text-[var(--tbe-text-2)] hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]'
                     }`}
                   >
                     {item.name}

@@ -41,7 +41,9 @@ export const routeFragment = /* glsl */ `
     // Endpoint pulse — connections light up where they meet nodes.
     float ends = max(smoothstep(0.12, 0.0, vT), smoothstep(0.88, 1.0, vT)) * 0.4;
 
-    vec3 color = mix(NEUTRAL * 0.35, TQ_DARK * 1.6, on) + TQ * flow + TQ * ends * on + TQ_LIGHT * flow * uPulse * 0.5;
+    // Idle connection = base blue; the flow band + endpoints darken it.
+    float hot = clamp(flow + ends + uPulse * flow * 0.5, 0.0, 1.0);
+    vec3 color = mix(INK, INK_DEEP, hot);
     float alpha = on * (0.09 + flow * 0.75 + ends * 0.35);
     gl_FragColor = vec4(color, min(alpha, 0.9));
   }

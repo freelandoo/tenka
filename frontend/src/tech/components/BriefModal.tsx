@@ -169,11 +169,11 @@ export function BriefModal() {
     `tbe-mono border px-4 py-3 text-left text-xs tracking-[0.12em] transition-colors ${
       selected
         ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]'
-        : 'border-white/15 text-[var(--tbe-text-2)] hover:border-white/40 hover:text-[var(--tbe-text)]'
+        : 'border-[#0b1b33]/15 text-[var(--tbe-text-2)] hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]'
     }`;
 
   const fieldClass =
-    'w-full border border-white/15 bg-[var(--tbe-bg)] px-4 py-3 text-sm text-[var(--tbe-text)] placeholder:text-[var(--tbe-text-mute)] focus:border-[var(--tbe-tq)] focus:outline-none';
+    'w-full border border-[#0b1b33]/15 bg-[var(--tbe-bg)] px-4 py-3 text-sm text-[var(--tbe-text)] placeholder:text-[var(--tbe-text-mute)] focus:border-[var(--tbe-tq)] focus:outline-none';
 
   return (
     <AnimatePresence>
@@ -183,7 +183,7 @@ export function BriefModal() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0b1b33]/45 p-4 backdrop-blur-sm"
           onClick={closeBrief}
         >
           <motion.div
@@ -197,7 +197,7 @@ export function BriefModal() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 6 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="tbe-blueprint relative max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-white/15 bg-[var(--tbe-bg-elev)] p-6 sm:p-8"
+            className="tbe-blueprint relative max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-[#0b1b33]/15 bg-[var(--tbe-bg-elev)] p-6 sm:p-8"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -220,7 +220,7 @@ export function BriefModal() {
 
             {!submitted && (
               <div className="mt-5" aria-hidden="true">
-                <div className="h-px w-full bg-white/10">
+                <div className="h-px w-full bg-[#0b1b33]/10">
                   <div
                     className="h-px bg-[var(--tbe-tq)] transition-all duration-300"
                     style={{ width: `${((step + 1) / STEP_TITLES.length) * 100}%` }}
@@ -246,7 +246,7 @@ export function BriefModal() {
                   <button
                     type="button"
                     onClick={closeBrief}
-                    className="tbe-mono mt-4 border border-white/20 px-6 py-3 text-[11px] tracking-[0.25em] text-[var(--tbe-text)] transition-colors hover:border-[var(--tbe-tq)]"
+                    className="tbe-mono mt-4 border border-[#0b1b33]/20 px-6 py-3 text-[11px] tracking-[0.25em] text-[var(--tbe-text)] transition-colors hover:border-[var(--tbe-tq)]"
                   >
                     FECHAR
                   </button>
@@ -415,7 +415,7 @@ export function BriefModal() {
                     type="button"
                     onClick={back}
                     disabled={step === 0}
-                    className="tbe-mono flex items-center gap-2 border border-white/15 px-5 py-3 text-[11px] tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-white/40 enabled:hover:text-[var(--tbe-text)] disabled:opacity-30"
+                    className="tbe-mono flex items-center gap-2 border border-[#0b1b33]/15 px-5 py-3 text-[11px] tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-[#0b1b33]/40 enabled:hover:text-[var(--tbe-text)] disabled:opacity-30"
                   >
                     <ArrowLeft size={14} aria-hidden="true" /> VOLTAR
                   </button>

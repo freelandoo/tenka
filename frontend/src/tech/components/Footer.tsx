@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 
 export function Footer() {
   return (
-    <footer className="relative z-10 border-t border-white/10 bg-[var(--tbe-bg-2)]/90 py-16">
+    <footer className="relative z-10 border-t border-[#0b1b33]/10 bg-[var(--tbe-bg-2)]/90 py-16">
       <div className="mx-auto grid max-w-7xl gap-10 px-6 sm:grid-cols-2 lg:grid-cols-4 lg:px-10">
         <div>
           <p className="tbe-display text-lg font-bold">
-            TENKA <span className="tbe-mono text-[10px] font-normal tracking-[0.3em] text-[var(--tbe-tq)]">TECNOLOGIA</span>
+            TENKA <span className="tbe-mono text-[10px] font-normal tracking-[0.3em] text-[var(--tbe-tq)]">DEV</span>
           </p>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-[var(--tbe-text-2)]">
             Divisão de tecnologia do grupo TENKA. Sites, aplicativos, sistemas, integrações e

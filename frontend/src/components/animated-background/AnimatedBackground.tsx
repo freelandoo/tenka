@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+﻿import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { gsap } from '../../tech/lib/gsap';
@@ -25,7 +25,7 @@ import { SceneLights } from './SceneLights';
 import { ScenePostProcessing } from './ScenePostProcessing';
 
 /**
- * TENKA DIGITAL FABRIC — the single persistent, scroll-driven WebGL
+ * TENKA DIGITAL FABRIC â€” the single persistent, scroll-driven WebGL
  * background of the Tenka Technology page. Mounted once, never remounted on
  * section changes; all animation flows through the fabric channels.
  */
@@ -133,14 +133,14 @@ export const AnimatedBackground = memo(function AnimatedBackground({
         </Canvas>
       </div>
 
-      {/* Dynamic readability mask — sits between canvas (z-0) and content (z-10). */}
+      {/* Dynamic readability mask â€” sits between canvas (z-0) and content (z-10). */}
       <div className="pointer-events-none fixed inset-0 z-[1]" aria-hidden="true">
         <div
           ref={maskLeftRef}
           className="absolute inset-0"
           style={{
             opacity: 1,
-            background: 'linear-gradient(90deg, rgba(2,7,8,0.78) 0%, rgba(2,7,8,0.42) 46%, rgba(2,7,8,0) 76%)',
+            background: 'linear-gradient(90deg, rgba(233,240,251,0.78) 0%, rgba(233,240,251,0.42) 46%, rgba(233,240,251,0) 76%)',
           }}
         />
         <div
@@ -148,7 +148,7 @@ export const AnimatedBackground = memo(function AnimatedBackground({
           className="absolute inset-0"
           style={{
             opacity: 0,
-            background: 'linear-gradient(270deg, rgba(2,7,8,0.78) 0%, rgba(2,7,8,0.42) 46%, rgba(2,7,8,0) 76%)',
+            background: 'linear-gradient(270deg, rgba(233,240,251,0.78) 0%, rgba(233,240,251,0.42) 46%, rgba(233,240,251,0) 76%)',
           }}
         />
         <div
@@ -156,17 +156,17 @@ export const AnimatedBackground = memo(function AnimatedBackground({
           className="absolute inset-0"
           style={{
             opacity: 0,
-            background: 'radial-gradient(ellipse 74% 66% at 50% 50%, rgba(2,7,8,0.68) 0%, rgba(2,7,8,0.32) 55%, rgba(2,7,8,0) 80%)',
+            background: 'radial-gradient(ellipse 74% 66% at 50% 50%, rgba(233,240,251,0.68) 0%, rgba(233,240,251,0.32) 55%, rgba(233,240,251,0) 80%)',
           }}
         />
         {/* Darkens behind content during fast deployment movement only. */}
-        <div ref={dimRef} className="absolute inset-0 bg-[#020708]" style={{ opacity: 0 }} />
+        <div ref={dimRef} className="absolute inset-0 bg-[#ffffff]" style={{ opacity: 0 }} />
       </div>
 
-      {/* Fabric status readout — part of the background system. */}
+      {/* Fabric status readout â€” part of the background system. */}
       {!low && (
         <p
-          className="tbe-mono pointer-events-none fixed bottom-5 left-6 z-[3] hidden items-center gap-2 text-[8px] tracking-[0.28em] text-[#00F0D0]/55 md:flex"
+          className="tbe-mono pointer-events-none fixed bottom-5 left-6 z-[3] hidden items-center gap-2 text-[8px] tracking-[0.28em] text-[#1d6bff]/55 md:flex"
           aria-hidden="true"
         >
           <span className="tbe-status-dot" style={{ opacity: 0.7 }} />

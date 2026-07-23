@@ -48,7 +48,7 @@ export const streamFragment = /* glsl */ `
     // Bright head fading along the tail; depth fade at both corridor ends.
     float body = 1.0 - vT;
     float fade = smoothstep(0.0, 0.12, vDepth) * smoothstep(1.0, 0.75, vDepth);
-    vec3 color = mix(TQ, TQ_LIGHT, body * 0.6) * (0.5 + body * 0.8);
+    vec3 color = mix(INK, INK_DEEP, body * 0.7);
     float alpha = body * fade * uDeploy * (0.25 + vSeed * 0.45);
     if (alpha <= 0.004) discard;
     gl_FragColor = vec4(color, alpha);

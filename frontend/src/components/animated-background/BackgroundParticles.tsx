@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+﻿import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { particleVertex, particleFragment } from './shaders/points';
 import { fabric } from './lib/fabric';
 import { fabricSmooth } from './lib/smooth';
 
-/** Far-layer atmospheric particles — low opacity, slow drift, depth only. */
+/** Far-layer atmospheric particles â€” low opacity, slow drift, depth only. */
 export function BackgroundParticles({ count }: { count: number }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -54,7 +54,7 @@ export function BackgroundParticles({ count }: { count: number }) {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </points>
   );

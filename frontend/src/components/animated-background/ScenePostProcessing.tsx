@@ -24,13 +24,13 @@ export function ScenePostProcessing() {
       <Bloom
         ref={bloomRef}
         mipmapBlur
-        intensity={0.35}
-        luminanceThreshold={0.66}
+        intensity={0.12}
+        luminanceThreshold={0.95}
         luminanceSmoothing={0.2}
-        radius={0.6}
+        radius={0.5}
       />
-      <Vignette eskil={false} offset={0.26} darkness={0.55} />
-      <Noise premultiply opacity={0.045} />
+      <Vignette eskil={false} offset={0.3} darkness={0.14} />
+      <Noise premultiply opacity={0.02} />
     </EffectComposer>
   );
 }

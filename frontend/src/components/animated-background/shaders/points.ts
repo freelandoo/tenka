@@ -50,14 +50,13 @@ export const nodeFragment = /* glsl */ `
     float frame = smoothstep(0.5, 0.44, box) * smoothstep(0.3, 0.4, box);
     float core = smoothstep(0.2, 0.04, box);
 
-    float blink = 0.85 + 0.15 * sin(uTime * 2.0 + vSeed * 40.0);
-    vec3 idle = TQ_DARK * 0.75;
-    vec3 color = mix(idle, TQ * blink, clamp(vActive, 0.0, 1.0));
-    color += TQ_LIGHT * core * vActive * 0.55;
+    float blink = 0.9 + 0.1 * sin(uTime * 2.0 + vSeed * 40.0);
+    // Idle node = base blue; active node darkens toward the deep stroke.
+    vec3 color = mix(INK, INK_DEEP, clamp(vActive, 0.0, 1.0)) * blink;
 
     float alpha = frame * (0.22 + vActive * 0.75) + core * (0.1 + vActive * 0.95);
     if (alpha <= 0.004) discard;
-    gl_FragColor = vec4(color * (1.0 + vActive * 0.45), min(alpha, 1.0));
+    gl_FragColor = vec4(color, min(alpha, 1.0));
   }
 `;
 
@@ -85,8 +84,8 @@ export const packetFragment = /* glsl */ `
     float d = dot(c, c);
     if (d > 0.25) discard;
     float glow = smoothstep(0.25, 0.0, d);
-    // Overbright so selective bloom picks packets up.
-    gl_FragColor = vec4(mix(TQ, TQ_LIGHT, glow) * (0.6 + glow * 0.9), glow * vOn);
+    // Travellers read as solid deep-blue dots on the white page.
+    gl_FragColor = vec4(mix(INK, INK_DEEP, glow), glow * vOn);
   }
 `;
 
@@ -118,7 +117,7 @@ export const particleFragment = /* glsl */ `
     float d = dot(c, c);
     if (d > 0.25) discard;
     float glow = smoothstep(0.25, 0.02, d);
-    vec3 color = mix(TQ_DARK, TQ, vSeed * 0.35);
+    vec3 color = mix(INK_SOFT, INK, vSeed * 0.5);
     gl_FragColor = vec4(color, glow * uOpacity * (0.35 + vSeed * 0.4));
   }
 `;

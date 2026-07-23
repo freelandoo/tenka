@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+﻿import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { routeVertex, routeFragment } from './shaders/routes';
@@ -9,7 +9,7 @@ import { fabricSmooth } from './lib/smooth';
 /**
  * Information routes between fixed node pairs. Endpoints follow the live node
  * positions (priority -40, after DataNodes), so connections stretch and
- * redraw as the fabric reorganises — never crossfaded.
+ * redraw as the fabric reorganises â€” never crossfaded.
  */
 export function DataRoutes({ data }: { data: FabricData }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -75,7 +75,7 @@ export function DataRoutes({ data }: { data: FabricData }) {
         uniforms={uniforms}
         transparent
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </lineSegments>
   );

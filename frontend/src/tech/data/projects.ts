@@ -71,7 +71,7 @@ export const TECH_PROJECTS: TechnologyProject[] = [
     status: 'EM EVOLUÇÃO',
     kind: 'dashboard',
     url: 'flow.tenka.com.br',
-    accent: '#00F0D0',
+    accent: '#1d6bff',
     desk: { x: 66, y: 12, w: 27 },
   },
   {

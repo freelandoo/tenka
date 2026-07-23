@@ -87,8 +87,8 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
       <header
         className={`fixed inset-x-0 top-0 z-40 border-b transition-colors duration-500 ${
           scrolled
-            ? 'border-white/10 bg-[#020708]/90 backdrop-blur-md'
-            : 'border-transparent bg-gradient-to-b from-black/40 to-transparent'
+            ? 'border-[#0b1b33]/10 bg-[#ffffff]/90 backdrop-blur-md'
+            : 'border-transparent bg-gradient-to-b from-white/40 to-transparent'
         }`}
       >
         <div
@@ -104,14 +104,14 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
               to="/"
               data-cursor="ABRIR"
               aria-label="Voltar para a página inicial da TENKA"
-              className="tbe-mono flex items-center gap-2 border border-white/15 px-3 py-2 text-[11px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors hover:border-[var(--tbe-tq)] hover:text-[var(--tbe-text)]"
+              className="tbe-mono flex items-center gap-2 border border-[#0b1b33]/15 px-3 py-2 text-[11px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors hover:border-[var(--tbe-tq)] hover:text-[var(--tbe-text)]"
             >
               <ArrowLeft size={13} aria-hidden="true" />
               <span className="hidden sm:inline">VOLTAR</span>
             </Link>
             <Link to="/" className="tbe-display flex items-baseline gap-2 text-sm font-bold tracking-wide" data-cursor="ABRIR">
               TENKA
-              <span className="tbe-mono text-[9px] font-normal tracking-[0.3em] text-[var(--tbe-tq)]">TECNOLOGIA</span>
+              <span className="tbe-mono text-[9px] font-normal tracking-[0.3em] text-[var(--tbe-tq)]">DEV</span>
             </Link>
           </div>
 
@@ -142,7 +142,7 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
               onClick={onOpenBrief}
               className="tbe-cta tbe-mono border border-[var(--tbe-tq)] px-4 py-2 text-[11px] tracking-[0.2em] text-[var(--tbe-text)]"
             >
-              INICIAR PROJETO
+              COMEÇAR MEU PROJETO
             </button>
           </div>
 
@@ -166,7 +166,7 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="tbe-blueprint fixed inset-0 z-50 flex flex-col bg-[#020708]/98"
+            className="tbe-blueprint fixed inset-0 z-50 flex flex-col bg-[#ffffff]/98"
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
@@ -218,7 +218,7 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
                 }}
                 className="tbe-cta tbe-mono mt-6 self-start border border-[var(--tbe-tq)] px-6 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text)]"
               >
-                INICIAR UM PROJETO
+                COMEÇAR MEU PROJETO
               </motion.button>
             </nav>
 

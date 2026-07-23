@@ -99,7 +99,7 @@ export function ModulesSection({ reducedMotion }: ModulesSectionProps) {
                       aria-hidden="true"
                       className="h-2 w-2 border transition-colors duration-300"
                       style={{
-                        borderColor: state === 'connected' ? 'var(--tbe-tq)' : 'rgba(255,255,255,0.25)',
+                        borderColor: state === 'connected' ? 'var(--tbe-tq)' : 'rgba(11,27,51,0.25)',
                         background: state === 'connected' ? 'var(--tbe-tq)' : 'transparent',
                       }}
                     />
@@ -111,7 +111,7 @@ export function ModulesSection({ reducedMotion }: ModulesSectionProps) {
                     REQUISITOS: {module.requirements.join(' · ')}
                   </p>
 
-                  <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+                  <div className="mt-4 flex items-center justify-between border-t border-[#0b1b33]/10 pt-4">
                     <span
                       className="tbe-mono text-[9px] tracking-[0.2em]"
                       style={{
@@ -127,7 +127,7 @@ export function ModulesSection({ reducedMotion }: ModulesSectionProps) {
                       data-cursor="INSTALAR"
                       onClick={() => install(module.id)}
                       disabled={state !== 'idle'}
-                      className="tbe-mono min-h-[36px] border border-white/15 px-3 py-1.5 text-[10px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-[var(--tbe-tq)] enabled:hover:text-[var(--tbe-text)] disabled:opacity-50"
+                      className="tbe-mono min-h-[36px] border border-[#0b1b33]/15 px-3 py-1.5 text-[10px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-[var(--tbe-tq)] enabled:hover:text-[var(--tbe-text)] disabled:opacity-50"
                     >
                       {state === 'idle' ? 'ATIVAR' : state === 'installing' ? '...' : 'ATIVO'}
                     </button>
@@ -135,7 +135,7 @@ export function ModulesSection({ reducedMotion }: ModulesSectionProps) {
 
                   {/* installation progress */}
                   {state !== 'idle' && (
-                    <div className="mt-3 h-px w-full bg-white/10" aria-hidden="true">
+                    <div className="mt-3 h-px w-full bg-[#0b1b33]/10" aria-hidden="true">
                       <div
                         className="h-px bg-[var(--tbe-tq)] transition-all"
                         style={{ width: state === 'connected' ? '100%' : '55%', transitionDuration: reducedMotion ? '0ms' : '800ms' }}

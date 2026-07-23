@@ -105,7 +105,7 @@ export function RequirementsSection({ reducedMotion }: RequirementsSectionProps)
 
           <dl className="mt-10 grid gap-5 sm:grid-cols-2">
             {BRIEF_ITEMS.slice(0, 6).map((item, index) => (
-              <div key={item.id} className="border-l pl-4 transition-colors duration-500" style={{ borderColor: index < docked ? 'var(--tbe-tq)' : 'rgba(255,255,255,0.12)' }}>
+              <div key={item.id} className="border-l pl-4 transition-colors duration-500" style={{ borderColor: index < docked ? 'var(--tbe-tq)' : 'rgba(11,27,51,0.12)' }}>
                 <dt className="tbe-mono text-[11px] tracking-[0.25em]" style={{ color: index < docked ? 'var(--tbe-tq)' : 'var(--tbe-text-2)' }}>
                   {item.label}
                 </dt>
@@ -125,7 +125,7 @@ export function RequirementsSection({ reducedMotion }: RequirementsSectionProps)
                   key={item.id}
                   className="tbe-mono flex h-16 items-center justify-center border px-2 text-center text-[9px] tracking-[0.15em] transition-all duration-500"
                   style={{
-                    borderColor: active ? 'var(--tbe-border-active)' : 'rgba(255,255,255,0.1)',
+                    borderColor: active ? 'var(--tbe-border-active)' : 'rgba(11,27,51,0.1)',
                     borderStyle: active ? 'solid' : 'dashed',
                     color: active ? 'var(--tbe-text)' : 'var(--tbe-text-mute)',
                     background: active ? 'rgba(0,240,208,0.06)' : 'transparent',
@@ -147,7 +147,7 @@ export function RequirementsSection({ reducedMotion }: RequirementsSectionProps)
               <path
                 d="M20,8 L120,8 L140,32 L260,32 L280,8 L380,8"
                 fill="none"
-                stroke={docked >= BRIEF_ITEMS.length / 2 ? 'var(--tbe-tq)' : 'rgba(255,255,255,0.1)'}
+                stroke={docked >= BRIEF_ITEMS.length / 2 ? 'var(--tbe-tq)' : 'rgba(11,27,51,0.1)'}
                 strokeWidth="1"
                 className={docked >= BRIEF_ITEMS.length / 2 ? 'tbe-route-active' : ''}
               />

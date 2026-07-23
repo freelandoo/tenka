@@ -45,17 +45,17 @@ export function TechnologySection({ reducedMotion }: { reducedMotion: boolean })
         </div>
 
         <div className="tbe-scroll-x mt-12 flex gap-2 pb-2" role="tablist" aria-label="Categorias de tecnologia">
-          {TECH_STACK.map((item) => <button key={item.id} type="button" role="tab" aria-selected={categoryId === item.id} onClick={() => chooseCategory(item.id)} className={`tbe-mono shrink-0 border px-4 py-3 text-[10px] tracking-[0.15em] transition-colors ${categoryId === item.id ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]' : 'border-white/10 text-[var(--tbe-text-mute)] hover:border-white/30'}`}>{item.name.toUpperCase()}</button>)}
+          {TECH_STACK.map((item) => <button key={item.id} type="button" role="tab" aria-selected={categoryId === item.id} onClick={() => chooseCategory(item.id)} className={`tbe-mono shrink-0 border px-4 py-3 text-[10px] tracking-[0.15em] transition-colors ${categoryId === item.id ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]' : 'border-[#0b1b33]/10 text-[var(--tbe-text-mute)] hover:border-[#0b1b33]/30'}`}>{item.name.toUpperCase()}</button>)}
         </div>
 
-        <div className="mt-4 grid border-y border-white/10 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="grid grid-cols-2 content-start gap-px bg-white/10 md:grid-cols-3 lg:border-r lg:border-white/10">
+        <div className="mt-4 grid border-y border-[#0b1b33]/10 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid grid-cols-2 content-start gap-px bg-[#0b1b33]/10 md:grid-cols-3 lg:border-r lg:border-[#0b1b33]/10">
             {category.items.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setCanvasFocus(item.modules[0]?.toLowerCase().includes('relat') ? 'analytics' : item.id.includes('auth') ? 'auth' : item.id.includes('webhook') ? 'api' : item.id.includes('postgres') ? 'database' : item.id); }} data-cursor="SELECIONAR" className="tbe-tech-entry flex min-h-28 flex-col justify-between bg-[var(--tbe-bg)] p-4 text-left transition-colors hover:bg-[var(--tbe-bg-elev)]" aria-pressed={selected.id === item.id}><span className={selected.id === item.id ? 'text-[var(--tbe-tq)]' : 'text-[var(--tbe-text-mute)]'}><Glyph type={item.glyph} /></span><span className="tbe-mono mt-5 text-[10px] tracking-[0.12em]">{item.name.toUpperCase()}</span></button>)}
           </div>
           <div className="flex min-h-[330px] flex-col justify-between p-6 md:p-10" aria-live="polite">
             <div><p className="tbe-mono text-[10px] tracking-[0.3em] text-[var(--tbe-tq)]">{category.name.toUpperCase()} // {selected.name.toUpperCase()}</p><h3 className="tbe-display mt-5 text-3xl font-bold">{selected.name}</h3></div>
             <dl className="mt-10 grid gap-7 sm:grid-cols-2"><div><dt className="tbe-mono text-[9px] tracking-[0.25em] text-[var(--tbe-text-mute)]">FUNÇÃO</dt><dd className="mt-2 text-[15px] leading-relaxed text-[var(--tbe-text)]/80">{selected.role}</dd></div><div><dt className="tbe-mono text-[9px] tracking-[0.25em] text-[var(--tbe-text-mute)]">APLICAÇÃO</dt><dd className="mt-2 text-[15px] leading-relaxed text-[var(--tbe-text)]/80">{selected.application}</dd></div></dl>
-            <div className="mt-8 flex flex-wrap gap-2">{selected.modules.map((module) => <span key={module} className="tbe-mono border border-white/10 px-2 py-1 text-[9px] tracking-[0.14em] text-[var(--tbe-text-2)]">{module.toUpperCase()}</span>)}</div>
+            <div className="mt-8 flex flex-wrap gap-2">{selected.modules.map((module) => <span key={module} className="tbe-mono border border-[#0b1b33]/10 px-2 py-1 text-[9px] tracking-[0.14em] text-[var(--tbe-text-2)]">{module.toUpperCase()}</span>)}</div>
           </div>
         </div>
       </div>

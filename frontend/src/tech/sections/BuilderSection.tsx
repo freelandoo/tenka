@@ -12,7 +12,7 @@ import { MockLogin, MockChat, Metric, ChartBars, TableRows } from '../components
 /** Small preview panel added to the canvas for each selected module. */
 function ModulePanel({ module }: { module: BuilderModule }) {
   const label = (
-    <span className="tbe-mono block border-b border-white/10 px-2 py-1 text-[8px] tracking-[0.15em] text-[var(--tbe-text-mute)]">
+    <span className="tbe-mono block border-b border-[#0b1b33]/10 px-2 py-1 text-[8px] tracking-[0.15em] text-[var(--tbe-text-mute)]">
       {module.name.toUpperCase()}
     </span>
   );
@@ -40,17 +40,17 @@ function ModulePanel({ module }: { module: BuilderModule }) {
         return (
           <div className="flex h-full flex-col justify-center gap-1 p-2">
             <span className="tbe-mono text-[7px] tracking-[0.15em] text-[var(--tbe-tq)]">◌ PROCESSANDO...</span>
-            <div className="h-1 w-full bg-white/10">
+            <div className="h-1 w-full bg-[#0b1b33]/10">
               <div className="h-1 w-2/3 bg-[var(--tbe-tq)]/60" />
             </div>
-            <span className="text-[7px] text-white/60">Resumo gerado para 42 registros.</span>
+            <span className="text-[7px] text-[var(--tbe-text)]/60">Resumo gerado para 42 registros.</span>
           </div>
         );
       case 'notify':
         return (
           <div className="flex h-full flex-col justify-center gap-1 p-2">
             {['Push enviado — 1.2k', 'E-mail agendado', 'Alerta de estoque'].map((n) => (
-              <span key={n} className="flex items-center gap-1 text-[7px] text-white/65">
+              <span key={n} className="flex items-center gap-1 text-[7px] text-[var(--tbe-text)]/65">
                 <span className="h-1 w-1 bg-[var(--tbe-tq)]" /> {n}
               </span>
             ))}
@@ -60,7 +60,7 @@ function ModulePanel({ module }: { module: BuilderModule }) {
         return (
           <div className="grid h-full grid-cols-7 gap-[2px] p-2">
             {Array.from({ length: 21 }).map((_, i) => (
-              <div key={i} className="aspect-square" style={{ background: [3, 8, 12, 17].includes(i) ? 'rgba(0,240,208,0.4)' : 'rgba(255,255,255,0.06)' }} />
+              <div key={i} className="aspect-square" style={{ background: [3, 8, 12, 17].includes(i) ? 'rgba(0,240,208,0.4)' : 'rgba(11,27,51,0.06)' }} />
             ))}
           </div>
         );
@@ -161,7 +161,7 @@ export function BuilderSection({ reducedMotion }: BuilderSectionProps) {
                     className={`tbe-mono flex min-h-[44px] items-center justify-between gap-2 border px-3 py-2.5 text-left text-[11px] tracking-[0.1em] transition-colors ${
                       active
                         ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]'
-                        : 'border-white/12 text-[var(--tbe-text-2)] hover:border-white/35 hover:text-[var(--tbe-text)]'
+                        : 'border-[#0b1b33]/12 text-[var(--tbe-text-2)] hover:border-[#0b1b33]/35 hover:text-[var(--tbe-text)]'
                     }`}
                   >
                     {module.name}
@@ -177,7 +177,7 @@ export function BuilderSection({ reducedMotion }: BuilderSectionProps) {
                 type="button"
                 onClick={clearBuilderModules}
                 disabled={builderModules.length === 0}
-                className="tbe-mono min-h-[44px] border border-white/15 px-4 py-3 text-[10px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-white/40 enabled:hover:text-[var(--tbe-text)] disabled:opacity-30"
+                className="tbe-mono min-h-[44px] border border-[#0b1b33]/15 px-4 py-3 text-[10px] tracking-[0.2em] text-[var(--tbe-text-2)] transition-colors enabled:hover:border-[#0b1b33]/40 enabled:hover:text-[var(--tbe-text)] disabled:opacity-30"
               >
                 LIMPAR CONFIGURAÇÃO
               </button>
@@ -204,7 +204,7 @@ export function BuilderSection({ reducedMotion }: BuilderSectionProps) {
               }
             >
               {builderModules.length === 0 ? (
-                <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 border border-dashed border-white/15 text-center">
+                <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 border border-dashed border-[#0b1b33]/15 text-center">
                   <p className="tbe-mono text-[10px] tracking-[0.25em] text-[var(--tbe-text-mute)]">ÁREA DE MONTAGEM VAZIA</p>
                   <p className="max-w-xs text-[14px] text-[var(--tbe-text-2)]">
                     Selecione módulos ao lado para ver o produto ganhar forma.

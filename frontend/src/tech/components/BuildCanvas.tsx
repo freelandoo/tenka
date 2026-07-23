@@ -21,9 +21,9 @@ export function CanvasFrame({
   className?: string;
 }) {
   return (
-    <div className={`tbe-blueprint relative border border-white/12 bg-[var(--tbe-bg-2)]/80 ${className}`}>
+    <div className={`tbe-blueprint relative border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/80 ${className}`}>
       {/* workspace header */}
-      <div className="flex items-center justify-between border-b border-white/10 bg-black/40 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-[#0b1b33]/10 bg-[#0b1b33]/[0.05] px-3 py-2">
         <p className="tbe-mono text-[10px] tracking-[0.25em] text-[var(--tbe-text-2)]">
           BUILD CANVAS <span className="text-[var(--tbe-tq)]">//</span> {MODE_LABELS[mode]}
         </p>

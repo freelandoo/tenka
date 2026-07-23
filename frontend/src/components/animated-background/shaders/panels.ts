@@ -45,8 +45,10 @@ export const panelFragment = /* glsl */ `
     float scanPos = fract(uTime * 0.22 + vSeed * 0.83);
     float scan = exp(-pow(vUv.y - scanPos, 2.0) * 900.0) * uScan;
 
-    vec3 color = TQ_DARK * frame * 0.95 + TQ * anchors * 0.5 + TQ * scan * 0.65 + TQ_DARK * fill * 1.4 + TQ_LIGHT * frame * uPulse * 0.4;
-    float alpha = (frame * 0.3 + fill * 0.7 + anchors * 0.22 + scan * 0.45) * uAlpha;
+    // Interface frames: blue outline on white, darkening on anchors/scan/pulse.
+    float hot = clamp(anchors + scan + frame * uPulse * 0.6, 0.0, 1.0);
+    vec3 color = mix(INK, INK_DEEP, hot);
+    float alpha = (frame * 0.42 + fill * 0.5 + anchors * 0.3 + scan * 0.5) * uAlpha;
     if (alpha <= 0.004) discard;
     gl_FragColor = vec4(color, min(alpha, 0.85));
   }
