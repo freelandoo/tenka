@@ -4,7 +4,7 @@ import { gsap } from '../lib/gsap';
 import { TBE_SECTIONS, PRODUCT_TYPE_COPY, PRODUCT_TYPE_LABELS, type ProductType } from '../lib/constants';
 import { setCanvasMode, pulseEngine, buildChannels } from '../state/engine';
 import { useBuildEngine } from '../state/BuildEngineContext';
-import { HeroBuildCanvas } from '../components/BuildCanvas';
+import { HeroPlanet } from '../components/HeroPlanet';
 
 const HEADLINE_A = ['IDEIAS NÃO', 'NASCEM PRONTAS.'];
 const HEADLINE_B = ['ELAS SÃO', 'CONSTRUÍDAS.'];
@@ -174,14 +174,12 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
           </div>
         </div>
 
-        {/* Build Canvas */}
+        {/* Hero planet — glowing particle globe (PJ-style) */}
         <div className="tbe-hero-support">
-          <HeroBuildCanvas
-            productType={productType}
-            stage="wire"
-            status={ctaHot ? 'READY FOR INPUT' : canvasStatus}
-            mode={buildChannels.mode === 'empty' ? 'empty' : 'wireframe'}
+          <HeroPlanet
             reducedMotion={reducedMotion}
+            hot={ctaHot}
+            label={ctaHot ? 'READY FOR INPUT' : `${PRODUCT_TYPE_LABELS[productType]} // ${canvasStatus}`}
           />
           {/* system status panel */}
           <dl className="tbe-mono mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] tracking-[0.18em] text-[var(--tbe-text-mute)] sm:grid-cols-4">
