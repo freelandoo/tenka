@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useGSAP } from '@gsap/react';
 import { gsap } from '../lib/gsap';
 import { TBE_SECTIONS, PRODUCT_TYPE_COPY, PRODUCT_TYPE_LABELS, type ProductType } from '../lib/constants';
@@ -80,8 +80,20 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
       ref={sectionRef}
       className="relative flex min-h-[100dvh] items-center overflow-hidden pb-16 pt-28 lg:pt-16"
       aria-label="Abertura — Tenka Dev"
+      style={{ '--tbe-text': '#f4f7ff', '--tbe-text-2': '#b9cdec', '--tbe-text-mute': '#7d93ba' } as CSSProperties}
     >
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,46%)] lg:items-center lg:px-10">
+      {/* dark hero backdrop — the one dark surface on the white page */}
+      <div
+        className="absolute inset-0 z-0"
+        aria-hidden="true"
+        style={{ background: 'radial-gradient(120% 125% at 70% 42%, #0c2350 0%, #06102b 46%, #020713 100%)' }}
+      />
+      {/* faint blueprint texture */}
+      <div className="tbe-blueprint absolute inset-0 z-0 opacity-[0.14]" aria-hidden="true" />
+      {/* interactive particle globe (drag to spin) */}
+      <HeroPlanet reducedMotion={reducedMotion} hot={ctaHot} />
+
+      <div className="pointer-events-none relative z-10 mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,46%)] lg:items-center lg:px-10">
         <div>
           <p className="tbe-hero-support tbe-mono mb-6 text-xs tracking-[0.35em] text-[var(--tbe-tq)]">
             TENKA // DEV
@@ -109,7 +121,7 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
           </p>
 
           {/* Product type selector */}
-          <div className="tbe-hero-support mt-8" role="radiogroup" aria-label="Tipo de produto" onKeyDown={onTypeKeyDown}>
+          <div className="tbe-hero-support pointer-events-auto mt-8" role="radiogroup" aria-label="Tipo de produto" onKeyDown={onTypeKeyDown}>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => {
                 const active = type === productType;
@@ -124,7 +136,7 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
                     className={`tbe-corners tbe-mono min-h-[44px] border px-5 py-3 text-xs tracking-[0.2em] transition-colors ${
                       active
                         ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]'
-                        : 'border-[#0b1b33]/15 text-[var(--tbe-text-2)] hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]'
+                        : 'border-white/20 text-[var(--tbe-text-2)] hover:border-white/50 hover:text-[var(--tbe-text)]'
                     }`}
                     data-active={active}
                   >
@@ -138,7 +150,7 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
             </p>
           </div>
 
-          <div className="tbe-hero-support mt-8 flex flex-wrap gap-4">
+          <div className="tbe-hero-support pointer-events-auto mt-8 flex flex-wrap gap-4">
             <div className="relative">
               {/* interface line linking CTA to the canvas when targeted */}
               <span
@@ -167,22 +179,20 @@ export function HeroSection({ booted, reducedMotion, onOpenBrief, onNavigate }: 
               type="button"
               data-cursor="ABRIR"
               onClick={() => onNavigate(TBE_SECTIONS.portfolio)}
-              className="tbe-mono min-h-[44px] border border-[#0b1b33]/15 px-7 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors hover:border-[#0b1b33]/40 hover:text-[var(--tbe-text)]"
+              className="tbe-mono min-h-[44px] border border-white/25 px-7 py-4 text-xs tracking-[0.25em] text-[var(--tbe-text-2)] transition-colors hover:border-white/60 hover:text-[var(--tbe-text)]"
             >
               VER PORTFÓLIO
             </button>
           </div>
         </div>
 
-        {/* Hero planet — glowing particle globe (PJ-style) */}
-        <div className="tbe-hero-support">
-          <HeroPlanet
-            reducedMotion={reducedMotion}
-            hot={ctaHot}
-            label={ctaHot ? 'READY FOR INPUT' : `${PRODUCT_TYPE_LABELS[productType]} // ${canvasStatus}`}
-          />
+        {/* status readout over the globe */}
+        <div className="tbe-hero-support pointer-events-none flex h-full flex-col justify-end">
+          <p className="tbe-mono mb-3 text-[10px] tracking-[0.25em] text-[var(--tbe-text-2)]" aria-live="polite">
+            {ctaHot ? 'READY FOR INPUT' : `${PRODUCT_TYPE_LABELS[productType]} // ${canvasStatus}`}
+          </p>
           {/* system status panel */}
-          <dl className="tbe-mono mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] tracking-[0.18em] text-[var(--tbe-text-mute)] sm:grid-cols-4">
+          <dl className="tbe-mono grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] tracking-[0.18em] text-[var(--tbe-text-mute)] sm:grid-cols-4">
             <div>
               <dt className="text-[var(--tbe-text-mute)]/70">ENGINE</dt>
               <dd className="text-[var(--tbe-text-2)]">TENKA BUILD</dd>

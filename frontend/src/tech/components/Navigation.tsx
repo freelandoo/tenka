@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Menu, X } from 'lucide-react';
@@ -88,8 +88,9 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
         className={`fixed inset-x-0 top-0 z-40 border-b transition-colors duration-500 ${
           scrolled
             ? 'border-[#0b1b33]/10 bg-[#ffffff]/90 backdrop-blur-md'
-            : 'border-transparent bg-gradient-to-b from-white/40 to-transparent'
+            : 'border-transparent bg-gradient-to-b from-black/25 to-transparent'
         }`}
+        style={scrolled ? undefined : ({ '--tbe-text': '#f4f7ff', '--tbe-text-2': '#c2d4f2' } as CSSProperties)}
       >
         <div
           ref={progressRef}
@@ -109,7 +110,7 @@ export function Navigation({ onNavigate, onOpenBrief }: NavigationProps) {
               <ArrowLeft size={13} aria-hidden="true" />
               <span className="hidden sm:inline">VOLTAR</span>
             </Link>
-            <Link to="/" className="tbe-display flex items-baseline gap-2 text-sm font-bold tracking-wide" data-cursor="ABRIR">
+            <Link to="/" className="tbe-display flex items-baseline gap-2 text-sm font-bold tracking-wide text-[var(--tbe-text)]" data-cursor="ABRIR">
               TENKA
               <span className="tbe-mono text-[9px] font-normal tracking-[0.3em] text-[var(--tbe-tq)]">DEV</span>
             </Link>

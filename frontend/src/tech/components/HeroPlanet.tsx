@@ -1,14 +1,14 @@
-import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Points, PointMaterial } from '@react-three/drei';
+import { useEffect, useMemo, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Points, PointMaterial, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 /*
- * HERO PLANET — a rotating globe of glowing blue particles on a dark panel,
- * echoing the PJ Codeworks hero. Deliberately dark inside so the additive blue
- * dots read as light; the panel is the one dark surface on the white page.
- * Reacts to the product-type selector (label) and CTA hover (`hot` → faster
- * spin + brighter atmosphere).
+ * HERO PLANET — a rotating globe of glowing blue particles that fills the dark
+ * hero as its background, echoing the PJ Codeworks hero. Additive blue dots
+ * only read on the dark backdrop the hero provides. Draggable to spin
+ * (OrbitControls, desktop pointers only so it never hijacks mobile scroll);
+ * idles with a slow auto-rotate that speeds up on CTA hover (`hot`).
  */
 
 /** Even Fibonacci-sphere shell with a little radial jitter so it reads organic. */
@@ -27,88 +27,80 @@ function makeSphere(count: number, radius: number, jitter: number): Float32Array
   return arr;
 }
 
-function Globe({ reducedMotion, hot }: { reducedMotion: boolean; hot: boolean }) {
-  const group = useRef<THREE.Group>(null);
-  const speed = useRef(0.06);
-  const shell = useMemo(() => makeSphere(2800, 1.35, 0.05), []);
-  const hubs = useMemo(() => makeSphere(140, 1.38, 0.02), []);
-  const halo = useMemo(() => makeSphere(600, 1.6, 0.18), []);
-
-  useFrame((_, delta) => {
-    if (reducedMotion || !group.current) return;
-    const target = hot ? 0.24 : 0.07;
-    speed.current += (target - speed.current) * Math.min(1, delta * 2.5);
-    group.current.rotation.y += delta * speed.current;
-  });
+function Globe({ reducedMotion, hot, interactive }: { reducedMotion: boolean; hot: boolean; interactive: boolean }) {
+  const shell = useMemo(() => makeSphere(3000, 1.4, 0.05), []);
+  const hubs = useMemo(() => makeSphere(160, 1.43, 0.02), []);
+  const halo = useMemo(() => makeSphere(700, 1.68, 0.2), []);
 
   return (
-    <group ref={group} rotation={[0.5, 0, 0.16]}>
-      {/* atmosphere haze */}
-      <Points positions={halo} stride={3} frustumCulled={false}>
-        <PointMaterial transparent color="#1d6bff" size={0.015} sizeAttenuation depthWrite={false} opacity={0.5} blending={THREE.AdditiveBlending} />
-      </Points>
-      {/* dense surface shell */}
-      <Points positions={shell} stride={3} frustumCulled={false}>
-        <PointMaterial transparent color="#2f7dff" size={0.02} sizeAttenuation depthWrite={false} opacity={0.9} blending={THREE.AdditiveBlending} />
-      </Points>
-      {/* brighter hub nodes */}
-      <Points positions={hubs} stride={3} frustumCulled={false}>
-        <PointMaterial transparent color="#a8caff" size={0.05} sizeAttenuation depthWrite={false} opacity={1} blending={THREE.AdditiveBlending} />
-      </Points>
-    </group>
+    <>
+      <group rotation={[0.5, 0, 0.16]}>
+        {/* atmosphere haze */}
+        <Points positions={halo} stride={3} frustumCulled={false}>
+          <PointMaterial transparent color="#1d6bff" size={0.016} sizeAttenuation depthWrite={false} opacity={0.5} blending={THREE.AdditiveBlending} />
+        </Points>
+        {/* dense surface shell */}
+        <Points positions={shell} stride={3} frustumCulled={false}>
+          <PointMaterial transparent color="#2f7dff" size={0.021} sizeAttenuation depthWrite={false} opacity={0.9} blending={THREE.AdditiveBlending} />
+        </Points>
+        {/* brighter hub nodes */}
+        <Points positions={hubs} stride={3} frustumCulled={false}>
+          <PointMaterial transparent color="#a8caff" size={0.05} sizeAttenuation depthWrite={false} opacity={1} blending={THREE.AdditiveBlending} />
+        </Points>
+      </group>
+      <OrbitControls
+        enablePan={false}
+        enableZoom={false}
+        enabled={interactive}
+        enableDamping
+        dampingFactor={0.08}
+        rotateSpeed={0.5}
+        autoRotate={!reducedMotion}
+        autoRotateSpeed={hot ? 2.6 : 0.7}
+      />
+    </>
   );
 }
 
 export interface HeroPlanetProps {
   reducedMotion: boolean;
   hot: boolean;
-  label: string;
 }
 
-export function HeroPlanet({ reducedMotion, hot, label }: HeroPlanetProps) {
+export function HeroPlanet({ reducedMotion, hot }: HeroPlanetProps) {
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => {
+    setInteractive(window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+  }, []);
+
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-[#1d6bff]/25"
-      style={{
-        aspectRatio: '4 / 3',
-        background: 'radial-gradient(120% 115% at 64% 40%, #0b214e 0%, #061436 42%, #02060f 100%)',
-        boxShadow: '0 24px 70px rgba(11, 27, 51, 0.22), inset 0 1px 0 rgba(120, 160, 255, 0.12)',
-      }}
-      aria-hidden="true"
+      className="absolute inset-y-0 right-0 z-[1] w-full sm:w-[80%] lg:w-[62%]"
+      data-cursor={interactive ? 'ARRASTAR' : undefined}
+      style={{ pointerEvents: interactive ? 'auto' : 'none', cursor: interactive ? 'grab' : 'default' }}
     >
       {/* soft core glow behind the globe */}
       <div
         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
         style={{
-          opacity: hot ? 1 : 0.7,
-          background: 'radial-gradient(46% 46% at 63% 42%, rgba(61, 130, 255, 0.4) 0%, rgba(61, 130, 255, 0) 70%)',
+          opacity: hot ? 1 : 0.75,
+          background: 'radial-gradient(42% 46% at 55% 46%, rgba(61, 130, 255, 0.35) 0%, rgba(61, 130, 255, 0) 70%)',
         }}
       />
-
       <Canvas
         dpr={[1, 1.8]}
         camera={{ position: [0, 0, 3.7], fov: 42 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         frameloop={reducedMotion ? 'demand' : 'always'}
-        style={{ pointerEvents: 'none' }}
+        style={{ pointerEvents: interactive ? 'auto' : 'none' }}
       >
-        <Globe reducedMotion={reducedMotion} hot={hot} />
+        <Globe reducedMotion={reducedMotion} hot={hot} interactive={interactive} />
       </Canvas>
-
-      {/* technical overlay */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
-        <div className="flex items-center justify-between">
-          <p className="tbe-mono text-[9px] tracking-[0.3em] text-[#9ec4ff]">TENKA // GLOBAL DELIVERY</p>
-          <span className="tbe-mono flex items-center gap-1.5 text-[9px] tracking-[0.2em] text-[#7fb0ff]">
-            <span className="h-1.5 w-1.5 bg-[#3d82ff]" /> LIVE
-          </span>
-        </div>
-        <p className="tbe-mono text-[10px] tracking-[0.25em] text-[#b8d2ff]">{label}</p>
-      </div>
-
-      {/* corner ticks */}
-      <span className="pointer-events-none absolute left-3 top-3 h-3 w-3 border-l border-t border-[#3d82ff]/60" />
-      <span className="pointer-events-none absolute bottom-3 right-3 h-3 w-3 border-b border-r border-[#3d82ff]/60" />
+      {interactive && (
+        <p className="tbe-mono pointer-events-none absolute bottom-5 right-6 hidden text-[9px] tracking-[0.3em] text-[#7fb0ff]/70 lg:block">
+          ARRASTE PARA GIRAR
+        </p>
+      )}
     </div>
   );
 }
