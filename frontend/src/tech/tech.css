@@ -190,8 +190,10 @@
 .tbe-module {
   position: relative;
   border: 1px solid var(--tbe-border);
-  background: linear-gradient(180deg, rgba(29, 107, 255, 0.03), rgba(29, 107, 255, 0));
-  transition: border-color 180ms ease, background-color 180ms ease;
+  /* Near-opaque white so the animated background never bleeds through cards. */
+  background: linear-gradient(180deg, rgba(29, 107, 255, 0.02), rgba(29, 107, 255, 0)), #ffffff;
+  box-shadow: 0 12px 34px rgba(11, 27, 51, 0.06);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
 .tbe-module:hover,
@@ -201,7 +203,7 @@
 
 .tbe-module[data-active='true'] {
   border-color: var(--tbe-border-active);
-  background: linear-gradient(180deg, rgba(29, 107, 255, 0.07), rgba(29, 107, 255, 0.01));
+  background: linear-gradient(180deg, rgba(29, 107, 255, 0.09), rgba(29, 107, 255, 0.02)), #ffffff;
 }
 
 /* Corner tick marks that read as anchor points on active modules. */

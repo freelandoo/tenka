@@ -183,7 +183,7 @@ export function PortfolioSection({ reducedMotion, onOpenBrief, onNavigate }: Por
         {/* Desktop: floating product desktop + detail panel */}
         <div className="mt-12 hidden gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px]">
           <motion.div
-            className="tbe-blueprint relative h-[560px] overflow-hidden border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/60"
+            className="tbe-blueprint relative h-[560px] overflow-hidden border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/95"
             role="group"
             aria-label="Área de trabalho com janelas de produtos — selecione uma janela para ver os detalhes"
           >

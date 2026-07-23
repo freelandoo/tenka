@@ -179,7 +179,7 @@ export function ArchitectureSection({ reducedMotion, isTouch }: ArchitectureSect
         {!isTouch && (
           <div className="mt-12 hidden gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_300px]">
             <div
-              className="tbe-blueprint h-[480px] border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/70"
+              className="tbe-blueprint h-[480px] border border-[#0b1b33]/12 bg-[var(--tbe-bg-2)]/95"
               role="group"
               aria-label="Diagrama da arquitetura do sistema: usuário conecta-se às aplicações web e móvel, que falam com a API; a API coordena autenticação, banco de dados, pagamentos, notificações, inteligência artificial e serviços externos; o banco alimenta analytics e o painel administrativo."
             >
