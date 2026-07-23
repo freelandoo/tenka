@@ -157,6 +157,15 @@ function refreshOnce(): Promise<string | null> {
   return refreshing;
 }
 
+/**
+ * Renova o access token compartilhando a mesma renovação em voo (single-flight).
+ * Usado pelo cliente SSE, cujo token na URL expira e precisa ser trocado antes
+ * de reabrir o EventSource. Devolve o novo token, ou null se a sessão morreu.
+ */
+export function refreshAccessToken(): Promise<string | null> {
+  return refreshOnce();
+}
+
 // --- Request -----------------------------------------------------------------
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';

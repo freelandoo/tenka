@@ -8,6 +8,8 @@ import { projectRoutes } from './modules/projects';
 import { dailyRoutes } from './modules/dailies';
 import { notificationRoutes } from './modules/notifications';
 import { userRoutes } from './modules/users';
+import { eventRoutes } from './modules/events';
+import { realtimeBus } from './realtime/bus';
 
 const app = Fastify({
   logger: { level: env.nodeEnv === 'production' ? 'info' : 'debug' },
@@ -26,6 +28,7 @@ async function main(): Promise<void> {
   await app.register(dailyRoutes);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
+  await app.register(eventRoutes);
 
   // Liveness/healthcheck do Railway. Sempre 200 — o status do banco é
   // informativo, para o serviço subir verde mesmo antes de o Postgres existir.
@@ -51,12 +54,21 @@ async function main(): Promise<void> {
   } else if (!hasDatabase) {
     app.log.warn('DATABASE_URL ausente — servidor no ar, mas sem banco.');
   }
+
+  // Realtime (SSE): conexão dedicada em LISTEN. Independe das migrations —
+  // reconecta sozinha se o banco ainda não estiver pronto.
+  if (hasDatabase) {
+    realtimeBus.start().catch((err) => {
+      app.log.error({ err }, 'Falha ao iniciar o barramento de realtime');
+    });
+  }
 }
 
 // Encerramento gracioso (Railway envia SIGTERM em cada novo deploy).
 for (const sig of ['SIGTERM', 'SIGINT'] as const) {
   process.on(sig, async () => {
     app.log.info(`${sig} recebido — encerrando.`);
+    await realtimeBus.stop().catch(() => {});
     await app.close().catch(() => {});
     await closeDb().catch(() => {});
     process.exit(0);

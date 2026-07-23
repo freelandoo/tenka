@@ -10,11 +10,9 @@ import {
   type ReactNode,
 } from 'react';
 import type { NotificationRow } from '../../lib/supabase/database.types';
+import { subscribeRealtime } from '../../lib/api/events';
 import { useAuth } from '../auth/AuthContext';
 import * as service from './notificationsService';
-
-/** Polling provisório do sino (realtime SSE virá na F5). */
-const POLL_INTERVAL_MS = 20_000;
 
 interface NotificationsContextValue {
   notifications: NotificationRow[];
@@ -54,14 +52,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
     void refresh();
 
-    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    // O backend só envia eventos de 'notifications' ao dono, então o refresh
+    // aqui já é do próprio usuário.
+    const unsubscribe = subscribeRealtime(['notifications'], () => void refresh());
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      window.clearInterval(interval);
+      unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [userId, refresh]);

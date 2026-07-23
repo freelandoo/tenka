@@ -32,10 +32,16 @@ Concluído até aqui:
   autorização por papel/atribuição na aplicação (substitui a RLS). 22/22 no E2E.
 - **F6** — frontend religado ao backend próprio: `lib/api/client` (fetch + JWT
   com refresh transparente single-flight) no lugar do `supabase-js`; os 5
-  services, o `AuthContext` e a troca de senha reescritos contra o REST; o
-  realtime (`postgres_changes`) virou polling provisório nos 3 pontos (Kanban,
-  sino, diárias) — o SSE fica para a F5. `@supabase/supabase-js` removido do
-  bundle. Configuração via `VITE_API_URL`. Build + 65/65 testes verdes.
+  services, o `AuthContext` e a troca de senha reescritos contra o REST.
+  `@supabase/supabase-js` removido do bundle. Configuração via `VITE_API_URL`.
+- **F5** — realtime via SSE no lugar dos 3 `postgres_changes`. Migration 0011:
+  triggers `pg_notify('tenka_events', …)` em projects/project_assignees/
+  daily_tasks (statement-level) e notifications (row-level, com `user_id`). O
+  backend mantém uma conexão dedicada em `LISTEN` (`realtime/bus.ts`, reconecta
+  sozinha) e faz fan-out para os clientes em `GET /events` (SSE, token na
+  query). No front, um único `EventSource` compartilhado (`lib/api/events.ts`)
+  avisa Kanban/sino/diárias, que refazem o fetch (debounce 300ms). Validado
+  ponta a ponta em Postgres real (NOTIFY → SSE). Build + 65/65 testes verdes.
 
 ## Rodando localmente
 

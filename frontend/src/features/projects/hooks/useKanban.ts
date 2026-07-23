@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectStatus } from '../../../lib/supabase/database.types';
+import { subscribeRealtime } from '../../../lib/api/events';
 import * as service from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
 
-/**
- * Sincronização provisória por polling (o realtime SSE chega na F5). Recarrega
- * o board em intervalo fixo e também quando a aba volta ao foco, para outra
- * pessoa mexendo no mural aparecer sem F5.
- */
-const POLL_INTERVAL_MS = 12_000;
+// Coalesce de eventos: um move gera poucos NOTIFY em rajada — um debounce curto
+// junta tudo num refetch só.
+const REALTIME_DEBOUNCE_MS = 300;
 
 export const COLUMN_ORDER: readonly ProjectStatus[] = [
   'inicio',
@@ -92,14 +90,22 @@ export function useKanban(enabled: boolean): UseKanbanResult {
     setStatus('loading');
     void refresh();
 
-    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    let timer: number | undefined;
+    const onChange = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refresh(), REALTIME_DEBOUNCE_MS);
+    };
+    const unsubscribe = subscribeRealtime(['projects', 'project_assignees'], onChange);
+    // Rede caiu e voltou? Ao reabrir a aba, recarrega para cobrir eventos
+    // perdidos enquanto o stream esteve fora do ar.
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
+      unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, refresh]);

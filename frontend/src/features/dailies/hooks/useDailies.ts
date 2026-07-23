@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DailyRowKey, DailyTaskRow } from '../../../lib/supabase/database.types';
+import { subscribeRealtime } from '../../../lib/api/events';
 import * as service from '../services/dailiesService';
 
-/** Polling provisório da grade da semana (realtime SSE virá na F5). */
-const POLL_INTERVAL_MS = 12_000;
+/** Debounce curto para juntar a rajada de NOTIFY de um move num refetch só. */
+const REALTIME_DEBOUNCE_MS = 300;
 
 export const DAILY_ROWS: readonly DailyRowKey[] = ['planejamento', 'execucao'] as const;
 
@@ -81,14 +82,20 @@ export function useDailies(
     setStatus('loading');
     void refresh();
 
-    const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    let timer: number | undefined;
+    const onChange = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refresh(), REALTIME_DEBOUNCE_MS);
+    };
+    const unsubscribe = subscribeRealtime(['daily_tasks'], onChange);
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
+      unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, startDay, endDay, refresh]);
