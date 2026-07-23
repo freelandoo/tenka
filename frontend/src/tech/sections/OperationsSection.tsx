@@ -70,7 +70,7 @@ export function OperationsSection({ reducedMotion }: { reducedMotion: boolean })
           <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Cenários de operação">
             {SCENARIOS.map((item) => <button key={item.id} type="button" role="tab" aria-selected={scenarioId === item.id} onClick={() => { setScenarioId(item.id); setCanvasFocus(item.focus); }} className={`tbe-mono min-h-[40px] border px-3 py-2 text-[9px] tracking-[0.16em] transition-colors active:translate-y-px ${scenarioId === item.id ? 'border-[var(--tbe-tq)] bg-[var(--tbe-tq)]/10 text-[var(--tbe-text)]' : 'border-[#0b1b33]/10 text-[var(--tbe-text-mute)]'}`}>{item.label}</button>)}
           </div>
-          <div className="border-y border-[#0b1b33]/10" role="region" aria-label="Painel de saúde dos serviços em produção">
+          <div className="rounded-xl border border-[#0b1b33]/12 bg-[var(--tbe-bg)] px-5 shadow-[0_12px_34px_rgba(11,27,51,0.06)]" role="region" aria-label="Painel de saúde dos serviços em produção">
           <div className="flex items-center justify-between border-b border-[#0b1b33]/10 py-3">
             <span className="tbe-mono text-[10px] tracking-[0.25em] text-[var(--tbe-text-2)]">PRODUCTION // HEALTH</span>
             <span className="tbe-mono flex items-center gap-2 text-[9px] tracking-[0.2em] text-[var(--tbe-success)]"><span className="tbe-status-dot" /> TODOS OS SISTEMAS OPERACIONAIS</span>
