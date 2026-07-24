@@ -1,6 +1,13 @@
-import { Pool, type PoolClient } from 'pg';
+import { Pool, types, type PoolClient } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { env, hasDatabase } from '../env';
+
+// O driver pg converte `date` (OID 1082) num Date do JS, que ao virar JSON
+// ganha hora e fuso ("2026-07-23T00:00:00.000Z"). O frontend trata toda coluna
+// `date` como texto puro 'YYYY-MM-DD' (daily_tasks.day, projects.due_date): sem
+// isto, o post-it recém-criado cai numa célula fantasma e "salva mas não
+// aparece". `timestamptz` (created_at/updated_at) é OID 1184 e não é afetado.
+types.setTypeParser(types.builtins.DATE, (value) => value);
 
 /**
  * Interface do banco para o Kysely. Ainda vazia — cada tabela portada nas
