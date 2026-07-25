@@ -19,6 +19,14 @@ const createUserSchema = z.object({
 });
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
+// O backend usa o mesmo código 'email-taken' (a coluna única ainda se chama
+// `email`), mas para o admin isso é colisão de LOGIN — traduz para uma frase
+// clara em vez de vazar o código cru no toast.
+const CREATE_USER_ERRORS: Record<string, string> = {
+  'email-taken': 'Já existe um usuário com esse login. Escolha outro.',
+  'invalid-body': 'Confira os campos e tente novamente.',
+};
+
 type RoleFilter = 'todos' | PanelRole;
 
 interface ConfirmState {
@@ -162,7 +170,7 @@ export default function UsersPage() {
           <input
             className="panel-input"
             style={{ paddingLeft: 40 }}
-            placeholder="Buscar por nome ou e-mail…"
+            placeholder="Buscar por nome ou login…"
             aria-label="Buscar usuários"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -204,7 +212,7 @@ export default function UsersPage() {
             <thead>
               <tr>
                 <th scope="col">Usuário</th>
-                <th scope="col">E-mail</th>
+                <th scope="col">Login</th>
                 <th scope="col">Função</th>
                 <th scope="col">Status</th>
                 <th scope="col">Desde</th>
@@ -402,10 +410,8 @@ function CreateUserModal({
       toast('success', `Usuário ${values.name} criado.`);
       onCreated();
     } catch (error) {
-      toast(
-        'error',
-        error instanceof Error ? error.message : 'Falha ao criar o usuário.',
-      );
+      const code = error instanceof Error ? error.message : '';
+      toast('error', CREATE_USER_ERRORS[code] ?? 'Falha ao criar o usuário.');
     } finally {
       setSubmitting(false);
     }
