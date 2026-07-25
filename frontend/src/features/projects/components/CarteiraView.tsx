@@ -4,6 +4,8 @@ import type { ProfileRow, ProjectStatus } from '../../../lib/supabase/database.t
 import type { BoardProject } from '../services/projectsService';
 import { COLUMN_LABELS, COLUMN_ORDER } from '../hooks/useKanban';
 import { formatCurrencyFromCents, formatDate, initials } from '../../panel/format';
+import { setSubscriptionActive } from '../services/projectsService';
+import { useToast } from '../../panel/ToastContext';
 import type { CostRow } from '../../../lib/supabase/database.types';
 import * as clientsService from '../../clients/clientsService';
 import { CostList } from '../../clients/CostList';
@@ -15,6 +17,8 @@ interface CarteiraViewProps {
   profiles: ProfileRow[];
   /** Custo da empresa é finança da agência: só admin lança. */
   isAdmin: boolean;
+  /** Recarrega o board depois de ligar/desligar uma mensalidade no extrato. */
+  onProjectsChanged(): void;
 }
 
 type Filtro = 'todos' | ProjectStatus;
@@ -37,7 +41,7 @@ function ymDe(iso: string): { y: number; m: number } {
  * (valor único de cada projeto) e a receita de mensalidade (soma das
  * mensalidades ativas). Sem notícias/cotações.
  */
-export function CarteiraView({ projects, profiles, isAdmin }: CarteiraViewProps) {
+export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }: CarteiraViewProps) {
   const hoje = useMemo(() => new Date(), []);
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
@@ -226,7 +230,13 @@ export function CarteiraView({ projects, profiles, isAdmin }: CarteiraViewProps)
         ) : (
           <div className="cart-rows">
             {extrato.map((p) => (
-              <ExtratoRow key={p.id} project={p} profileById={profileById} />
+              <ExtratoRow
+                key={p.id}
+                project={p}
+                profileById={profileById}
+                isAdmin={isAdmin}
+                onChanged={onProjectsChanged}
+              />
             ))}
           </div>
         )}
@@ -263,16 +273,34 @@ function Kpi({
 function ExtratoRow({
   project,
   profileById,
+  isAdmin,
+  onChanged,
 }: {
   project: BoardProject;
   profileById: Map<string, ProfileRow>;
+  isAdmin: boolean;
+  onChanged(): void;
 }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
   const nomes = project.assignees
     .map((a) => profileById.get(a.user_id))
     .filter((p): p is ProfileRow => Boolean(p));
   const visiveis = nomes.slice(0, 3);
   const extras = nomes.length - visiveis.length;
   const temMensalidade = project.monthly_fee_cents > 0;
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      await setSubscriptionActive(project.id, !project.subscription_active);
+      onChanged();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao alterar a mensalidade.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="cart-row">
@@ -289,12 +317,6 @@ function ExtratoRow({
             <span className={`cart-status cart-status--${project.status}`}>
               <span className="cart-status__dot" aria-hidden="true" />
               {COLUMN_LABELS[project.status]}
-            </span>
-          )}
-          {temMensalidade && (
-            <span className={`cart-fee${project.subscription_active ? ' cart-fee--on' : ''}`}>
-              {formatCurrencyFromCents(project.monthly_fee_cents)}/mês
-              {project.subscription_active ? ' · ativa' : ' · inativa'}
             </span>
           )}
           {project.due_date && <span>Prazo {formatDate(project.due_date)}</span>}
@@ -314,7 +336,48 @@ function ExtratoRow({
           )}
         </div>
       </div>
-      <span className="cart-row__value">{formatCurrencyFromCents(project.value_cents)}</span>
+
+      {/* Faixa financeira: o que se consulta na Carteira fica alinhado em
+          colunas, não diluído entre os metadados. */}
+      <div className="cart-row__fin">
+        <span className="cart-row__fin-cell">
+          <small>Vencimento</small>
+          {project.due_day ? `dia ${project.due_day}` : '—'}
+        </span>
+        <span className="cart-row__fin-cell">
+          <small>Mensalidade</small>
+          {temMensalidade ? `${formatCurrencyFromCents(project.monthly_fee_cents)}/mês` : '—'}
+        </span>
+        <span className="cart-row__fin-cell cart-row__fin-cell--value">
+          <small>Valor</small>
+          {formatCurrencyFromCents(project.value_cents)}
+        </span>
+        <span className="cart-row__fin-cell cart-row__fin-cell--toggle">
+          {/* Sem mensalidade não há recorrência para ligar — o espaço fica
+              reservado para as linhas não desalinharem entre si. */}
+          {temMensalidade ? (
+            <button
+              type="button"
+              className={`cart-fee cart-fee--btn${project.subscription_active ? ' cart-fee--on' : ''}`}
+              disabled={busy || !isAdmin}
+              aria-pressed={project.subscription_active}
+              title={
+                isAdmin
+                  ? project.subscription_active
+                    ? 'Desativar a recorrência'
+                    : 'Ativar a recorrência'
+                  : 'Somente administradores alteram a recorrência'
+              }
+              onClick={() => void toggle()}
+            >
+              <span className="cart-status__dot" aria-hidden="true" />
+              {project.subscription_active ? 'Ativa' : 'Inativa'}
+            </button>
+          ) : (
+            <span className="history__muted">—</span>
+          )}
+        </span>
+      </div>
     </div>
   );
 }

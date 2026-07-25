@@ -316,7 +316,12 @@ export default function ProjectsPage() {
       )}
 
       {status === 'ready' && aba === 'carteira' && (
-        <CarteiraView projects={allProjects} profiles={profiles} isAdmin={isAdmin} />
+        <CarteiraView
+          projects={allProjects}
+          profiles={profiles}
+          isAdmin={isAdmin}
+          onProjectsChanged={() => void refresh()}
+        />
       )}
 
       {status === 'ready' && aba === 'leads' && (

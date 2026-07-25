@@ -737,6 +737,12 @@
   border: 1px dashed var(--panel-line-strong);
   color: var(--panel-text-faint);
 }
+.cart-fee--btn { cursor: pointer; }
+.cart-fee--btn:disabled { cursor: default; opacity: 0.65; }
+.cart-fee--btn:not(:disabled):hover { border-color: var(--panel-line-strong); }
+.cart-fee .cart-status__dot { background: var(--panel-text-faint); }
+.cart-fee--on .cart-status__dot { background: #3fb950; }
+
 .cart-fee--on {
   border-style: solid;
   border-color: rgba(95, 211, 148, 0.45);
@@ -2686,4 +2692,56 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   .leads__contact,
   .leads__value,
   .leads__due { display: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Extrato — faixa financeira da linha
+   Vencimento · Mensalidade · Valor · recorrência, em colunas de largura fixa
+   para as linhas alinharem entre si em vez de dançarem com o conteúdo.
+   --------------------------------------------------------------------------- */
+.cart-row__fin {
+  display: grid;
+  grid-template-columns: 84px 118px 118px 84px;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.cart-row__fin-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--panel-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--panel-text-dim);
+  text-align: right;
+}
+.cart-row__fin-cell small {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+}
+.cart-row__fin-cell--value { font-size: 14px; font-weight: 700; color: var(--panel-text); }
+.cart-row__fin-cell--toggle { align-items: flex-end; }
+
+@media (max-width: 1080px) {
+  /* Sem espaço para 4 colunas ao lado do nome: a faixa quebra em duas linhas
+     abaixo dele, alinhada à esquerda. */
+  .cart-row { flex-wrap: wrap; }
+  .cart-row__main { flex: 1 1 100%; }
+  .cart-row__fin {
+    flex: 1 1 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--panel-line);
+  }
+  .cart-row__fin-cell { text-align: left; align-items: flex-start; }
+  .cart-row__fin-cell--toggle { align-items: flex-start; }
+}
+
+@media (max-width: 620px) {
+  .cart-row__fin { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
 }
