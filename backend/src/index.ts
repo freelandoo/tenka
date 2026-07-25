@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { env, hasDatabase, assertAuthEnv } from './env';
+import { corsOrigin } from './cors';
 import { pingDb, closeDb } from './db/pool';
 import { runMigrations } from './db/migrate';
 import { authRoutes } from './auth/routes';
@@ -22,7 +23,7 @@ async function main(): Promise<void> {
   assertAuthEnv();
 
   await app.register(cors, {
-    origin: env.corsOrigin === '*' ? true : env.corsOrigin.split(',').map((o) => o.trim()),
+    origin: corsOrigin(env.corsOrigin),
     credentials: true,
   });
 
