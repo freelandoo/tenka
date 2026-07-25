@@ -518,7 +518,9 @@
 /* KPIs — cartões com o mesmo acabamento das colunas do Kanban */
 .cart-kpis {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Os três KPIs numa linha só. Ficou fixo em 3 (e não auto-fit) porque com
+     auto-fit o card do meio esticava sozinho quando sobrava espaço. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(10px, 1.4vw, 16px);
 }
 
@@ -526,8 +528,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px 18px;
+  gap: 7px;
+  padding: 14px 16px;
   border-radius: var(--panel-radius);
   border: 1px solid var(--panel-line);
   background:
@@ -554,7 +556,8 @@
 }
 .cart-kpi__dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .cart-kpi__value {
-  font-size: clamp(20px, 2.2vw, 27px);
+  font-size: clamp(18px, 1.7vw, 24px);
+  overflow-wrap: anywhere;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1;
@@ -791,9 +794,16 @@
   color: var(--panel-text-dim);
 }
 
+@media (max-width: 1080px) {
+  /* Antes de empilhar: 2 em cima, 1 embaixo ocupando a linha inteira. */
+  .cart-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cart-kpis > :last-child { grid-column: 1 / -1; }
+}
+
 @media (max-width: 860px) {
   .cart { gap: 18px; }
   .cart-kpis { grid-template-columns: 1fr; }
+  .cart-kpis > :last-child { grid-column: auto; }
   .cart-panel { padding: 16px 14px 18px; }
   .cart-bar__label { display: none; }
   .cart-row { padding: 11px 12px; gap: 10px; }
