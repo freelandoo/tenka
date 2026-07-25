@@ -41,6 +41,31 @@ export const env = {
   refreshTtlDays: Number(process.env.REFRESH_TTL_DAYS ?? 30),
   /** Custo do bcrypt para NOVAS senhas (hashes migrados do GoTrue mantêm o seu). */
   bcryptRounds: Number(process.env.BCRYPT_ROUNDS ?? 10),
+
+  // --- WhatsApp / Evolution API (F9) ---------------------------------------
+  // Ausentes, o painel roda igual: a aba Atendimento mostra "WhatsApp não
+  // configurado" e as rotas devolvem 503. Nada quebra.
+  /** URL interna da Evolution no Railway (nunca pública). */
+  evolutionUrl: (process.env.EVOLUTION_URL ?? '').trim(),
+  evolutionApiKey: (process.env.EVOLUTION_API_KEY ?? '').trim(),
+  /** Nome técnico da instância dentro da Evolution. */
+  evolutionInstance: (process.env.EVOLUTION_INSTANCE ?? 'tenka').trim(),
+  /** Segredo do header `x-webhook-secret` que a Evolution devolve para nós. */
+  whatsappWebhookSecret: (process.env.WHATSAPP_WEBHOOK_SECRET ?? '').trim(),
+  /** URL pública DESTE backend — é o que a Evolution chama de volta. */
+  publicApiUrl: (process.env.PUBLIC_API_URL ?? '').trim(),
+
+  // --- Google Calendar / Meet (F9) -----------------------------------------
+  // OAuth de uma conta só (a agenda da TENKA): o admin autoriza uma vez em
+  // /painel/configuracoes e o refresh token fica em `app_settings`.
+  googleClientId: (process.env.GOOGLE_CLIENT_ID ?? '').trim(),
+  googleClientSecret: (process.env.GOOGLE_CLIENT_SECRET ?? '').trim(),
+  /** Precisa bater EXATAMENTE com o redirect URI cadastrado no Google Cloud. */
+  googleRedirectUri: (process.env.GOOGLE_REDIRECT_URI ?? '').trim(),
+  /** Fuso das reuniões criadas (o Google exige IANA, não offset). */
+  meetingTimezone: (process.env.MEETING_TIMEZONE ?? 'America/Sao_Paulo').trim(),
+  /** Para onde devolver o navegador ao fim do consentimento do Google. */
+  panelUrl: (process.env.PANEL_URL ?? '').trim(),
 } as const;
 
 export const hasDatabase = env.databaseUrl.length > 0;

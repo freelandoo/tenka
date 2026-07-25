@@ -168,7 +168,7 @@ export function refreshAccessToken(): Promise<string | null> {
 
 // --- Request -----------------------------------------------------------------
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   /** `false` para rotas públicas (login/refresh) — não anexa nem renova token. */

@@ -6,6 +6,7 @@ import PanelLayout from '../../layouts/PanelLayout';
 import LoginPage from './LoginPage';
 import ProjectsPage from './ProjectsPage';
 import UsersPage from './UsersPage';
+import AtendimentoPage from './AtendimentoPage';
 import SettingsPage from './SettingsPage';
 import '../../styles/panel.css';
 
@@ -40,6 +41,15 @@ export default function PanelRoutes() {
               element={
                 <RequireAdmin>
                   <UsersPage />
+                </RequireAdmin>
+              }
+            />
+            {/* Inbox de todos os clientes: admin, pelo mesmo motivo de Usuários. */}
+            <Route
+              path="atendimento"
+              element={
+                <RequireAdmin>
+                  <AtendimentoPage />
                 </RequireAdmin>
               }
             />

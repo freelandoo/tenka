@@ -1526,6 +1526,128 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 .note-card__meta strong { color: var(--panel-text-dim); font-weight: 500; }
 .note-card__body { font-size: 14px; line-height: 1.5; color: var(--panel-text); white-space: pre-wrap; }
 
+/* ---------------------------------------------------------------------------
+   Observação como registro de mensagem (canais de WhatsApp + reunião)
+   A barra colorida à esquerda diz o canal de relance, sem depender de ler a tag.
+   --------------------------------------------------------------------------- */
+.note-card--interna { border-left: 2px solid #58a6ff; }
+.note-card--aprovacao { border-left: 2px solid #3fb950; }
+.note-card--reuniao { border-left: 2px solid var(--panel-accent); }
+
+.note-tag {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--panel-line-strong);
+}
+.note-tag--interna { color: #58a6ff; border-color: rgba(88, 166, 255, 0.35); }
+.note-tag--aprovacao { color: #3fb950; border-color: rgba(63, 185, 80, 0.35); }
+.note-tag--reuniao { color: var(--panel-accent); border-color: rgba(241, 90, 36, 0.4); }
+
+.note-card__meeting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--panel-text-dim);
+}
+.note-card__meeting a { color: var(--panel-accent); text-decoration: underline; }
+
+.note-card__delivery {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--panel-mono);
+  font-size: 10px;
+}
+.note-card__delivery li { display: flex; align-items: center; gap: 4px; }
+.note-card__delivery .is-ok { color: #3fb950; }
+.note-card__delivery .is-failed { color: #ff8a87; }
+
+.note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.note-actions__spacer { flex: 1 1 auto; }
+
+/* Cada canal ganha a mesma cor do registro que vai gerar. */
+.note-channel--interna:not(:disabled) { border-color: rgba(88, 166, 255, 0.4); color: #9dc9ff; }
+.note-channel--aprovacao:not(:disabled) { border-color: rgba(63, 185, 80, 0.4); color: #8ae09a; }
+.note-channel--reuniao:not(:disabled) {
+  border-color: rgba(241, 90, 36, 0.5);
+  color: #ffb08c;
+}
+
+.note-meeting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(241, 90, 36, 0.35);
+  border-radius: 10px;
+  background: var(--panel-accent-soft);
+  color: var(--panel-accent);
+}
+.note-meeting strong { display: block; font-size: 12.5px; color: var(--panel-text); }
+.note-meeting a {
+  display: block;
+  font-family: var(--panel-mono);
+  font-size: 10.5px;
+  color: var(--panel-accent);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+/* Aviso de contato frio: âmbar (cuidado), não vermelho — não é erro, e os
+   botões continuam funcionando. Vermelho aqui viraria ruído ignorado. */
+.note-cold {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(230, 168, 60, 0.38);
+  border-radius: 10px;
+  background: rgba(230, 168, 60, 0.09);
+  color: #e6a83c;
+}
+.note-cold p { font-size: 12px; line-height: 1.5; color: var(--panel-text-dim); }
+.note-cold strong { color: #e6a83c; font-weight: 600; }
+
+.note-scheduler {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--panel-line-strong);
+  border-radius: 12px;
+  background: var(--panel-surface);
+}
+.note-scheduler header { display: flex; align-items: center; justify-content: space-between; }
+.note-scheduler header strong { font-size: 13.5px; }
+.note-scheduler__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.note-scheduler__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--panel-text-dim);
+}
+.note-scheduler__check input { width: 15px; height: 15px; accent-color: var(--panel-accent); }
+
+@media (max-width: 560px) {
+  .note-scheduler__grid { grid-template-columns: 1fr; }
+}
+
 .activity-item {
   display: flex;
   gap: 10px;
@@ -2112,4 +2234,230 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 .equipe__num--backlog {
   color: var(--panel-danger, #ff6b4a);
   font-weight: 700;
+}
+
+/* ===========================================================================
+   ATENDIMENTO — faixa de integrações + inbox do WhatsApp
+   =========================================================================== */
+
+.integrations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.integrations__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  background: var(--panel-surface);
+}
+.integrations__card header { display: flex; align-items: center; gap: 8px; }
+.integrations__card header strong { font-size: 13.5px; }
+.integrations__card p { font-size: 12.5px; color: var(--panel-text-dim); line-height: 1.45; }
+.integrations__actions { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.integrations__actions .panel-input { flex: 1 1 100%; }
+
+/* Verde só quando a integração está realmente de pé — cinza é o repouso. */
+.integrations__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--panel-text-faint);
+  flex: none;
+}
+.integrations__dot.is-on { background: #3fb950; box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.16); }
+
+.inbox {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 14px;
+  min-height: 520px;
+}
+
+.inbox__list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel-surface);
+  overflow: hidden;
+}
+.inbox__list ul { list-style: none; overflow-y: auto; flex: 1; }
+
+.inbox__tabs { display: flex; border-bottom: 1px solid var(--panel-line); }
+.inbox__tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 8px;
+  font-size: 12.5px;
+  color: var(--panel-text-faint);
+  border-bottom: 2px solid transparent;
+}
+.inbox__tab.is-active { color: var(--panel-text); border-bottom-color: var(--panel-accent); }
+.inbox__tab-count { font-family: var(--panel-mono); font-size: 10px; opacity: 0.7; }
+
+.inbox__badge {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--panel-accent);
+  color: #fff;
+  font-family: var(--panel-mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+.inbox__hint { padding: 18px 14px; font-size: 13px; color: var(--panel-text-faint); line-height: 1.5; }
+
+.inbox__item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--panel-line);
+  border-left: 2px solid transparent;
+}
+.inbox__item:hover { background: rgba(255, 255, 255, 0.03); }
+.inbox__item.is-active { background: rgba(255, 255, 255, 0.05); border-left-color: var(--panel-accent); }
+.inbox__item-top { display: flex; align-items: center; gap: 8px; }
+.inbox__item-top strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox__item p {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--panel-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox__item-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  color: var(--panel-text-faint);
+}
+.inbox__tag {
+  padding: 1px 6px;
+  border: 1px solid var(--panel-line-strong);
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.inbox__tag--internal { color: #58a6ff; border-color: rgba(88, 166, 255, 0.35); }
+
+.inbox__thread {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel-surface);
+  overflow: hidden;
+}
+.inbox__thread--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--panel-text-faint);
+  font-size: 13.5px;
+}
+.inbox__thread-header { padding: 13px 16px; border-bottom: 1px solid var(--panel-line); }
+.inbox__thread-header strong { display: block; font-size: 14.5px; }
+.inbox__thread-header span {
+  font-family: var(--panel-mono);
+  font-size: 10.5px;
+  color: var(--panel-text-faint);
+}
+
+.inbox__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inbox__composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 12px 14px;
+  border-top: 1px solid var(--panel-line);
+}
+.inbox__composer .panel-textarea { flex: 1; resize: none; }
+
+.bubble {
+  max-width: min(78%, 560px);
+  align-self: flex-start;
+  padding: 9px 12px;
+  border-radius: 12px 12px 12px 3px;
+  background: var(--panel-surface-2);
+  border: 1px solid var(--panel-line);
+}
+.bubble--out {
+  align-self: flex-end;
+  border-radius: 12px 12px 3px 12px;
+  background: rgba(241, 90, 36, 0.13);
+  border-color: rgba(241, 90, 36, 0.3);
+}
+/* Não entregue fica visualmente diferente: o texto não se perdeu, mas não chegou. */
+.bubble--failed { border-color: rgba(255, 138, 135, 0.5); background: rgba(255, 138, 135, 0.08); }
+.bubble p { font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble__sender {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--panel-accent);
+  margin-bottom: 3px;
+}
+.bubble__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  color: var(--panel-text-faint);
+}
+.bubble__error { display: flex; align-items: center; gap: 3px; color: #ff8a87; }
+
+.inbox-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel-surface);
+  color: var(--panel-text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.inbox-empty code {
+  font-family: var(--panel-mono);
+  font-size: 12px;
+  color: var(--panel-accent);
+}
+
+/* Abaixo de 900px a inbox vira uma coluna só: lista em cima, conversa embaixo. */
+@media (max-width: 900px) {
+  .inbox { grid-template-columns: 1fr; }
+  .inbox__list { max-height: 300px; }
 }

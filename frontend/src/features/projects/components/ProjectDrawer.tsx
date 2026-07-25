@@ -380,7 +380,7 @@ export function ProjectDrawer({
         <h3 id="drawer-notes" className="panel-eyebrow">
           Observações
         </h3>
-        <ProjectNotesSection projectId={project.id} profiles={profiles} />
+        <ProjectNotesSection project={project} profiles={profiles} />
       </section>
 
       <section className="panel-drawer__section" aria-labelledby="drawer-activity">
@@ -423,7 +423,7 @@ export function ProjectNotesDrawer({
           <X size={19} aria-hidden="true" />
         </button>
       </header>
-      <ProjectNotesSection projectId={project.id} profiles={profiles} />
+      <ProjectNotesSection project={project} profiles={profiles} />
     </PanelOverlay>
   );
 }

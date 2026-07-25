@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { FolderKanban, LogOut, MoreVertical, Settings, Users } from 'lucide-react';
+import { FolderKanban, LogOut, MessageSquare, MoreVertical, Settings, Users } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import { NotificationsProvider } from '../features/notifications/NotificationsContext';
 import { NotificationBell } from '../features/notifications/NotificationBell';
@@ -90,6 +90,17 @@ function AccountMenu() {
             </NavLink>
             {isAdmin && (
               <NavLink
+                to="/painel/atendimento"
+                role="menuitem"
+                className="panel-menu__item"
+                onClick={() => setOpen(false)}
+              >
+                <MessageSquare size={16} aria-hidden="true" />
+                Atendimento
+              </NavLink>
+            )}
+            {isAdmin && (
+              <NavLink
                 to="/painel/usuarios"
                 role="menuitem"
                 className="panel-menu__item"
@@ -148,6 +159,11 @@ export default function PanelLayout() {
             <NavLink to="/painel/projetos" className="panel-nav__link">
               Projetos
             </NavLink>
+            {isAdmin && (
+              <NavLink to="/painel/atendimento" className="panel-nav__link">
+                Atendimento
+              </NavLink>
+            )}
             {isAdmin && (
               <NavLink to="/painel/usuarios" className="panel-nav__link">
                 Usuários

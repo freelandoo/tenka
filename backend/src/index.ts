@@ -9,6 +9,9 @@ import { dailyRoutes } from './modules/dailies';
 import { notificationRoutes } from './modules/notifications';
 import { userRoutes } from './modules/users';
 import { eventRoutes } from './modules/events';
+import { whatsappRoutes } from './modules/whatsapp';
+import { webhookRoutes } from './modules/webhooks';
+import { meetingRoutes } from './modules/meetings';
 import { realtimeBus } from './realtime/bus';
 
 const app = Fastify({
@@ -29,6 +32,10 @@ async function main(): Promise<void> {
   await app.register(notificationRoutes);
   await app.register(userRoutes);
   await app.register(eventRoutes);
+  await app.register(whatsappRoutes);
+  await app.register(meetingRoutes);
+  // Webhook da Evolution: não passa por auth de painel (valida x-webhook-secret).
+  await app.register(webhookRoutes);
 
   // Liveness/healthcheck do Railway. Sempre 200 — o status do banco é
   // informativo, para o serviço subir verde mesmo antes de o Postgres existir.

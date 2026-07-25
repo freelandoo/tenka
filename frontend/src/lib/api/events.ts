@@ -12,20 +12,39 @@ import { API_BASE_URL, loadTokens, refreshAccessToken } from './client';
  * a dependência do `refreshAccessToken` do apiClient.
  */
 
-export type ChangeType = 'projects' | 'project_assignees' | 'daily_tasks' | 'notifications';
-type Handler = () => void;
+export type ChangeType =
+  | 'projects'
+  | 'project_assignees'
+  | 'daily_tasks'
+  | 'notifications'
+  | 'project_notes'
+  | 'wa_conversations'
+  | 'wa_messages';
+
+/**
+ * Carga do evento. O backend manda só um sinal — quem recebe refaz o próprio
+ * fetch. `c` (conversa) vem nos eventos de `wa_messages` para a thread aberta
+ * ignorar mensagem de outra conversa em vez de recarregar à toa.
+ */
+export interface ChangePayload {
+  t: ChangeType;
+  u?: string;
+  c?: string;
+}
+
+type Handler = (payload: ChangePayload) => void;
 
 const handlers = new Map<ChangeType, Set<Handler>>();
 let source: EventSource | null = null;
 let refCount = 0;
 let reconnectTimer: number | null = null;
 
-function dispatch(type: ChangeType): void {
-  const set = handlers.get(type);
+function dispatch(payload: ChangePayload): void {
+  const set = handlers.get(payload.t);
   if (!set) return;
   for (const handler of set) {
     try {
-      handler();
+      handler(payload);
     } catch {
       /* um consumidor não pode derrubar os outros */
     }
@@ -43,8 +62,8 @@ function open(): void {
   const es = new EventSource(url);
   es.onmessage = (ev) => {
     try {
-      const data = JSON.parse(ev.data) as { t?: ChangeType | 'hello' };
-      if (data.t && data.t !== 'hello') dispatch(data.t);
+      const data = JSON.parse(ev.data) as ChangePayload | { t: 'hello' };
+      if (data.t && data.t !== 'hello') dispatch(data as ChangePayload);
     } catch {
       /* payload inesperado — ignora */
     }

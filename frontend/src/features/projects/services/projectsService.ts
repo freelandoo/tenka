@@ -4,6 +4,7 @@ import type {
   PostItColorKey,
   ProfileRow,
   ProjectActivityRow,
+  NoteChannel,
   ProjectAssigneeRow,
   ProjectNoteRow,
   ProjectRow,
@@ -129,24 +130,50 @@ export async function fetchNotes(projectId: string): Promise<ProjectNoteRow[]> {
   return data.notes;
 }
 
+export interface AddNoteInput {
+  /** `registro` só grava; os outros três disparam WhatsApp no backend. */
+  channel?: NoteChannel;
+  /** ISO com fuso — obrigatório quando o canal é `reuniao`. */
+  meetingAt?: string;
+  meetingLink?: string;
+}
+
 /**
- * Cada observação é um INSERT independente — nunca sobrescreve anteriores. O
- * autor vem do JWT; `_authorId` fica só por compatibilidade dos chamadores.
+ * Cada observação é um INSERT independente — nunca sobrescreve anteriores, e
+ * não existe rota de edição: o histórico é registro de mensagens. O autor vem
+ * do JWT; `_authorId` fica só por compatibilidade dos chamadores.
+ *
+ * A resposta traz `delivery` preenchido pelo backend: é dele que a UI tira o
+ * aviso de "não entregue" sem precisar refazer o fetch.
  */
 export async function addNote(
   projectId: string,
   _authorId: string,
   body: string,
+  options: AddNoteInput = {},
 ): Promise<ProjectNoteRow> {
   const data = await apiRequest<{ note: ProjectNoteRow }>(`/projects/${projectId}/notes`, {
     method: 'POST',
-    body: { body },
+    body: { body, channel: options.channel ?? 'registro', ...options },
   });
   return data.note;
 }
 
-export async function updateNote(noteId: string, body: string): Promise<void> {
-  await apiRequest(`/notes/${noteId}`, { method: 'PATCH', body: { body } });
+export interface ContactStatus {
+  /** Já existe conversa de WhatsApp com o cliente deste projeto. */
+  hasConversation: boolean;
+  /** O cliente já nos escreveu. `false` = enviar agora é contato frio. */
+  hasInbound: boolean;
+  conversationId: string | null;
+}
+
+/**
+ * Diz se o cliente do projeto já nos escreveu no WhatsApp. Alimenta o aviso de
+ * contato frio nos botões de envio — mensagem para quem nunca falou conosco é
+ * o que gera bloqueio/denúncia, que é o que de fato derruba o número.
+ */
+export function fetchContactStatus(projectId: string): Promise<ContactStatus> {
+  return apiRequest<ContactStatus>(`/projects/${projectId}/contact-status`);
 }
 
 export async function fetchActivity(

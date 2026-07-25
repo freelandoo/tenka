@@ -14,9 +14,18 @@ import { env } from '../env';
 
 export interface ChangeEvent {
   /** Tabela/assunto que mudou. */
-  t: 'projects' | 'project_assignees' | 'daily_tasks' | 'notifications';
+  t:
+    | 'projects'
+    | 'project_assignees'
+    | 'daily_tasks'
+    | 'notifications'
+    | 'project_notes'
+    | 'wa_conversations'
+    | 'wa_messages';
   /** Dono da notificação (só em eventos de `notifications`). */
   u?: string;
+  /** Conversa afetada (só em eventos de `wa_messages`) — a thread aberta filtra por ela. */
+  c?: string;
 }
 
 export interface Subscriber {

@@ -4,6 +4,26 @@ import { getPool, withActor } from '../db/pool';
 import { requireUser, ensureAdmin } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
+import {
+  CHANNEL_TARGETS,
+  sendNote,
+  type DeliveryReport,
+  type ProjectForSend,
+} from '../whatsapp/outbound';
+import { contactStatusForProject } from '../whatsapp/repo';
+
+/**
+ * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
+ * fica só no painel. Não existe rota de edição: o histórico é append-only e o
+ * banco recusa UPDATE em `body`/`channel` (migration 0012).
+ */
+const noteSchema = z.object({
+  body: z.string().trim().min(1),
+  channel: z.enum(['registro', 'interna', 'aprovacao', 'reuniao']).default('registro'),
+  /** Instante da reunião em ISO com fuso; só usado no canal `reuniao`. */
+  meetingAt: z.string().datetime({ offset: true }).optional(),
+  meetingLink: z.string().trim().max(500).optional(),
+});
 
 const PROJECT_PATCH_COLS = [
   'name',
@@ -222,37 +242,98 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ notes: rows });
   });
 
+  /**
+   * Cria a observação e, conforme o canal, despacha no WhatsApp.
+   *
+   * Duas transações de propósito: a observação é gravada e COMMITADA antes de
+   * qualquer chamada de rede. Se a Evolution cair (ou o processo morrer) no meio
+   * do envio, o texto que a pessoa escreveu não se perde — ela volta e vê a
+   * observação registrada com a entrega marcada como falha.
+   */
   app.post('/projects/:id/notes', { preHandler: requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = z.object({ body: z.string().min(1) }).safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: 'invalid-body' });
+    const parsed = noteSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     if (!(await canAccess(req.userId!, isAdmin(req), id)))
       return reply.code(403).send({ error: 'sem-acesso' });
+
+    const { body, channel, meetingAt, meetingLink } = parsed.data;
+    if (channel === 'reuniao' && !meetingAt) {
+      return reply.code(400).send({ error: 'reuniao-sem-horario' });
+    }
+
     const note = await withActor(req.userId!, async (client) => {
       const { rows } = await client.query(
-        `insert into public.project_notes (project_id, author_id, body)
-         values ($1, $2, $3) returning *`,
-        [id, req.userId, body.data.body],
+        `insert into public.project_notes
+           (project_id, author_id, body, channel, meeting_at, meeting_link)
+         values ($1, $2, $3, $4, $5, $6) returning *`,
+        [id, req.userId, body, channel, meetingAt ?? null, meetingLink ?? ''],
       );
-      return rows[0];
+      return rows[0] as { id: string; delivery: Record<string, unknown> };
     });
-    return reply.code(201).send({ note });
+
+    if (CHANNEL_TARGETS[channel].length === 0) return reply.code(201).send({ note });
+
+    const { rows: projectRows } = await getPool().query<ProjectForSend>(
+      'select id, name, client_name, client_phone from public.projects where id = $1',
+      [id],
+    );
+    const project = projectRows[0];
+    if (!project) return reply.code(404).send({ error: 'projeto-inexistente' });
+
+    let delivery: DeliveryReport;
+    try {
+      delivery = await withActor(req.userId!, (client) =>
+        sendNote(client, {
+          project,
+          channel,
+          body,
+          userId: req.userId!,
+          noteId: note.id,
+          authorName: req.profile?.name ?? 'TENKA',
+          meeting: meetingAt ? { startsAt: new Date(meetingAt), link: meetingLink ?? '' } : null,
+        }),
+      );
+    } catch (e) {
+      // WhatsApp indisponível/desconfigurado: a observação já está salva; marca
+      // TODOS os destinos do canal como não entregues.
+      const error = e instanceof Error ? e.message : 'Falha ao enviar.';
+      delivery = Object.fromEntries(
+        CHANNEL_TARGETS[channel].map((target) => [target, { ok: false, error }]),
+      );
+    }
+
+    // `delivery` é a única coluna mutável da observação — ver o trigger
+    // `project_notes_no_edit` na migration 0012.
+    const { rows } = await getPool().query(
+      'update public.project_notes set delivery = $2::jsonb where id = $1 returning *',
+      [note.id, JSON.stringify(delivery)],
+    );
+    return reply.code(201).send({ note: rows[0] });
   });
 
-  app.patch('/notes/:noteId', { preHandler: requireUser }, async (req, reply) => {
-    const { noteId } = req.params as { noteId: string };
-    const body = z.object({ body: z.string().min(1) }).safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: 'invalid-body' });
-    const admin = isAdmin(req);
-    const result = await withActor(req.userId!, (client) =>
-      client.query(
-        `update public.project_notes set body = $2
-          where id = $1 and ($3 or author_id = $4)`,
-        [noteId, body.data.body, admin, req.userId],
-      ),
+  /**
+   * O cliente deste projeto já nos escreveu no WhatsApp?
+   *
+   * Serve ao aviso de contato frio nos botões de envio da observação. Devolve
+   * `hasInbound:false` também quando o WhatsApp está desligado ou o projeto não
+   * tem telefone — o aviso some sozinho porque, nesses casos, os botões que ele
+   * qualifica já estão indisponíveis.
+   */
+  app.get('/projects/:id/contact-status', { preHandler: requireUser }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!(await canAccess(req.userId!, isAdmin(req), id)))
+      return reply.code(403).send({ error: 'sem-acesso' });
+
+    const { rows } = await getPool().query<{ client_phone: string }>(
+      'select client_phone from public.projects where id = $1',
+      [id],
     );
-    if (result.rowCount === 0) return reply.code(403).send({ error: 'sem-permissao' });
-    return reply.send({ ok: true });
+    const phone = rows[0]?.client_phone ?? '';
+    if (!phone.trim()) {
+      return reply.send({ hasConversation: false, hasInbound: false, conversationId: null });
+    }
+    return reply.send(await contactStatusForProject(id, phone));
   });
 
   // ---- Trilha de atividade -------------------------------------------------
