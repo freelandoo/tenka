@@ -36,7 +36,7 @@ const ABA_TITULOS: Record<Aba, { eyebrow: string; titulo: string }> = {
   diarias: { eyebrow: 'Agenda da semana', titulo: 'Diárias' },
   carteira: { eyebrow: 'Visão financeira', titulo: 'Carteira' },
   leads: { eyebrow: 'Base de clientes', titulo: 'Leads' },
-  equipe: { eyebrow: 'Carga de trabalho', titulo: 'Equipe' },
+  equipe: { eyebrow: 'Carga e indicadores', titulo: 'Equipe' },
 };
 
 export default function ProjectsPage() {

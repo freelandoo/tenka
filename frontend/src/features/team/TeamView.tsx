@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderKanban, RefreshCw, UserRound } from 'lucide-react';
+import { FolderKanban, LineChart, RefreshCw, UserRound } from 'lucide-react';
 import type { ProfileRow } from '../../lib/supabase/database.types';
 import type { BoardProject } from '../projects/services/projectsService';
 import { MONTH_LABELS, monthRange, todayISO, yearOptions } from '../dailies/weeks';
+import { FinanceView } from './FinanceView';
 import * as service from './teamService';
 import type { MonthStats, Tally } from './teamService';
 
@@ -12,6 +13,9 @@ interface TeamViewProps {
 }
 
 type Status = 'loading' | 'ready' | 'error';
+
+/** Sub-abas da Equipe: quem está fazendo o quê e quanto isso dá em dinheiro. */
+type SubAba = 'carga' | 'financeiro';
 
 /** Linha da tabela já resolvida para exibição, ordenada por volume. */
 interface StatLine {
@@ -31,6 +35,7 @@ export function TeamView({ projects, profiles }: TeamViewProps) {
 
   const [year, setYear] = useState(initial.year);
   const [month, setMonth] = useState(initial.month);
+  const [subAba, setSubAba] = useState<SubAba>('carga');
   const [status, setStatus] = useState<Status>('loading');
   const [stats, setStats] = useState<MonthStats | null>(null);
   const [backlog, setBacklog] = useState<Map<string | null, number>>(new Map());
@@ -88,11 +93,40 @@ export function TeamView({ projects, profiles }: TeamViewProps) {
   return (
     <section className="equipe" aria-labelledby="equipe-title">
       <header className="equipe__head">
-        <div className="cart-panel__head" style={{ margin: 0 }}>
-          <UserRound size={17} aria-hidden="true" />
-          <h2 id="equipe-title" className="cart-panel__title">
-            Equipe
-          </h2>
+        <div className="equipe__head-left">
+          <div className="cart-panel__head" style={{ margin: 0 }}>
+            <UserRound size={17} aria-hidden="true" />
+            <h2 id="equipe-title" className="cart-panel__title">
+              Equipe
+            </h2>
+          </div>
+
+          <div
+            className="view-tabs view-tabs--sub"
+            role="tablist"
+            aria-label="Alternar entre carga de trabalho e indicadores financeiros"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={subAba === 'carga'}
+              className="view-tab"
+              onClick={() => setSubAba('carga')}
+            >
+              <UserRound size={15} aria-hidden="true" />
+              Carga de trabalho
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={subAba === 'financeiro'}
+              className="view-tab"
+              onClick={() => setSubAba('financeiro')}
+            >
+              <LineChart size={15} aria-hidden="true" />
+              Indicadores financeiros
+            </button>
+          </div>
         </div>
 
         <div className="diarias__controls" style={{ margin: 0 }}>
@@ -133,7 +167,11 @@ export function TeamView({ projects, profiles }: TeamViewProps) {
         </div>
       </header>
 
-      {status === 'loading' && (
+      {subAba === 'financeiro' && (
+        <FinanceView projects={projects} profiles={profiles} year={year} month={month} />
+      )}
+
+      {subAba === 'carga' && status === 'loading' && (
         <p
           role="status"
           aria-live="polite"
@@ -144,7 +182,7 @@ export function TeamView({ projects, profiles }: TeamViewProps) {
         </p>
       )}
 
-      {status === 'error' && (
+      {subAba === 'carga' && status === 'error' && (
         <div className="diarias__status" style={{ display: 'grid', gap: 12, justifyItems: 'center' }}>
           <p style={{ color: 'var(--panel-text-dim)', fontSize: 14.5 }}>
             Não foi possível carregar os indicadores deste mês.
@@ -156,7 +194,7 @@ export function TeamView({ projects, profiles }: TeamViewProps) {
         </div>
       )}
 
-      {status === 'ready' && stats && (
+      {subAba === 'carga' && status === 'ready' && stats && (
         <div className="equipe__panels">
           <article className="equipe__panel">
             <div className="cart-panel__head">
