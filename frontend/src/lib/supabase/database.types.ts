@@ -40,10 +40,21 @@ export interface ProjectRow {
   monthly_fee_cents: number;
   /** Cobrança recorrente ligada — a mensalidade só conta quando true. */
   subscription_active: boolean;
-  /** Dados do lead/cliente (a aba Leads é uma visão sobre estes campos). */
+  /**
+   * Cliente dono do projeto (migration 0014). `null` só em projeto sem contato
+   * nenhum — o backfill não inventa cliente.
+   */
+  client_id: string | null;
+  /**
+   * Espelho dos dados do cliente, mantido pelo trigger `clients_sync_projects`.
+   * Continua existindo porque o botão Aprovação do WhatsApp resolve o destino
+   * por `client_phone`. Para EDITAR, use o cliente — aqui é cópia.
+   */
   client_name: string;
   client_phone: string;
   client_email: string;
+  /** Dia do mês do vencimento da cobrança (1–31). `null` = sem vencimento. */
+  due_day: number | null;
   /** Empresa do grupo dona do projeto. */
   company: CompanyKey;
   due_date: string;
@@ -204,4 +215,51 @@ export interface ProjectActivityRow {
   action: ProjectActivityAction;
   metadata: Record<string, unknown>;
   created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Clientes e custos (migration 0014)
+// ---------------------------------------------------------------------------
+
+export interface ClientRow {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+/** Cliente + os agregados que a aba Leads mostra na linha (vêm do SQL). */
+export interface ClientWithTotals extends ClientRow {
+  project_count: number;
+  total_value_cents: number;
+  /** Soma das mensalidades ATIVAS dos projetos dele. */
+  active_fee_cents: number;
+  /** Quantos projetos têm mensalidade, e quantos estão ativos. */
+  fee_count: number;
+  active_fee_count: number;
+  /** Menor dia de vencimento entre os projetos — `null` se nenhum tem. */
+  due_day: number | null;
+}
+
+/** `unico` caiu uma vez; `mensal` repete todo mês enquanto `active`. */
+export type CostKind = 'unico' | 'mensal';
+
+export interface CostRow {
+  id: string;
+  /** `null` = custo da EMPRESA; preenchido = custo daquele projeto. */
+  project_id: string | null;
+  description: string;
+  amount_cents: number;
+  kind: CostKind;
+  /** Único: quando caiu. Mensal: a partir de quando passou a valer. */
+  incurred_on: string;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }

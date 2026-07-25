@@ -9,6 +9,8 @@ import { projectRoutes } from './modules/projects';
 import { dailyRoutes } from './modules/dailies';
 import { notificationRoutes } from './modules/notifications';
 import { userRoutes } from './modules/users';
+import { clientRoutes } from './modules/clients';
+import { costRoutes } from './modules/costs';
 import { eventRoutes } from './modules/events';
 import { whatsappRoutes } from './modules/whatsapp';
 import { webhookRoutes } from './modules/webhooks';
@@ -32,6 +34,8 @@ async function main(): Promise<void> {
   await app.register(dailyRoutes);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
+  await app.register(clientRoutes);
+  await app.register(costRoutes);
   await app.register(eventRoutes);
   await app.register(whatsappRoutes);
   await app.register(meetingRoutes);

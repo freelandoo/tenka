@@ -19,6 +19,11 @@ export const projectFormSchema = z
     .max(120, 'O nome pode ter no máximo 120 caracteres.'),
   description: z.string().trim().max(4000, 'Descrição longa demais.'),
   /** Lead: nome do cliente (obrigatório) + telefone e/ou e-mail. */
+  /**
+   * Cliente existente escolhido no select. Vazio = "Novo cliente", e aí os
+   * campos abaixo criam um cadastro novo antes de o projeto ser gravado.
+   */
+  clientId: z.string(),
   clientName: z
     .string()
     .trim()

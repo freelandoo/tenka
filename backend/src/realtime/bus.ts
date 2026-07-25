@@ -21,7 +21,9 @@ export interface ChangeEvent {
     | 'notifications'
     | 'project_notes'
     | 'wa_conversations'
-    | 'wa_messages';
+    | 'wa_messages'
+    | 'clients'
+    | 'costs';
   /** Dono da notificação (só em eventos de `notifications`). */
   u?: string;
   /** Conversa afetada (só em eventos de `wa_messages`) — a thread aberta filtra por ela. */

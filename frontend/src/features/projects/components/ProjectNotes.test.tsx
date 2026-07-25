@@ -45,6 +45,8 @@ function makeProject(over: Partial<BoardProject> = {}): BoardProject {
     subscription_active: false,
     client_name: 'Cliente',
     client_phone: '(11) 98888-7777',
+    client_id: null,
+    due_day: null,
     client_email: 'cliente@exemplo.com',
     company: 'tenka',
     due_date: '2026-10-01',

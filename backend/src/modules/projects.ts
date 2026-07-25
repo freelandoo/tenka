@@ -37,6 +37,9 @@ const PROJECT_PATCH_COLS = [
   'company',
   'due_date',
   'color_key',
+  'client_id',
+  // Dia do mês do vencimento (1–31) — cobrança recorrente, não data única.
+  'due_day',
 ] as const;
 
 const createSchema = z.object({
@@ -49,6 +52,8 @@ const createSchema = z.object({
   clientPhone: z.string().default(''),
   clientEmail: z.string().default(''),
   company: z.enum(['tenka', 'pjcodeworks']).default('tenka'),
+  clientId: z.string().uuid().nullable().default(null),
+  dueDay: z.number().int().min(1).max(31).nullable().default(null),
   dueDate: z.string(),
   colorKey: z.string(),
   assigneeIds: z.array(z.string().uuid()).default([]),
@@ -125,7 +130,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         await client.query(
           `update public.projects
               set monthly_fee_cents = $2, subscription_active = $3,
-                  client_name = $4, client_phone = $5, client_email = $6, company = $7
+                  client_name = $4, client_phone = $5, client_email = $6, company = $7,
+                  client_id = $8, due_day = $9
             where id = $1`,
           [
             newId,
@@ -135,6 +141,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             i.clientPhone,
             i.clientEmail,
             i.company,
+            i.clientId,
+            i.dueDay,
           ],
         );
         return newId;

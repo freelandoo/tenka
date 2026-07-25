@@ -1,20 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Inbox, Repeat, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Inbox, Repeat, TrendingDown, Wallet } from 'lucide-react';
 import type { ProfileRow, ProjectStatus } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import { COLUMN_LABELS, COLUMN_ORDER } from '../hooks/useKanban';
 import { formatCurrencyFromCents, formatDate, initials } from '../../panel/format';
+import type { CostRow } from '../../../lib/supabase/database.types';
+import * as clientsService from '../../clients/clientsService';
+import { CostList } from '../../clients/CostList';
+import { subscribeRealtime } from '../../../lib/api/events';
 
 interface CarteiraViewProps {
   /** Board + histórico (todos os não-arquivados) — a receita completa. */
   projects: BoardProject[];
   profiles: ProfileRow[];
+  /** Custo da empresa é finança da agência: só admin lança. */
+  isAdmin: boolean;
 }
 
 type Filtro = 'todos' | ProjectStatus;
-
-/** Nº máximo de barras no gráfico antes de virar poluição visual. */
-const MAX_BARS = 12;
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MESES_LONGOS = [
@@ -34,7 +37,7 @@ function ymDe(iso: string): { y: number; m: number } {
  * (valor único de cada projeto) e a receita de mensalidade (soma das
  * mensalidades ativas). Sem notícias/cotações.
  */
-export function CarteiraView({ projects, profiles }: CarteiraViewProps) {
+export function CarteiraView({ projects, profiles, isAdmin }: CarteiraViewProps) {
   const hoje = useMemo(() => new Date(), []);
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
@@ -56,6 +59,25 @@ export function CarteiraView({ projects, profiles }: CarteiraViewProps) {
     () => new Map(profiles.map((p) => [p.id, p])),
     [profiles],
   );
+
+  // Custos: os da empresa aparecem na seção editável; os de projeto entram só
+  // na soma do card. `/costs` sem filtro já devolve os dois conforme o papel.
+  const [costs, setCosts] = useState<CostRow[]>([]);
+  const loadCosts = useCallback(async () => {
+    try {
+      setCosts(await clientsService.fetchCosts());
+    } catch {
+      setCosts([]);
+    }
+  }, []);
+  useEffect(() => {
+    void loadCosts();
+  }, [loadCosts]);
+  useEffect(() => subscribeRealtime(['costs'], () => void loadCosts()), [loadCosts]);
+
+  const companyCosts = useMemo(() => costs.filter((c) => c.project_id === null), [costs]);
+  const projectCosts = useMemo(() => costs.filter((c) => c.project_id !== null), [costs]);
+  const custoTotal = useMemo(() => clientsService.sumActiveCosts(costs), [costs]);
 
   // Projetos ENTREGUES no mês selecionado (receita única daquele mês).
   const projetosDoMes = useMemo(
@@ -90,22 +112,6 @@ export function CarteiraView({ projects, profiles }: CarteiraViewProps) {
       filtro === 'todos' ? projetosDoMes : projetosDoMes.filter((p) => p.status === filtro);
     return [...base].sort((a, b) => b.value_cents - a.value_cents);
   }, [filtro, projetosDoMes]);
-
-  // Gráfico: projetos entregues no mês, do maior valor ao menor.
-  const barras = useMemo(
-    () => [...projetosDoMes].sort((a, b) => b.value_cents - a.value_cents).slice(0, MAX_BARS),
-    [projetosDoMes],
-  );
-  const maxBarra = Math.max(1, ...barras.map((p) => p.value_cents));
-  const temValor = barras.some((p) => p.value_cents > 0);
-
-  // Anima a entrada das barras (escala de 0 → 1) a cada mudança do conjunto.
-  const [montado, setMontado] = useState(false);
-  useEffect(() => {
-    setMontado(false);
-    const id = requestAnimationFrame(() => setMontado(true));
-    return () => cancelAnimationFrame(id);
-  }, [barras]);
 
   const filtros: { key: Filtro; label: string }[] = [
     { key: 'todos', label: 'Todos' },
@@ -158,41 +164,33 @@ export function CarteiraView({ projects, profiles }: CarteiraViewProps) {
           sub={`${resumo.mensalidadesAtivas} ativa${resumo.mensalidadesAtivas === 1 ? '' : 's'}`}
           icon={<Repeat size={13} aria-hidden="true" />}
         />
+        <Kpi
+          label="Custos acumulados"
+          value={formatCurrencyFromCents(custoTotal)}
+          sub={`${companyCosts.filter((c) => c.active).length} da empresa · ${
+            projectCosts.filter((c) => c.active).length
+          } de projeto`}
+          icon={<TrendingDown size={13} aria-hidden="true" />}
+        />
       </div>
 
-      {/* Gráfico — valor por projeto (entregas do mês) */}
+      {/* Custo mensal — custos da empresa. Somam no card acima junto com os
+          custos lançados dentro de cada projeto (ficha do cliente). */}
       <section className="cart-panel">
         <header className="cart-panel__head">
-          <BarChart3 size={17} aria-hidden="true" />
-          <h2 className="cart-panel__title">Valor por projeto · {MESES_LONGOS[mes]}</h2>
+          <TrendingDown size={17} aria-hidden="true" />
+          <h2 className="cart-panel__title">Custo mensal</h2>
         </header>
-        {barras.length === 0 || !temValor ? (
-          <p style={{ color: 'var(--panel-text-faint)', fontSize: 13.5, padding: '24px 4px' }}>
-            Nenhum projeto entregue em {MESES_LONGOS[mes]} de {ano}.
-          </p>
-        ) : (
-          <div className="cart-bars" role="img" aria-label="Valor por projeto">
-            {barras.map((p, i) => {
-              const h = Math.max(4, Math.round((p.value_cents / maxBarra) * 100));
-              return (
-                <div key={p.id} className="cart-bar" data-postit-color={p.color_key}>
-                  <div className="cart-bar__track">
-                    <div
-                      className="cart-bar__fill"
-                      title={`${p.name} · ${formatCurrencyFromCents(p.value_cents)}`}
-                      style={{
-                        height: `${h}%`,
-                        transform: montado ? 'scaleY(1)' : 'scaleY(0)',
-                        transitionDelay: `${Math.min(i * 45, 400)}ms`,
-                      }}
-                    />
-                  </div>
-                  <span className="cart-bar__label">{p.name}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <p className="cart-panel__hint">
+          Custos da empresa — aluguel, ferramentas, salários. Entram em{' '}
+          <strong>Custos acumulados</strong> junto com os custos lançados em cada projeto.
+        </p>
+        <CostList
+          costs={companyCosts}
+          projectId={null}
+          onChanged={loadCosts}
+          readOnly={!isAdmin}
+        />
       </section>
 
       {/* Extrato */}

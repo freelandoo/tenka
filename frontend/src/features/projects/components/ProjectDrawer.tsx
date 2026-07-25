@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, CalendarDays, CheckCircle2, Pencil, RotateCcw, UserPlus, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Pencil, RotateCcw, UserPlus, X } from 'lucide-react';
 import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
@@ -36,7 +36,6 @@ export function ProjectDrawer({
 }: ProjectDrawerProps) {
   const { isAdmin, profile: me } = useAuth();
   const { toast } = useToast();
-  const [confirmArchive, setConfirmArchive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [addingUser, setAddingUser] = useState('');
 
@@ -48,20 +47,6 @@ export function ProjectDrawer({
   const availableToAdd = profiles.filter(
     (p) => p.active && !project.assignees.some((a) => a.user_id === p.id),
   );
-
-  const archive = async () => {
-    setBusy(true);
-    try {
-      await service.archiveProject(project.id);
-      toast('success', `Projeto "${project.name}" arquivado.`);
-      onChanged();
-      onClose();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao arquivar.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const reopen = async () => {
     setBusy(true);
@@ -208,35 +193,6 @@ export function ProjectDrawer({
               <RotateCcw size={14} aria-hidden="true" />
               Reabrir do histórico
             </button>
-          )}
-          {!confirmArchive ? (
-            <button
-              type="button"
-              className="panel-btn panel-btn--sm panel-btn--danger"
-              onClick={() => setConfirmArchive(true)}
-            >
-              <Archive size={14} aria-hidden="true" />
-              Arquivar
-            </button>
-          ) : (
-            <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12.5, color: '#ff8a87' }}>Arquivar mesmo?</span>
-              <button
-                type="button"
-                className="panel-btn panel-btn--sm panel-btn--danger"
-                disabled={busy}
-                onClick={() => void archive()}
-              >
-                Sim, arquivar
-              </button>
-              <button
-                type="button"
-                className="panel-btn panel-btn--ghost panel-btn--sm"
-                onClick={() => setConfirmArchive(false)}
-              >
-                Cancelar
-              </button>
-            </span>
           )}
         </div>
       )}

@@ -16,7 +16,7 @@ import type { BoardProject } from '../../features/projects/services/projectsServ
 import { KanbanBoard } from '../../features/projects/components/KanbanBoard';
 import { DiariasView } from '../../features/dailies/components/DiariasView';
 import { CarteiraView } from '../../features/projects/components/CarteiraView';
-import { LeadsView } from '../../features/projects/components/LeadsView';
+import { LeadsView } from '../../features/clients/LeadsView';
 import { HistoryList } from '../../features/projects/components/HistoryList';
 import { ProjectFormModal } from '../../features/projects/components/ProjectFormModal';
 import {
@@ -316,11 +316,16 @@ export default function ProjectsPage() {
       )}
 
       {status === 'ready' && aba === 'carteira' && (
-        <CarteiraView projects={allProjects} profiles={profiles} />
+        <CarteiraView projects={allProjects} profiles={profiles} isAdmin={isAdmin} />
       )}
 
       {status === 'ready' && aba === 'leads' && (
-        <LeadsView projects={allProjects} onOpenDetails={setDetailsId} />
+        <LeadsView
+          projects={allProjects}
+          profiles={profiles}
+          isAdmin={isAdmin}
+          onProjectsChanged={() => void refresh()}
+        />
       )}
 
       {status === 'ready' && aba === 'equipe' && (

@@ -24,6 +24,8 @@ export interface CreateProjectInput {
   clientName: string;
   clientPhone: string;
   clientEmail: string;
+  /** Cliente dono do projeto; o formulário cria um antes quando é novo. */
+  clientId: string | null;
   company: CompanyKey;
   dueDate: string; // yyyy-mm-dd
   colorKey: PostItColorKey;
@@ -39,6 +41,9 @@ export interface UpdateProjectInput {
   client_name?: string;
   client_phone?: string;
   client_email?: string;
+  client_id?: string | null;
+  /** Dia do mês do vencimento (1–31); `null` limpa. */
+  due_day?: number | null;
   company?: CompanyKey;
   due_date?: string;
   color_key?: PostItColorKey;

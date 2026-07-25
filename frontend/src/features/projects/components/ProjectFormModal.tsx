@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoaderCircle } from 'lucide-react';
@@ -6,6 +6,8 @@ import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
 import { projectFormSchema, collectAssigneeIds, type ProjectFormValues } from '../schemas';
+import * as clientsService from '../../clients/clientsService';
+import type { ClientWithTotals } from '../../../lib/supabase/database.types';
 import { COMPANY_KEYS, COMPANY_LABELS } from '../companies';
 import { parseCurrencyToCents, formatCurrencyFromCents } from '../../panel/format';
 import { PostItColorPicker } from './PostItColorPicker';
@@ -34,6 +36,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
@@ -41,6 +44,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       ? {
           name: project.name,
           description: project.description,
+          clientId: project.client_id ?? '',
           clientName: project.client_name,
           clientPhone: project.client_phone,
           clientEmail: project.client_email,
@@ -57,6 +61,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       : {
           name: '',
           description: '',
+          clientId: '',
           clientName: '',
           clientPhone: '',
           clientEmail: '',
@@ -72,6 +77,27 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   });
 
   const mainAssignee = watch('mainAssignee');
+  const clientId = watch('clientId');
+
+  // Clientes já cadastrados: escolher um evita criar contato duplicado, que é
+  // exatamente o que a aba Clientes passou a corrigir.
+  const [clients, setClients] = useState<ClientWithTotals[]>([]);
+  useEffect(() => {
+    clientsService
+      .fetchClients()
+      .then(setClients)
+      .catch(() => setClients([]));
+  }, []);
+
+  // Ao escolher um cliente existente, os campos abaixo viram espelho dele —
+  // editar o contato é na ficha do cliente, para valer nos projetos todos.
+  const selecionado = clients.find((c) => c.id === clientId) ?? null;
+  useEffect(() => {
+    if (!selecionado) return;
+    setValue('clientName', selecionado.name);
+    setValue('clientPhone', selecionado.phone);
+    setValue('clientEmail', selecionado.email);
+  }, [selecionado, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -81,6 +107,18 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     const assigneeIds = collectAssigneeIds(values);
 
     try {
+      // "Novo cliente" cria o cadastro antes — o projeto nasce já ligado a ele,
+      // então nunca sobra projeto com contato solto.
+      let resolvedClientId = values.clientId || null;
+      if (!resolvedClientId) {
+        const created = await clientsService.createClient({
+          name: values.clientName,
+          phone: values.clientPhone,
+          email: values.clientEmail,
+        });
+        resolvedClientId = created.id;
+      }
+
       if (!isEdit) {
         await service.createProject({
           name: values.name,
@@ -91,6 +129,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientName: values.clientName,
           clientPhone: values.clientPhone,
           clientEmail: values.clientEmail,
+          clientId: resolvedClientId,
           company: values.company,
           dueDate: values.dueDate,
           colorKey: values.colorKey as PostItColorKey,
@@ -107,6 +146,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           client_name: values.clientName,
           client_phone: values.clientPhone,
           client_email: values.clientEmail,
+          client_id: resolvedClientId,
           company: values.company,
           due_date: values.dueDate,
           color_key: values.colorKey as PostItColorKey,
@@ -194,14 +234,34 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
             className="panel-eyebrow"
             style={{ letterSpacing: '0.22em', fontSize: 10.5, marginBottom: 2 }}
           >
-            Cliente (lead)
+            Cliente
           </legend>
+
           <div className="panel-field">
-            <label htmlFor="project-client">Nome do cliente *</label>
+            <label htmlFor="project-client-id">Cliente</label>
+            <select id="project-client-id" className="panel-select" {...register('clientId')}>
+              <option value="">+ Novo cliente</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.phone ? ` · ${c.phone}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="panel-field__hint">
+              {selecionado
+                ? `Este projeto entra na ficha de ${selecionado.name}. Para corrigir o contato, use a aba Clientes — vale para os projetos todos.`
+                : 'Um cadastro novo será criado com os dados abaixo.'}
+            </p>
+          </div>
+
+          <div className="panel-field">
+            <label htmlFor="project-client-name">Nome do cliente *</label>
             <input
-              id="project-client"
+              id="project-client-name"
               className="panel-input"
               maxLength={120}
+              readOnly={Boolean(selecionado)}
               aria-invalid={Boolean(errors.clientName)}
               {...register('clientName')}
             />
@@ -221,6 +281,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 className="panel-input"
                 inputMode="tel"
                 placeholder="(11) 90000-0000"
+                readOnly={Boolean(selecionado)}
                 aria-invalid={Boolean(errors.clientPhone)}
                 {...register('clientPhone')}
               />
@@ -235,6 +296,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 className="panel-input"
                 inputMode="email"
                 placeholder="cliente@email.com"
+                readOnly={Boolean(selecionado)}
                 aria-invalid={Boolean(errors.clientEmail)}
                 {...register('clientEmail')}
               />

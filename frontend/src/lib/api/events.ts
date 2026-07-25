@@ -19,7 +19,9 @@ export type ChangeType =
   | 'notifications'
   | 'project_notes'
   | 'wa_conversations'
-  | 'wa_messages';
+  | 'wa_messages'
+  | 'clients'
+  | 'costs';
 
 /**
  * Carga do evento. O backend manda só um sinal — quem recebe refaz o próprio

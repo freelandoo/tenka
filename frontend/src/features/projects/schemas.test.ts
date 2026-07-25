@@ -4,6 +4,7 @@ import { collectAssigneeIds, projectFormSchema } from './schemas';
 const valid = {
   name: 'Site institucional',
   description: 'Redesign completo',
+  clientId: '',
   clientName: 'Acme Ltda',
   clientPhone: '11999998888',
   clientEmail: '',

@@ -954,9 +954,10 @@
 
 .leads__row {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.2fr)
-    minmax(104px, auto) minmax(92px, auto) minmax(104px, auto) minmax(74px, auto);
+  /* A linha virou: botão que abre a ficha (6 colunas) + célula Ativa fora dele,
+     para o toggle não ficar dentro de um botão. As duas partes compartilham o
+     mesmo template pela variável, senão o cabeçalho desalinha do corpo. */
+  grid-template-columns: 1fr minmax(84px, auto);
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -2460,4 +2461,219 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 @media (max-width: 900px) {
   .inbox { grid-template-columns: 1fr; }
   .inbox__list { max-height: 300px; }
+}
+
+/* ===========================================================================
+   CLIENTES (ex-Leads) — linha agregada, ficha e custos
+   =========================================================================== */
+
+.leads__rows {
+  /* Cliente · Contato · Projetos · Valor · Mensalidade · Vencimento */
+  --leads-cols:
+    minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 0.8fr)
+    minmax(104px, auto) minmax(104px, auto) minmax(92px, auto);
+}
+.leads__row--head { grid-template-columns: var(--leads-cols) minmax(84px, auto); }
+
+/* O botão ocupa a 1ª faixa da linha e reproduz as 6 colunas por dentro. */
+.leads__open {
+  display: grid;
+  grid-template-columns: var(--leads-cols);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.leads__projcount,
+.leads__due {
+  font-family: var(--panel-mono);
+  font-size: 11.5px;
+  color: var(--panel-text-dim);
+}
+.leads__due { text-align: center; }
+
+/* Toggle de verdade (1 projeto com mensalidade) vs. placar (vários). */
+.leads__ativa--btn { cursor: pointer; }
+.leads__ativa--btn:hover { border-color: var(--panel-line-strong); }
+
+.client-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-family: var(--panel-mono);
+  font-size: 11px;
+  color: var(--panel-text-faint);
+}
+.client-contact span { display: inline-flex; align-items: center; gap: 5px; }
+
+.client-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 18px 0 14px;
+  border-bottom: 1px solid var(--panel-line);
+}
+.client-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--panel-text-faint);
+  border-bottom: 2px solid transparent;
+}
+.client-tab.is-active { color: var(--panel-text); border-bottom-color: var(--panel-accent); }
+.client-tab__count { font-family: var(--panel-mono); font-size: 10px; opacity: 0.7; }
+
+.client-projects { display: flex; flex-direction: column; gap: 14px; }
+
+.client-project {
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.client-project__head { display: flex; align-items: center; gap: 10px; }
+.client-project__name { font-size: 15px; font-weight: 700; }
+
+.client-project__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px 14px;
+}
+.client-project__grid dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+  margin-bottom: 3px;
+}
+.client-project__grid dd { font-size: 13.5px; color: var(--panel-text); }
+.client-project__day { width: 74px; padding: 5px 8px; font-size: 13px; }
+
+.client-project__ativa {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--panel-line-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--panel-text-faint);
+}
+.client-project__ativa.is-on { color: #3fb950; border-color: rgba(63, 185, 80, 0.4); }
+.client-project__ativa.is-on .cart-status__dot { background: #3fb950; }
+
+.client-project__costs { border-top: 1px solid var(--panel-line); padding-top: 12px; }
+.client-project__costs h4 { margin-bottom: 10px; }
+
+/* --- Custos (projeto e empresa usam a mesma peça) ------------------------- */
+
+.costs { display: flex; flex-direction: column; gap: 8px; }
+.costs__empty { font-size: 12.5px; color: var(--panel-text-faint); padding: 4px 0; }
+.costs__list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+
+.costs__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 13px;
+}
+/* Inativo continua visível — é histórico, não lixo — mas sai da soma. */
+.costs__row.is-off { opacity: 0.45; }
+.costs__row.is-off .costs__amount { text-decoration: line-through; }
+.costs__desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.costs__kind {
+  font-family: var(--panel-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line-strong);
+  color: var(--panel-text-faint);
+}
+.costs__kind--mensal { color: #e6a83c; border-color: rgba(230, 168, 60, 0.35); }
+
+.costs__amount {
+  font-family: var(--panel-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.costs__amount small { opacity: 0.6; font-size: 10px; }
+
+.costs__toggle {
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line-strong);
+  color: var(--panel-text-faint);
+  cursor: pointer;
+}
+.costs__toggle.is-on { color: #3fb950; border-color: rgba(63, 185, 80, 0.4); }
+.costs__del { width: 26px; height: 26px; }
+
+.costs__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 9px;
+  border-top: 1px solid var(--panel-line);
+  font-size: 12px;
+  color: var(--panel-text-faint);
+}
+.costs__total strong {
+  font-family: var(--panel-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--panel-text);
+}
+
+.costs__form {
+  display: grid;
+  grid-template-columns: 1fr 110px 104px auto;
+  gap: 8px;
+  align-items: center;
+}
+.costs__form .panel-input,
+.costs__form .panel-select { padding: 7px 10px; font-size: 13px; }
+.costs__form-amount { font-family: var(--panel-mono); text-align: right; }
+
+.cart-panel__hint {
+  font-size: 12.5px;
+  color: var(--panel-text-faint);
+  line-height: 1.5;
+  margin: -6px 0 12px;
+}
+
+@media (max-width: 720px) {
+  .costs__form { grid-template-columns: 1fr 1fr; }
+  .costs__row { grid-template-columns: 1fr auto auto; row-gap: 6px; }
+  .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
+  .leads__contact,
+  .leads__value,
+  .leads__due { display: none; }
 }

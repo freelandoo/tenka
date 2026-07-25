@@ -20,6 +20,8 @@ function project(
     subscription_active: false,
     client_name: '',
     client_phone: '',
+    client_id: null,
+    due_day: null,
     client_email: '',
     company: 'tenka',
     due_date: '2026-12-01',
