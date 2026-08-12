@@ -150,7 +150,10 @@ export default function PanelLayout() {
     <NotificationsProvider>
       <div className="tenka-panel panel-shell">
         <header className="panel-header">
-          <Link to="/painel/projetos" className="panel-header__brand">
+          {/* O logo SAI do painel para a home do site (o showroom dos três
+              cards). Antes apontava para /painel/projetos, que já é o primeiro
+              item da navegação ao lado — o clique não levava a lugar nenhum. */}
+          <Link to="/" className="panel-header__brand" title="Ir para a home do site TENKA">
             <strong>TENKA</strong>
             <span>Painel</span>
           </Link>
