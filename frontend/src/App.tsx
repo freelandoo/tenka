@@ -1,19 +1,25 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import AdminHeroPage from './pages/AdminHeroPage';
 import ContactPage from './pages/ContactPage';
 import NotFoundPage from './pages/NotFoundPage';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
+import { lazyWithRetry } from './lib/lazyWithRetry';
 
 // The Games experience bundles Three.js/GSAP/Lenis — lazy-loaded so the rest
 // of the site pays nothing for it.
-const GamesPage = lazy(() => import('./pages/GamesPage'));
-const DesenvolvimentoPage = lazy(() => import('./pages/DesenvolvimentoPage'));
-const MultimidiaPage = lazy(() => import('./pages/MultimidiaPage'));
+//
+// `lazyWithRetry` e não `lazy`: numa aba em segundo plano o Chrome aborta o
+// download do chunk, e um `lazy` cru derruba a árvore inteira quando isso
+// acontece — a tela some e sobra o laranja do index.html.
+const GamesPage = lazyWithRetry(() => import('./pages/GamesPage'));
+const DesenvolvimentoPage = lazyWithRetry(() => import('./pages/DesenvolvimentoPage'));
+const MultimidiaPage = lazyWithRetry(() => import('./pages/MultimidiaPage'));
 
 // Área interna (autenticação + Kanban de projetos) — chunk independente,
 // nenhum custo para as experiências públicas.
-const PanelRoutes = lazy(() => import('./pages/panel/PanelRoutes'));
+const PanelRoutes = lazyWithRetry(() => import('./pages/panel/PanelRoutes'));
 
 function PanelFallback() {
   return (
@@ -60,36 +66,47 @@ function MultimediaFallback() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/admin/hero" element={<AdminHeroPage />} />
-      <Route
-        path="/games"
-        element={
-          <Suspense fallback={<GamesFallback />}>
-            <GamesPage />
-          </Suspense>
-        }
-      />
-      <Route path="/multimidia" element={<Suspense fallback={<MultimediaFallback />}><MultimidiaPage /></Suspense>} />
-      <Route
-        path="/desenvolvimento"
-        element={
-          <Suspense fallback={<TechnologyFallback />}>
-            <DesenvolvimentoPage />
-          </Suspense>
-        }
-      />
-      <Route path="/contato" element={<ContactPage />} />
-      <Route
-        path="/painel/*"
-        element={
-          <Suspense fallback={<PanelFallback />}>
-            <PanelRoutes />
-          </Suspense>
-        }
-      />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    // Envolve TODAS as rotas: um erro que escape aqui deixaria o #root vazio, e
+    // o usuário veria só o fundo laranja do index.html, sem nada para fazer.
+    <RouteErrorBoundary>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/admin/hero" element={<AdminHeroPage />} />
+        <Route
+          path="/games"
+          element={
+            <Suspense fallback={<GamesFallback />}>
+              <GamesPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/multimidia"
+          element={
+            <Suspense fallback={<MultimediaFallback />}>
+              <MultimidiaPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/desenvolvimento"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <DesenvolvimentoPage />
+            </Suspense>
+          }
+        />
+        <Route path="/contato" element={<ContactPage />} />
+        <Route
+          path="/painel/*"
+          element={
+            <Suspense fallback={<PanelFallback />}>
+              <PanelRoutes />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </RouteErrorBoundary>
   );
 }
