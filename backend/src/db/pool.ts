@@ -9,6 +9,19 @@ import { env, hasDatabase } from '../env';
 // aparece". `timestamptz` (created_at/updated_at) é OID 1184 e não é afetado.
 types.setTypeParser(types.builtins.DATE, (value) => value);
 
+// O driver devolve `bigint` (int8) como STRING, para não perder precisão acima
+// de 2^53. Só que todo bigint daqui é dinheiro em centavos — `value_cents`,
+// `monthly_fee_cents`, `amount_cents` e as somas derivadas — e o frontend os
+// declara `number` e os acumula com `+`. Com string, `+` CONCATENA: a Carteira
+// somava 5990 e 29990 e exibia "R$ 599.029.990,00". Com uma linha só o defeito
+// era invisível (`0 + "9990"` vira "09990", que ainda dá R$ 99,90), então ele
+// só apareceu quando a carteira passou a ter vários lançamentos.
+//
+// Number é seguro aqui: MAX_SAFE_INTEGER são 9.007.199.254.740.991 centavos,
+// ou R$ 90 trilhões. Se algum dia entrar um bigint que NÃO seja centavo (id,
+// contador), este parser precisa ser revisto.
+types.setTypeParser(types.builtins.INT8, (value) => Number(value));
+
 /**
  * Interface do banco para o Kysely. Ainda vazia — cada tabela portada nas
  * migrations (fase F2) ganha seu tipo aqui, dando queries tipadas sem esconder
