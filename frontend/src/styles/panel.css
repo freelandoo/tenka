@@ -2816,6 +2816,27 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 
 /* ---------------------------------------------------------------------------
+   Recorrências — o que sai (custos da empresa) e o que entra (mensalidades),
+   lado a lado. Empilhadas, a Carteira pagava a soma das duas alturas e deixava
+   metade da largura vazia; em duas colunas paga só a mais alta.
+   `align-items: start` impede que a coluna curta estique até a altura da outra.
+   --------------------------------------------------------------------------- */
+.cart-recorrencias {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 26px;
+  min-width: 0;
+}
+
+/* Duas colunas espremem o formulário de lançamento e a linha da mensalidade
+   antes de o layout mobile entrar; abaixo disso cada painel volta a ocupar a
+   largura toda. */
+@media (max-width: 1180px) {
+  .cart-recorrencias { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------------------
    Mensalidades — mesma linguagem da lista de custos, com uma coluna a mais
    (o dia do vencimento) e o nome do cliente sob o do projeto.
    --------------------------------------------------------------------------- */
