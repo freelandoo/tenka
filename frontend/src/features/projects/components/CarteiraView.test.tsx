@@ -59,8 +59,16 @@ beforeEach(() => {
 });
 
 describe('Extrato da Carteira', () => {
+  /**
+   * O nome do projeto, "dia 10" e o botão de recorrência aparecem TAMBÉM na
+   * seção Mensalidades, que lista as recorrências de todos os meses. Query
+   * global aqui pegaria as duas — as asserções do Extrato moram na `.cart-row`.
+   */
+  const extratoRow = (container: HTMLElement) =>
+    container.querySelector('.cart-row') as HTMLElement;
+
   it('expõe vencimento, valor e mensalidade na linha', async () => {
-    render(
+    const { container } = render(
       <CarteiraView
         projects={[makeProject()]}
         profiles={profiles}
@@ -69,10 +77,8 @@ describe('Extrato da Carteira', () => {
       />,
     );
 
-    // "R$ 900,00/mês" também aparece no KPI de mensalidade acumulada — a
-    // asserção precisa ser dentro da LINHA do extrato.
-    await screen.findByText('dia 10');
-    const linha = screen.getByText('tenka').closest('.cart-row') as HTMLElement;
+    await waitFor(() => expect(extratoRow(container)).toBeTruthy());
+    const linha = extratoRow(container);
     expect(within(linha).getByText('dia 10')).toBeInTheDocument();
     expect(within(linha).getByText('R$ 900,00/mês')).toBeInTheDocument();
     expect(within(linha).getByText('R$ 2.500,00')).toBeInTheDocument();
@@ -80,7 +86,7 @@ describe('Extrato da Carteira', () => {
 
   it('o botão alterna a recorrência da mensalidade', async () => {
     const onChanged = vi.fn();
-    render(
+    const { container } = render(
       <CarteiraView
         projects={[makeProject()]}
         profiles={profiles}
@@ -89,13 +95,14 @@ describe('Extrato da Carteira', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /Ativa/ }));
+    await waitFor(() => expect(extratoRow(container)).toBeTruthy());
+    fireEvent.click(within(extratoRow(container)).getByRole('button', { name: /Ativa/ }));
     await waitFor(() => expect(mockedToggle).toHaveBeenCalledWith('p1', false));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
   it('colaborador vê o estado mas não altera', async () => {
-    render(
+    const { container } = render(
       <CarteiraView
         projects={[makeProject()]}
         profiles={profiles}
@@ -104,7 +111,34 @@ describe('Extrato da Carteira', () => {
       />,
     );
 
-    expect(await screen.findByRole('button', { name: /Ativa/ })).toBeDisabled();
+    await waitFor(() => expect(extratoRow(container)).toBeTruthy());
+    expect(
+      within(extratoRow(container)).getByRole('button', { name: /Ativa/ }),
+    ).toBeDisabled();
+  });
+
+  it('a seção Mensalidades mostra recorrência de projeto ENTREGUE em outro mês', async () => {
+    // O Extrato só enxerga o mês selecionado; a recorrência de um projeto
+    // entregue em outro mês só aparece porque a seção Mensalidades existe.
+    const { container } = render(
+      <CarteiraView
+        projects={[makeProject({ name: 'Braslar', due_date: '2020-03-28' })]}
+        profiles={profiles}
+        isAdmin
+        onProjectsChanged={vi.fn()}
+      />,
+    );
+
+    // Fora do mês corrente: nada no extrato...
+    await waitFor(() => expect(screen.getByText(/Nenhuma entrega em/)).toBeInTheDocument());
+    expect(container.querySelector('.cart-row')).toBeNull();
+
+    // ...mas a mensalidade continua visível e somando.
+    const linhaFee = container.querySelector('.fees__row') as HTMLElement;
+    expect(within(linhaFee).getByText('Braslar')).toBeInTheDocument();
+    // O "/mês" vive num <small>, e o Intl usa espaço não-quebrável no "R$ ".
+    expect(linhaFee.textContent?.replace(/ /g, ' ')).toContain('R$ 900,00/mês');
+    expect(screen.getByText('Total ativo · 1 de 1')).toBeInTheDocument();
   });
 
   it('projeto sem mensalidade não mostra botão de recorrência', async () => {

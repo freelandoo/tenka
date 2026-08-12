@@ -1,4 +1,5 @@
 import type { CostRow, ProjectRow } from '../../lib/supabase/database.types';
+import { cents } from '../panel/format';
 
 /**
  * Indicadores financeiros de gestão da agência.
@@ -127,18 +128,19 @@ function clienteKey(project: ProjectRow): string {
 function concentracaoAnual(projects: ProjectRow[], year: number): Concentracao {
   const porCliente = new Map<string, { nome: string; cents: number }>();
 
-  const somar = (project: ProjectRow, cents: number) => {
-    if (cents <= 0) return;
+  // Nome do parâmetro evita sombrear o helper `cents` importado acima.
+  const somar = (project: ProjectRow, valorCents: number) => {
+    if (valorCents <= 0) return;
     const key = clienteKey(project);
     const atual = porCliente.get(key);
     const nome = project.client_name.trim() || 'Sem cliente';
-    if (atual) atual.cents += cents;
-    else porCliente.set(key, { nome, cents });
+    if (atual) atual.cents += valorCents;
+    else porCliente.set(key, { nome, cents: valorCents });
   };
 
   for (const project of projects) {
-    if (Number(project.due_date.slice(0, 4)) === year) somar(project, project.value_cents);
-    if (project.subscription_active) somar(project, project.monthly_fee_cents * 12);
+    if (Number(project.due_date.slice(0, 4)) === year) somar(project, cents(project.value_cents));
+    if (project.subscription_active) somar(project, cents(project.monthly_fee_cents) * 12);
   }
 
   let top = { nome: '', cents: 0 };
@@ -176,33 +178,33 @@ export function summarize(input: FinanceInput): FinanceSummary {
   for (const project of projects) {
     const mes = mesDe(project.due_date);
     if (mes === mesAtual) {
-      receitaProjetos += project.value_cents;
+      receitaProjetos += cents(project.value_cents);
       entregas += 1;
     } else if (mes === mesAnt) {
-      receitaAnterior += project.value_cents;
+      receitaAnterior += cents(project.value_cents);
     }
     if (project.due_date.slice(0, 4) === anoStr) {
-      receitaAno += project.value_cents;
+      receitaAno += cents(project.value_cents);
       entregasAno += 1;
     }
 
-    if (project.monthly_fee_cents > 0) {
+    if (cents(project.monthly_fee_cents) > 0) {
       contratos += 1;
       if (project.subscription_active) {
-        mrr += project.monthly_fee_cents;
+        mrr += cents(project.monthly_fee_cents);
         mensalidadesAtivas += 1;
       } else {
-        paradaCents += project.monthly_fee_cents;
+        paradaCents += cents(project.monthly_fee_cents);
       }
     }
 
     // Carteira contratada: o que já foi vendido e ainda não saiu do board.
     if (!project.finalized_at) {
       carteira.projetos += 1;
-      carteira.valorCents += project.value_cents;
+      carteira.valorCents += cents(project.value_cents);
       if (project.due_date.slice(0, 10) < today) {
         carteira.atrasados += 1;
-        carteira.atrasadoCents += project.value_cents;
+        carteira.atrasadoCents += cents(project.value_cents);
       }
     }
   }
@@ -211,8 +213,8 @@ export function summarize(input: FinanceInput): FinanceSummary {
   let custoVariavel = 0;
   for (const cost of costs) {
     if (!cost.active) continue;
-    if (cost.kind === 'mensal') custoFixo += cost.amount_cents;
-    else if (mesDe(cost.incurred_on) === mesAtual) custoVariavel += cost.amount_cents;
+    if (cost.kind === 'mensal') custoFixo += cents(cost.amount_cents);
+    else if (mesDe(cost.incurred_on) === mesAtual) custoVariavel += cents(cost.amount_cents);
   }
 
   const receitaTotal = receitaProjetos + mrr;

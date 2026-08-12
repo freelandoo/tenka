@@ -2815,9 +2815,52 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   margin: -6px 0 12px;
 }
 
+/* ---------------------------------------------------------------------------
+   Mensalidades — mesma linguagem da lista de custos, com uma coluna a mais
+   (o dia do vencimento) e o nome do cliente sob o do projeto.
+   --------------------------------------------------------------------------- */
+.fees__row {
+  display: grid;
+  grid-template-columns: 1fr 64px auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 13px;
+}
+/* Desligada continua legível — é receita parada, não lixo — mas sai da soma. */
+.fees__row.is-off { opacity: 0.45; }
+.fees__row.is-off .costs__amount { text-decoration: line-through; }
+
+.fees__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fees__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fees__client {
+  font-size: 11px;
+  color: var(--panel-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fees__due {
+  font-family: var(--panel-mono);
+  font-size: 11px;
+  color: var(--panel-text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fees__parada { font-size: 11px; color: var(--panel-text-faint); }
+
 @media (max-width: 720px) {
   .costs__form { grid-template-columns: 1fr 1fr; }
   .costs__row { grid-template-columns: 1fr auto auto; row-gap: 6px; }
+  /* Sem espaço para o dia do vencimento ao lado do valor; ele já aparece na
+     faixa financeira do Extrato. */
+  .fees__row { grid-template-columns: 1fr auto auto; }
+  .fees__due { display: none; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
   .leads__contact,
   .leads__value,

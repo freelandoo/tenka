@@ -7,9 +7,28 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
 });
 
+/**
+ * Centavos vindos da API, garantidamente como número.
+ *
+ * As colunas de dinheiro são `bigint` no Postgres, e o driver `pg` devolve
+ * bigint como STRING para não perder precisão acima de 2^53. O backend já
+ * desfaz isso num type parser (`backend/src/db/pool.ts`), mas somar dinheiro é
+ * o lugar errado para confiar: com string, `total + valor` CONCATENA em vez de
+ * somar, e a Carteira chegou a exibir "R$ 1.499.059.901.499.030.200.000.000,00"
+ * — com uma linha só o defeito é invisível, porque `0 + "9990"` vira "09990",
+ * que ainda formata R$ 99,90.
+ *
+ * Use SEMPRE isto ao acumular centavos; formatar um valor só é seguro sem ele
+ * (divisão já coage), mas o `+` não é.
+ */
+export function cents(value: number | string | null | undefined): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Centavos → "R$ 1.234,56". */
-export function formatCurrencyFromCents(cents: number): string {
-  return CURRENCY.format(cents / 100);
+export function formatCurrencyFromCents(value: number): string {
+  return CURRENCY.format(cents(value) / 100);
 }
 
 /** "1234,56" | "R$ 1.234,56" | "1234.56" → centavos (inteiro ≥ 0) ou null. */

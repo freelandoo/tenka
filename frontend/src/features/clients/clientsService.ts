@@ -1,4 +1,5 @@
 import { apiRequest } from '../../lib/api/client';
+import { cents } from '../panel/format';
 import type { ClientWithTotals, CostRow, CostKind } from '../../lib/supabase/database.types';
 
 /**
@@ -99,5 +100,5 @@ export async function deleteCost(id: string): Promise<void> {
  * do que a agência tem de custo hoje, não um extrato do mês.
  */
 export function sumActiveCosts(costs: CostRow[]): number {
-  return costs.reduce((total, c) => (c.active ? total + c.amount_cents : total), 0);
+  return costs.reduce((total, c) => (c.active ? total + cents(c.amount_cents) : total), 0);
 }

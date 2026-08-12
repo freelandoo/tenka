@@ -3,12 +3,13 @@ import { Inbox, Repeat, TrendingDown, Wallet } from 'lucide-react';
 import type { ProfileRow, ProjectStatus } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import { COLUMN_LABELS, COLUMN_ORDER } from '../hooks/useKanban';
-import { formatCurrencyFromCents, formatDate, initials } from '../../panel/format';
+import { cents, formatCurrencyFromCents, formatDate, initials } from '../../panel/format';
 import { setSubscriptionActive } from '../services/projectsService';
 import { useToast } from '../../panel/ToastContext';
 import type { CostRow } from '../../../lib/supabase/database.types';
 import * as clientsService from '../../clients/clientsService';
 import { CostList } from '../../clients/CostList';
+import { SubscriptionList } from './SubscriptionList';
 import { subscribeRealtime } from '../../../lib/api/events';
 
 interface CarteiraViewProps {
@@ -96,15 +97,15 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const resumo = useMemo(() => {
     // Receita do mês: valor dos projetos entregues no mês selecionado.
     let receitaProjetos = 0;
-    for (const p of projetosDoMes) receitaProjetos += p.value_cents;
+    for (const p of projetosDoMes) receitaProjetos += cents(p.value_cents);
 
     // Mensalidade ativa acumulada: soma de TODAS as mensalidades ativas
     // (independe do mês) — a receita recorrente total.
     let mensalidadeAcumulada = 0;
     let mensalidadesAtivas = 0;
     for (const p of projects) {
-      if (p.subscription_active && p.monthly_fee_cents > 0) {
-        mensalidadeAcumulada += p.monthly_fee_cents;
+      if (p.subscription_active && cents(p.monthly_fee_cents) > 0) {
+        mensalidadeAcumulada += cents(p.monthly_fee_cents);
         mensalidadesAtivas += 1;
       }
     }
@@ -114,7 +115,7 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const extrato = useMemo(() => {
     const base =
       filtro === 'todos' ? projetosDoMes : projetosDoMes.filter((p) => p.status === filtro);
-    return [...base].sort((a, b) => b.value_cents - a.value_cents);
+    return [...base].sort((a, b) => cents(b.value_cents) - cents(a.value_cents));
   }, [filtro, projetosDoMes]);
 
   const filtros: { key: Filtro; label: string }[] = [
@@ -194,6 +195,26 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
           projectId={null}
           onChanged={loadCosts}
           readOnly={!isAdmin}
+        />
+      </section>
+
+      {/* Mensalidades — TODAS as recorrências, de qualquer mês. O Extrato abaixo
+          só enxerga os projetos entregues no mês selecionado, então sem esta
+          seção uma mensalidade de um projeto de março sumia em agosto. */}
+      <section className="cart-panel">
+        <header className="cart-panel__head">
+          <Repeat size={17} aria-hidden="true" />
+          <h2 className="cart-panel__title">Mensalidades</h2>
+        </header>
+        <p className="cart-panel__hint">
+          Toda recorrência cadastrada, <strong>independente do mês selecionado</strong> — é a
+          composição do card <strong>Mensalidade ativa acumulada</strong>. Desligar tira da soma
+          sem apagar o histórico.
+        </p>
+        <SubscriptionList
+          projects={projects}
+          isAdmin={isAdmin}
+          onChanged={onProjectsChanged}
         />
       </section>
 
