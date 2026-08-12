@@ -117,9 +117,9 @@ describe('Extrato da Carteira', () => {
     ).toBeDisabled();
   });
 
-  it('a seção Mensalidades mostra recorrência de projeto ENTREGUE em outro mês', async () => {
+  it('a aba Mensalidades mostra recorrência de projeto ENTREGUE em outro mês', async () => {
     // O Extrato só enxerga o mês selecionado; a recorrência de um projeto
-    // entregue em outro mês só aparece porque a seção Mensalidades existe.
+    // entregue em outro mês só aparece porque a aba Mensalidades existe.
     const { container } = render(
       <CarteiraView
         projects={[makeProject({ name: 'Braslar', due_date: '2020-03-28' })]}
@@ -133,12 +133,43 @@ describe('Extrato da Carteira', () => {
     await waitFor(() => expect(screen.getByText(/Nenhuma entrega em/)).toBeInTheDocument());
     expect(container.querySelector('.cart-row')).toBeNull();
 
+    // O painel abre nos custos; a lista de mensalidades ainda não está montada.
+    expect(container.querySelector('.fees__row')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /Mensalidades/ }));
+
     // ...mas a mensalidade continua visível e somando.
     const linhaFee = container.querySelector('.fees__row') as HTMLElement;
     expect(within(linhaFee).getByText('Braslar')).toBeInTheDocument();
     // O "/mês" vive num <small>, e o Intl usa espaço não-quebrável no "R$ ".
     expect(linhaFee.textContent?.replace(/ /g, ' ')).toContain('R$ 900,00/mês');
     expect(screen.getByText('Total ativo · 1 de 1')).toBeInTheDocument();
+  });
+
+  it('as abas alternam entre custos da empresa e mensalidades', async () => {
+    const { container } = render(
+      <CarteiraView
+        projects={[makeProject({ name: 'Braslar' })]}
+        profiles={profiles}
+        isAdmin
+        onProjectsChanged={vi.fn()}
+      />,
+    );
+
+    const abaCustos = screen.getByRole('tab', { name: /Custo mensal/ });
+    const abaFees = screen.getByRole('tab', { name: /Mensalidades/ });
+
+    await waitFor(() => expect(abaCustos).toHaveAttribute('aria-selected', 'true'));
+    expect(screen.getByText(/Nenhum custo da empresa lançado/)).toBeInTheDocument();
+
+    fireEvent.click(abaFees);
+    expect(abaFees).toHaveAttribute('aria-selected', 'true');
+    expect(abaCustos).toHaveAttribute('aria-selected', 'false');
+    expect(container.querySelector('.fees__row')).toBeTruthy();
+    // A lista de custos sai do DOM — é o ponto de reduzir a altura da página.
+    expect(screen.queryByText(/Nenhum custo da empresa lançado/)).toBeNull();
+
+    fireEvent.click(abaCustos);
+    expect(container.querySelector('.fees__row')).toBeNull();
   });
 
   it('projeto sem mensalidade não mostra botão de recorrência', async () => {

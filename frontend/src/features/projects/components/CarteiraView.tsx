@@ -23,6 +23,8 @@ interface CarteiraViewProps {
 }
 
 type Filtro = 'todos' | ProjectStatus;
+/** Aba do painel de recorrências: o que a agência paga × o que ela recebe. */
+type AbaRecorrencia = 'custos' | 'mensalidades';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MESES_LONGOS = [
@@ -47,6 +49,9 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  // Começa nos custos: é a lista que tem formulário de lançamento, e era o que
+  // já estava aberto antes das abas existirem.
+  const [aba, setAba] = useState<AbaRecorrencia>('custos');
 
   // Anos do select: um intervalo contínuo cobrindo as datas de entrega dos
   // projetos e o ano atual ±1 (garante opções mesmo com dados de um só ano).
@@ -179,43 +184,75 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
         />
       </div>
 
-      {/* Custo mensal — custos da empresa. Somam no card acima junto com os
-          custos lançados dentro de cada projeto (ficha do cliente). */}
+      {/* O que sai e o que entra todo mês, num painel só.
+          Eram duas seções empilhadas; viraram abas porque a página ficava alta
+          demais e as duas listas nunca precisam ser lidas ao mesmo tempo — os
+          dois totais continuam visíveis o tempo todo nos KPIs acima. */}
       <section className="cart-panel">
-        <header className="cart-panel__head">
-          <TrendingDown size={17} aria-hidden="true" />
-          <h2 className="cart-panel__title">Custo mensal</h2>
-        </header>
-        <p className="cart-panel__hint">
-          Custos da empresa — aluguel, ferramentas, salários. Entram em{' '}
-          <strong>Custos acumulados</strong> junto com os custos lançados em cada projeto.
-        </p>
-        <CostList
-          costs={companyCosts}
-          projectId={null}
-          onChanged={loadCosts}
-          readOnly={!isAdmin}
-        />
-      </section>
+        <div className="cart-extrato__bar">
+          <div className="cart-panel__head" style={{ margin: 0 }}>
+            {aba === 'custos' ? (
+              <TrendingDown size={17} aria-hidden="true" />
+            ) : (
+              <Repeat size={17} aria-hidden="true" />
+            )}
+            <h2 className="cart-panel__title">Recorrências</h2>
+          </div>
+          <div
+            className="view-tabs view-tabs--sub"
+            role="tablist"
+            aria-label="Alternar entre custos da empresa e mensalidades"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={aba === 'custos'}
+              className="view-tab"
+              onClick={() => setAba('custos')}
+            >
+              <TrendingDown size={14} aria-hidden="true" />
+              Custo mensal
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={aba === 'mensalidades'}
+              className="view-tab"
+              onClick={() => setAba('mensalidades')}
+            >
+              <Repeat size={14} aria-hidden="true" />
+              Mensalidades
+            </button>
+          </div>
+        </div>
 
-      {/* Mensalidades — TODAS as recorrências, de qualquer mês. O Extrato abaixo
-          só enxerga os projetos entregues no mês selecionado, então sem esta
-          seção uma mensalidade de um projeto de março sumia em agosto. */}
-      <section className="cart-panel">
-        <header className="cart-panel__head">
-          <Repeat size={17} aria-hidden="true" />
-          <h2 className="cart-panel__title">Mensalidades</h2>
-        </header>
-        <p className="cart-panel__hint">
-          Toda recorrência cadastrada, <strong>independente do mês selecionado</strong> — é a
-          composição do card <strong>Mensalidade ativa acumulada</strong>. Desligar tira da soma
-          sem apagar o histórico.
-        </p>
-        <SubscriptionList
-          projects={projects}
-          isAdmin={isAdmin}
-          onChanged={onProjectsChanged}
-        />
+        {aba === 'custos' ? (
+          <>
+            <p className="cart-panel__hint">
+              Custos da empresa — aluguel, ferramentas, salários. Entram em{' '}
+              <strong>Custos acumulados</strong> junto com os custos lançados em cada projeto.
+            </p>
+            <CostList
+              costs={companyCosts}
+              projectId={null}
+              onChanged={loadCosts}
+              readOnly={!isAdmin}
+            />
+          </>
+        ) : (
+          <>
+            <p className="cart-panel__hint">
+              Toda recorrência cadastrada, <strong>independente do mês selecionado</strong> — é a
+              composição do card <strong>Mensalidade ativa acumulada</strong>. Desligar tira da
+              soma sem apagar o histórico.
+            </p>
+            <SubscriptionList
+              projects={projects}
+              isAdmin={isAdmin}
+              onChanged={onProjectsChanged}
+            />
+          </>
+        )}
       </section>
 
       {/* Extrato */}
