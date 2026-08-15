@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
+import { Link } from 'react-router-dom';
 import { gsap, ScrollTrigger } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useLenis } from './hooks/useLenis';
@@ -23,7 +24,7 @@ const EMBERS = Array.from({ length: 18 }, (_, index) => ({
 
 function BrandMark() {
   return (
-    <a className="tg-brand" href="#inicio" aria-label="Tenka Games — início">
+    <Link className="tg-brand" to="/" aria-label="TENKA — página inicial">
       <svg className="tg-brand-symbol" viewBox="0 0 40 52" aria-hidden="true">
         <path d="M4 3h32L24 26l12 23H4l12-23L4 3Zm10 7 6 11 6-11H14Zm6 21-6 11h12l-6-11Z" />
         <path d="M4 49 16 26 4 3h8l12 23-12 23H4Zm32 0L24 26 36 3h-8L16 26l12 23h8Z" opacity=".72" />
@@ -32,7 +33,7 @@ function BrandMark() {
         <span className="tg-wordmark">TENKA_</span>
         <span className="tg-brand-division">GAMES</span>
       </span>
-    </a>
+    </Link>
   );
 }
 

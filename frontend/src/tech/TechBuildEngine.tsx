@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
+import { Link } from 'react-router-dom';
 import { gsap } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTechLenis } from './hooks/useTechLenis';
@@ -68,13 +69,13 @@ function upsertMeta(attribute: 'name' | 'property', key: string, content: string
 
 function BrandMark() {
   return (
-    <a className="tt-brand" href="#inicio" aria-label="Tenka Tech — início">
+    <Link className="tt-brand" to="/" aria-label="TENKA — página inicial">
       <svg viewBox="0 0 40 52" aria-hidden="true">
         <path d="M4 3h32L24 26l12 23H4l12-23L4 3Zm10 7 6 11 6-11H14Zm6 21-6 11h12l-6-11Z" />
         <path d="M4 49 16 26 4 3h8l12 23-12 23H4Zm32 0L24 26 36 3h-8L16 26l12 23h8Z" opacity=".72" />
       </svg>
       <span><b>TENKA_</b><em>TECH</em></span>
-    </a>
+    </Link>
   );
 }
 
