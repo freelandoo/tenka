@@ -43,6 +43,7 @@
 .ts-brand-symbol { width: 38px; height: 38px; fill: currentColor; }
 .ts-brand-copy { display: grid; gap: 2px; }
 .ts-wordmark { font-family: 'Unbounded', 'Arial Black', sans-serif; font-size: clamp(1.15rem,2vw,1.7rem); font-weight: 800; font-style: italic; line-height: 1; letter-spacing: -.08em; transform: skewX(-4deg); }
+.ts-header .ts-wordmark { font-style: normal; transform: none; }
 .ts-brand-division { color: var(--ts-red); font: 500 .58rem/1.1 'IBM Plex Mono', monospace; letter-spacing: .48em; }
 .ts-nav { display: flex; gap: clamp(18px,3vw,48px); }
 .ts-nav button, .ts-menu-button { border: 0; background: none; font: 500 .62rem/1 'IBM Plex Mono', monospace; letter-spacing: .2em; cursor: pointer; transition: color 260ms ease; }

@@ -93,6 +93,7 @@
   letter-spacing: -0.08em;
   transform: skewX(-4deg);
 }
+.tg-header .tg-wordmark { font-style: normal; transform: none; }
 .tg-brand-division { color: var(--tg-orange); font: 500 0.58rem/1.1 'IBM Plex Mono', monospace; letter-spacing: 0.48em; }
 .tg-nav { display: flex; gap: clamp(18px, 3vw, 48px); }
 .tg-nav button, .tg-menu-button {
