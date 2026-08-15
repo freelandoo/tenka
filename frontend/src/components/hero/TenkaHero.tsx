@@ -8,7 +8,6 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useViewport } from '../../hooks/useViewport';
 import { getCardRole, getRoleVars, toTweenVars } from '../../utils/heroRoles';
 import { isRenderableImageUrl } from '../../utils/imageValidation';
-import { splitHeadline } from '../../utils/format';
 import HeroHeader from './HeroHeader';
 import HeroShowroom from './HeroShowroom';
 import HeroContent from './HeroContent';
@@ -106,7 +105,6 @@ export default function TenkaHero() {
       const current = slides[activeIndexRef.current] ?? slides[0];
       gsap.set(containerRef.current, { backgroundColor: current.backgroundColor });
       gsap.set(q('[data-hero-glow]'), { backgroundColor: current.accentColor });
-      gsap.set(q('[data-hero-headline]'), { opacity: isMobile ? 0.75 : 0.92 });
 
       if (!hasEnteredRef.current) {
         hasEnteredRef.current = true;
@@ -180,12 +178,7 @@ export default function TenkaHero() {
     });
     timelineRef.current = tl;
 
-    tl.from(q('[data-hero-logo]'), { y: -28, autoAlpha: 0, duration: 0.7 }, 0.05)
-      .from(
-        q('[data-hero-headline]'),
-        { yPercent: 24, autoAlpha: 0, duration: 0.9 },
-        0.1,
-      );
+    tl.from(q('[data-hero-logo]'), { y: -28, autoAlpha: 0, duration: 0.7 }, 0.05);
 
     if (centerEl) {
       tl.from(centerEl, { scale: 0.86, autoAlpha: 0, duration: 1 }, 0.15);
@@ -244,7 +237,6 @@ export default function TenkaHero() {
     const centerVars = getRoleVars('center', mobile);
     const prevVars = getRoleVars('previous', mobile);
     const nextVars = getRoleVars('next', mobile);
-    const headlineOpacity = mobile ? 0.75 : 0.92;
 
     const prevIndex = (from - 1 + total) % total;
     const nextIndex = (from + 1) % total;
@@ -252,7 +244,6 @@ export default function TenkaHero() {
     const prevEl = cardRefs.current.get(slides[prevIndex]?.id ?? '');
     const nextEl = cardRefs.current.get(slides[nextIndex]?.id ?? '');
 
-    const headlineEl = q('[data-hero-headline]');
     const copyEls = q('[data-hero-eyebrow], [data-hero-description]');
     const ctaEls = q('[data-hero-cta]');
     const counterEl = q('[data-hero-counter-current]');
@@ -403,21 +394,10 @@ export default function TenkaHero() {
     // Environment + copy run on the same timeline so everything is coordinated.
     tl.to(containerRef.current, { backgroundColor: toSlide.backgroundColor, overwrite: 'auto' }, 0)
       .to(glowEl, { backgroundColor: toSlide.accentColor, overwrite: 'auto' }, 0)
-      .to(
-        headlineEl,
-        { yPercent: -22, opacity: 0, letterSpacing: '0.02em', filter: 'blur(6px)', duration: 0.34, ease: 'power2.in', overwrite: 'auto' },
-        0,
-      )
       .to(copyEls, { y: -18, autoAlpha: 0, duration: 0.3, ease: 'power2.in', stagger: 0.04, overwrite: 'auto' }, 0)
       .to(ctaEls, { x: 26, autoAlpha: 0, duration: 0.3, ease: 'power2.in', overwrite: 'auto' }, 0)
       .to(counterEl, { y: -10, autoAlpha: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' }, 0)
       .call(commitIndex, [], 0.36)
-      .fromTo(
-        headlineEl,
-        { yPercent: 26, opacity: 0, filter: 'blur(10px)', letterSpacing: '0.08em' },
-        { yPercent: 0, opacity: headlineOpacity, filter: 'blur(0px)', letterSpacing: '-0.055em', duration: 0.58, ease: 'power3.out' },
-        0.4,
-      )
       .fromTo(
         copyEls,
         { y: 26, autoAlpha: 0 },
@@ -581,25 +561,6 @@ export default function TenkaHero() {
         onSelectDivision={(index) => goToIndexRef.current(index)}
         onOpenMenu={() => setIsMenuOpen(true)}
       />
-
-      {/* Giant background headline */}
-      <div
-        data-hero-fade
-        className="th-headline-wrap select-none"
-      >
-        <h1
-          data-hero-headline
-          className="th-headline"
-          style={{
-            letterSpacing: '-0.055em',
-            whiteSpace: 'pre-line',
-            opacity: isMobile ? 0.75 : 0.92,
-            color: activeSlide.textColor,
-          }}
-        >
-          {splitHeadline(activeSlide.headline)}
-        </h1>
-      </div>
 
       <HeroShowroom
         slides={slides}
