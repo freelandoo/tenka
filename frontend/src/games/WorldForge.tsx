@@ -224,7 +224,7 @@ export default function WorldForge() {
             <h1 id="games-title">
               <span>MUNDOS FEITOS</span>
               <span>PARA SEREM</span>
-              <span className="tg-accent">VIVIDOS<span className="tg-terminal" aria-hidden="true" /></span>
+              <span>VIVIDOS<span className="tg-terminal" aria-hidden="true" /></span>
             </h1>
             <div className="tg-hero-meta">
               <div>
@@ -263,7 +263,7 @@ export default function WorldForge() {
         <section id="servicos" className="tg-section tg-services" aria-labelledby="services-title">
           <div className="tg-services-intro tg-reveal">
             <p className="tg-kicker tg-mono">02 / O QUE CONSTRUÍMOS</p>
-            <h2 id="services-title">Da tela ao<br /><span className="tg-accent">espaço.</span></h2>
+            <h2 id="services-title">Da tela ao<br /><span>espaço.</span></h2>
             <p>Projetamos experiências que funcionam onde o público já está — e também onde ele nunca esteve.</p>
           </div>
           <div className="tg-services-list">
