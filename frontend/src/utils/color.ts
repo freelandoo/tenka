@@ -41,3 +41,17 @@ export function contrastRatio(a: string, b: string): number {
 export function pickAccentOrWhite(accent: string, background: string): string {
   return contrastRatio(accent, background) >= 1.6 ? accent : '#FFFFFF';
 }
+
+/**
+ * Produz um tom mais escuro da própria cor, sem introduzir preto ou alterar
+ * sua família cromática. `amount` representa quanto de luminosidade remover.
+ */
+export function darkenHex(hex: string, amount = 0.42): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+
+  const factor = Math.max(0, Math.min(1, 1 - amount));
+  return `#${rgb
+    .map((channel) => Math.round(channel * factor).toString(16).padStart(2, '0'))
+    .join('')}`;
+}

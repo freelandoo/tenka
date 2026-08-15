@@ -16,7 +16,7 @@ export default function HeroEnvironment({ slide }: { slide: TenkaHeroSlide }) {
       </svg>
       <div className="th-environment-nodes" style={{ color: slide.accentColor }}><i /><i /><i /><i /><i /><i /></div>
       <div className="th-environment-scan" style={{ backgroundColor: slide.accentColor }} />
-      <div className="th-environment-shade" />
+      <div className="th-environment-shade" data-hero-shade />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useViewport } from '../../hooks/useViewport';
 import { getCardRole, getRoleVars, toTweenVars } from '../../utils/heroRoles';
 import { isRenderableImageUrl } from '../../utils/imageValidation';
+import { darkenHex } from '../../utils/color';
 import HeroHeader from './HeroHeader';
 import HeroShowroom from './HeroShowroom';
 import HeroContent from './HeroContent';
@@ -102,6 +103,7 @@ export default function TenkaHero() {
 
       const current = slides[activeIndexRef.current] ?? slides[0];
       gsap.set(containerRef.current, { backgroundColor: current.backgroundColor });
+      gsap.set(q('[data-hero-shade]'), { color: darkenHex(current.backgroundColor) });
 
       if (!hasEnteredRef.current) {
         hasEnteredRef.current = true;
@@ -241,6 +243,7 @@ export default function TenkaHero() {
 
     const copyEls = q('[data-hero-eyebrow], [data-hero-description]');
     const counterEl = q('[data-hero-counter-current]');
+    const shadeEl = q('[data-hero-shade]');
 
     const commitIndex = () => {
       activeIndexRef.current = to;
@@ -285,6 +288,7 @@ export default function TenkaHero() {
               backgroundColor: toSlide.backgroundColor,
             });
           }
+          gsap.set(shadeEl, { color: darkenHex(toSlide.backgroundColor) });
         })
         .to(fadeEls, { autoAlpha: 1, duration: 0.22, ease: 'none' });
       return;
@@ -385,6 +389,7 @@ export default function TenkaHero() {
 
     // Environment + copy run on the same timeline so everything is coordinated.
     tl.to(containerRef.current, { backgroundColor: toSlide.backgroundColor, overwrite: 'auto' }, 0)
+      .to(shadeEl, { color: darkenHex(toSlide.backgroundColor), overwrite: 'auto' }, 0)
       .to(copyEls, { y: -18, autoAlpha: 0, duration: 0.3, ease: 'power2.in', stagger: 0.04, overwrite: 'auto' }, 0)
       .to(counterEl, { y: -10, autoAlpha: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' }, 0)
       .call(commitIndex, [], 0.36)
