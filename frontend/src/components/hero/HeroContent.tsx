@@ -1,7 +1,6 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { TenkaHeroSlide } from '../../types/hero';
 import { padIndex } from '../../utils/format';
-import SmartLink from '../SmartLink';
 
 interface HeroContentProps {
   slide: TenkaHeroSlide;
@@ -43,16 +42,6 @@ export default function HeroContent({
       >
         {slide.description}
       </p>
-
-      {/* Compact CTA (mobile only) — the large display CTA lives bottom-right on desktop */}
-      <SmartLink
-        data-hero-cta
-        to={slide.ctaHref}
-        className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-full border-2 border-white/80 px-5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-white/[0.14] md:hidden"
-      >
-        {slide.ctaLabel}
-        <ArrowRight aria-hidden="true" className="h-4 w-4" strokeWidth={2.5} />
-      </SmartLink>
 
       <div data-hero-arrows className="mt-4 flex items-center gap-4 md:mt-5 md:gap-5">
         <button

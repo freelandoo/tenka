@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Observer } from 'gsap/Observer';
@@ -14,7 +13,6 @@ import HeroContent from './HeroContent';
 import HeroNavigation from './HeroNavigation';
 import HeroProgress from './HeroProgress';
 import MobileMenu from './MobileMenu';
-import SmartLink from '../SmartLink';
 import HeroEnvironment from './HeroEnvironment';
 import './home-hero.css';
 
@@ -194,9 +192,7 @@ export default function TenkaHero() {
       q('[data-hero-eyebrow], [data-hero-description]'),
       { y: 26, autoAlpha: 0, duration: 0.6, stagger: 0.08 },
       0.5,
-    )
-      .from(q('[data-hero-cta]'), { x: 36, autoAlpha: 0, duration: 0.6 }, 0.6)
-      .from(
+    ).from(
         q('[data-hero-arrows], [data-hero-counter]'),
         { y: 16, autoAlpha: 0, duration: 0.5 },
         0.62,
@@ -245,7 +241,6 @@ export default function TenkaHero() {
     const nextEl = cardRefs.current.get(slides[nextIndex]?.id ?? '');
 
     const copyEls = q('[data-hero-eyebrow], [data-hero-description]');
-    const ctaEls = q('[data-hero-cta]');
     const counterEl = q('[data-hero-counter-current]');
     const glowEl = q('[data-hero-glow]');
 
@@ -395,7 +390,6 @@ export default function TenkaHero() {
     tl.to(containerRef.current, { backgroundColor: toSlide.backgroundColor, overwrite: 'auto' }, 0)
       .to(glowEl, { backgroundColor: toSlide.accentColor, overwrite: 'auto' }, 0)
       .to(copyEls, { y: -18, autoAlpha: 0, duration: 0.3, ease: 'power2.in', stagger: 0.04, overwrite: 'auto' }, 0)
-      .to(ctaEls, { x: 26, autoAlpha: 0, duration: 0.3, ease: 'power2.in', overwrite: 'auto' }, 0)
       .to(counterEl, { y: -10, autoAlpha: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' }, 0)
       .call(commitIndex, [], 0.36)
       .fromTo(
@@ -403,12 +397,6 @@ export default function TenkaHero() {
         { y: 26, autoAlpha: 0 },
         { y: 0, autoAlpha: 1, duration: 0.52, ease: 'power3.out', stagger: 0.06 },
         0.46,
-      )
-      .fromTo(
-        ctaEls,
-        { x: 34, autoAlpha: 0 },
-        { x: 0, autoAlpha: 1, duration: 0.5, ease: 'power3.out' },
-        0.52,
       )
       .fromTo(
         counterEl,
@@ -578,33 +566,6 @@ export default function TenkaHero() {
         onPrevious={() => navigateRef.current('previous')}
         onNext={() => navigateRef.current('next')}
       />
-
-      {/* Bottom-right CTA (desktop) */}
-      <div
-        data-hero-fade
-        className="absolute bottom-10 right-8 z-[60] hidden md:block lg:bottom-14 lg:right-14"
-      >
-        <SmartLink data-hero-cta to={activeSlide.ctaHref} className="group block text-white">
-          <span className="flex items-center gap-4">
-            <span
-              className="th-home-cta uppercase leading-none"
-              style={{ fontSize: 'clamp(24px, 3.5vw, 54px)' }}
-            >
-              {activeSlide.ctaLabel}
-            </span>
-            <ArrowRight
-              aria-hidden="true"
-              className="h-8 w-8 shrink-0 transition-transform duration-300 group-hover:translate-x-2"
-              strokeWidth={2.5}
-            />
-          </span>
-          <span
-            aria-hidden="true"
-            className="mt-2 block h-[3px] w-full origin-left scale-x-[0.22] transition-transform duration-500 group-hover:scale-x-100"
-            style={{ backgroundColor: activeSlide.accentColor }}
-          />
-        </SmartLink>
-      </div>
 
       <HeroNavigation
         slides={slides}
