@@ -8,13 +8,17 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  width: 100%;
+  min-height: 100dvh;
+  background-color: #08090b;
 }
 
 body {
   margin: 0;
+  color-scheme: dark;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
   text-rendering: optimizeLegibility;
 }
 
