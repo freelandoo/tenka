@@ -123,7 +123,7 @@
 .tg-eyebrow { display: flex; align-items: center; gap: 12px; margin: 0 0 24px; font-size: 0.67rem; letter-spacing: 0.2em; }
 .tg-eyebrow > span { width: 2px; height: 18px; background: var(--tg-orange); }
 .tg-eyebrow b { color: var(--tg-orange); }
-.tg-hero h1 { margin: 0; font: 800 clamp(3.8rem, 7.2vw, 8.2rem)/0.9 'Anton', sans-serif; letter-spacing: -0.035em; text-transform: uppercase; }
+.tg-hero h1 { margin: 0; font: 700 clamp(3.8rem, 7.2vw, 8.2rem)/0.92 'Barlow Condensed', sans-serif; letter-spacing: -0.012em; text-transform: uppercase; }
 .tg-hero h1 > span { display: block; }
 .tg-terminal { display: inline-block; width: 0.32em; height: 0.09em; margin-left: 0.12em; background: var(--tg-text); vertical-align: 0.04em; animation: tg-blink 1.4s steps(1) infinite; }
 .tg-hero-meta { display: flex; align-items: flex-start; gap: clamp(34px, 6vw, 96px); margin-top: 32px; padding-left: 18px; border-left: 1px solid rgba(255, 100, 10, 0.55); }
