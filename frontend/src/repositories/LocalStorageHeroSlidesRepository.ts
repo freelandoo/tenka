@@ -33,6 +33,54 @@ function migrateIdentityCopy(slide: TenkaHeroSlide): TenkaHeroSlide {
   return { ...current, order: slide.order, isActive: slide.isActive, imageUrl: slide.imageUrl };
 }
 
+const LEGACY_DIVISION_PALETTE: Record<
+  string,
+  Pick<TenkaHeroSlide, 'backgroundColor' | 'accentColor' | 'placeholderColor'>
+> = {
+  'tenka-games': {
+    backgroundColor: '#130a05',
+    accentColor: '#ff5a00',
+    placeholderColor: '#FF8A45',
+  },
+  'tenka-studios': {
+    backgroundColor: '#14080a',
+    accentColor: '#D9232E',
+    placeholderColor: '#C92832',
+  },
+  'tenka-desenvolvimento': {
+    backgroundColor: '#061112',
+    accentColor: '#00B8B3',
+    placeholderColor: '#12AFA3',
+  },
+};
+
+/**
+ * Atualiza apenas a paleta original escura. Cores personalizadas pelo painel
+ * continuam intocadas, enquanto instalações existentes recebem a identidade
+ * mais forte de cada divisão.
+ */
+function migrateDivisionPalette(slide: TenkaHeroSlide): TenkaHeroSlide {
+  const legacy = LEGACY_DIVISION_PALETTE[slide.id];
+  const current = DEFAULT_HERO_SLIDES.find((item) => item.id === slide.id);
+  if (!legacy || !current) return slide;
+
+  return {
+    ...slide,
+    backgroundColor:
+      slide.backgroundColor.toLowerCase() === legacy.backgroundColor.toLowerCase()
+        ? current.backgroundColor
+        : slide.backgroundColor,
+    accentColor:
+      slide.accentColor.toLowerCase() === legacy.accentColor.toLowerCase()
+        ? current.accentColor
+        : slide.accentColor,
+    placeholderColor:
+      slide.placeholderColor.toLowerCase() === legacy.placeholderColor.toLowerCase()
+        ? current.placeholderColor
+        : slide.placeholderColor,
+  };
+}
+
 function isTenkaHeroSlide(value: unknown): value is TenkaHeroSlide {
   if (typeof value !== 'object' || value === null) return false;
   const slide = value as Record<string, unknown>;
@@ -78,6 +126,7 @@ export class LocalStorageHeroSlidesRepository implements HeroSlidesRepository {
         .filter(isTenkaHeroSlide)
         .map(migrateLegacyStudiosSlide)
         .map(migrateIdentityCopy)
+        .map(migrateDivisionPalette)
         .map((slide) => ({
           ...slide,
           // Dados salvos antes do campo existir herdam o preview default do

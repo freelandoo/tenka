@@ -15,9 +15,9 @@ export const DEFAULT_HERO_SLIDES: TenkaHeroSlide[] = [
     headline: 'MUNDOS FEITOS\nPARA SEREM VIVIDOS.',
     description:
       'Criamos jogos, experiências interativas, advergames e soluções de gamificação que transformam ideias em universos jogáveis.',
-    backgroundColor: '#130a05',
-    accentColor: '#ff5a00',
-    placeholderColor: '#FF8A45',
+    backgroundColor: '#E94B0C',
+    accentColor: '#FFB06A',
+    placeholderColor: '#F56A2A',
     textColor: '#FFFFFF',
     imageUrl: null,
     // O hero real da página /games renderizado ao vivo dentro da vitrine.
@@ -36,9 +36,9 @@ export const DEFAULT_HERO_SLIDES: TenkaHeroSlide[] = [
     headline: 'IDEIAS QUE\nGANHAM PRESENÇA.',
     description:
       'Criamos maquetes e animações 3D, mockups digitais de produtos, identidades visuais, branding e logos que dão presença às ideias.',
-    backgroundColor: '#14080a',
-    accentColor: '#D9232E',
-    placeholderColor: '#C92832',
+    backgroundColor: '#B51C36',
+    accentColor: '#FF8290',
+    placeholderColor: '#CF3047',
     textColor: '#FFFFFF',
     imageUrl: null,
     // A página /studios renderizada ao vivo dentro da vitrine.
@@ -57,9 +57,9 @@ export const DEFAULT_HERO_SLIDES: TenkaHeroSlide[] = [
     headline: 'TECNOLOGIA\nQUE TOMA FORMA.',
     description:
       'Desenvolvemos sites, sistemas, aplicativos, plataformas, automações e produtos digitais preparados para crescer.',
-    backgroundColor: '#061112',
-    accentColor: '#00B8B3',
-    placeholderColor: '#12AFA3',
+    backgroundColor: '#087F7C',
+    accentColor: '#70E2D8',
+    placeholderColor: '#14A9A2',
     textColor: '#FFFFFF',
     imageUrl: null,
     // A página /desenvolvimento (Tenka Tecnologia) renderizada ao vivo no card.

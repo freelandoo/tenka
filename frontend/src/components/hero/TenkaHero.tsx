@@ -102,7 +102,6 @@ export default function TenkaHero() {
 
       const current = slides[activeIndexRef.current] ?? slides[0];
       gsap.set(containerRef.current, { backgroundColor: current.backgroundColor });
-      gsap.set(q('[data-hero-glow]'), { backgroundColor: current.accentColor });
 
       if (!hasEnteredRef.current) {
         hasEnteredRef.current = true;
@@ -242,7 +241,6 @@ export default function TenkaHero() {
 
     const copyEls = q('[data-hero-eyebrow], [data-hero-description]');
     const counterEl = q('[data-hero-counter-current]');
-    const glowEl = q('[data-hero-glow]');
 
     const commitIndex = () => {
       activeIndexRef.current = to;
@@ -287,7 +285,6 @@ export default function TenkaHero() {
               backgroundColor: toSlide.backgroundColor,
             });
           }
-          gsap.set(glowEl, { backgroundColor: toSlide.accentColor });
         })
         .to(fadeEls, { autoAlpha: 1, duration: 0.22, ease: 'none' });
       return;
@@ -388,7 +385,6 @@ export default function TenkaHero() {
 
     // Environment + copy run on the same timeline so everything is coordinated.
     tl.to(containerRef.current, { backgroundColor: toSlide.backgroundColor, overwrite: 'auto' }, 0)
-      .to(glowEl, { backgroundColor: toSlide.accentColor, overwrite: 'auto' }, 0)
       .to(copyEls, { y: -18, autoAlpha: 0, duration: 0.3, ease: 'power2.in', stagger: 0.04, overwrite: 'auto' }, 0)
       .to(counterEl, { y: -10, autoAlpha: 0, duration: 0.25, ease: 'power2.in', overwrite: 'auto' }, 0)
       .call(commitIndex, [], 0.36)
@@ -501,7 +497,7 @@ export default function TenkaHero() {
       <section
         aria-label="Carregando"
         className="relative min-h-[100svh] w-full"
-        style={{ backgroundColor: '#F15A24' }}
+        style={{ backgroundColor: '#E94B0C' }}
       />
     );
   }
@@ -531,14 +527,6 @@ export default function TenkaHero() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[5] opacity-[0.06]"
         style={{ backgroundImage: GRAIN_URL, backgroundSize: '160px 160px' }}
-      />
-
-      {/* Radial glow behind the active screenshot */}
-      <div
-        data-hero-glow
-        aria-hidden="true"
-        className="th-home-glow pointer-events-none absolute left-1/2 top-[56%] z-[6] h-[55vh] w-[72vw] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ backgroundColor: slides[0].accentColor }}
       />
 
       <HeroHeader
