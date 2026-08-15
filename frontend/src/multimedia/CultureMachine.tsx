@@ -121,6 +121,7 @@ function upsertMeta(attribute: 'name' | 'property', key: string, content: string
 
 export default function CultureMachine() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const focusFrameRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
   const lenisRef = useMultimediaLenis(!reducedMotion);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -152,14 +153,31 @@ export default function CultureMachine() {
       const intro = gsap.timeline({ defaults: { ease: 'power3.out' } });
       intro
         .from('.ts-header', { yPercent: -100, opacity: 0, duration: 0.85 })
-        .from('.ts-hero-copy > *', { y: 34, opacity: 0, duration: 0.8, stagger: 0.1 }, '-=0.45')
-        .from('.ts-hero-frame', { scale: 0.97, opacity: 0, duration: 1.15 }, '-=0.85');
+        .from('.ts-hero-copy > *', { y: 34, opacity: 0, duration: 0.8, stagger: 0.1 }, '-=0.45');
 
       gsap.to('.ts-hero-art', {
-        yPercent: 11,
+        yPercent: 18,
         ease: 'none',
         scrollTrigger: { trigger: '.ts-hero', start: 'top top', end: 'bottom top', scrub: 1.1 },
       });
+
+      gsap.fromTo(
+        '.ts-process-visual img',
+        { yPercent: -7, scale: 1.1 },
+        { yPercent: 7, scale: 1.1, ease: 'none', scrollTrigger: { trigger: '.ts-process', start: 'top bottom', end: 'bottom top', scrub: 1 } },
+      );
+
+      gsap.fromTo(
+        '.ts-contact-art',
+        { yPercent: -8, scale: 1.08 },
+        { yPercent: 8, scale: 1.08, ease: 'none', scrollTrigger: { trigger: '.ts-contact', start: 'top bottom', end: 'bottom top', scrub: 1 } },
+      );
+
+      gsap.fromTo(
+        '.ts-contact-orbits',
+        { scale: 0.72, opacity: 0.18, rotate: -12 },
+        { scale: 1.08, opacity: 1, rotate: 8, ease: 'none', scrollTrigger: { trigger: '.ts-contact', start: 'top 90%', end: 'bottom top', scrub: 1.2 } },
+      );
 
       gsap.utils.toArray<HTMLElement>('.ts-reveal').forEach((element) => {
         gsap.from(element, {
@@ -182,6 +200,98 @@ export default function CultureMachine() {
           },
         );
       });
+
+      const focusFrame = focusFrameRef.current;
+      if (!focusFrame) return;
+      const targets = gsap.utils.toArray<HTMLElement>('[data-ts-focus]');
+      const corners = Array.from(focusFrame.querySelectorAll<HTMLElement>('.ts-tracker-corner'));
+      const edges = Array.from(focusFrame.querySelectorAll<HTMLElement>('.ts-tracker-edge'));
+      const rec = focusFrame.querySelector<HTMLElement>('.ts-tracker-rec');
+      const code = focusFrame.querySelector<HTMLElement>('.ts-tracker-code');
+      if (targets.length === 0 || corners.length !== 4 || edges.length !== 4 || !rec || !code) return;
+
+      const quick = (element: HTMLElement, property: string) =>
+        gsap.quickTo(element, property, { duration: 0.46, ease: 'power3.out' });
+      const cornerX = corners.map((corner) => quick(corner, 'x'));
+      const cornerY = corners.map((corner) => quick(corner, 'y'));
+      const edgeX = edges.map((edge) => quick(edge, 'x'));
+      const edgeY = edges.map((edge) => quick(edge, 'y'));
+      const edgeScaleX = edges.map((edge) => quick(edge, 'scaleX'));
+      const edgeScaleY = edges.map((edge) => quick(edge, 'scaleY'));
+      const recX = quick(rec, 'x');
+      const recY = quick(rec, 'y');
+      const codeX = quick(code, 'x');
+      const codeY = quick(code, 'y');
+      const frameOpacity = quick(focusFrame, 'opacity');
+      let activeTarget: HTMLElement | null = null;
+
+      const placeFrame = () => {
+        const viewportCenter = window.innerHeight * 0.52;
+        const visible = targets.filter((target) => {
+          const rect = target.getBoundingClientRect();
+          return rect.bottom > 72 && rect.top < window.innerHeight - 24;
+        });
+        const pool = visible.length > 0 ? visible : targets;
+        const target = pool.reduce((closest, candidate) => {
+          const closestRect = closest.getBoundingClientRect();
+          const candidateRect = candidate.getBoundingClientRect();
+          const closestDistance = Math.abs(closestRect.top + closestRect.height / 2 - viewportCenter);
+          const candidateDistance = Math.abs(candidateRect.top + candidateRect.height / 2 - viewportCenter);
+          return candidateDistance < closestDistance ? candidate : closest;
+        });
+        const rect = target.getBoundingClientRect();
+        const compact = window.innerWidth < 760;
+        const padding = Number(target.dataset.tsFocusPad ?? (compact ? 10 : 18));
+        const cornerSize = compact ? 23 : 38;
+        const left = Math.max(compact ? 8 : 16, rect.left - padding);
+        const top = Math.max(compact ? 76 : 92, rect.top - padding);
+        const right = Math.min(window.innerWidth - (compact ? 8 : 16), rect.right + padding);
+        const bottom = Math.min(window.innerHeight - (compact ? 8 : 16), rect.bottom + padding);
+        const width = Math.max(cornerSize * 2 + 8, right - left);
+        const height = Math.max(cornerSize * 2 + 8, bottom - top);
+        const xPositions = [left, left + width - cornerSize, left + width - cornerSize, left];
+        const yPositions = [top, top, top + height - cornerSize, top + height - cornerSize];
+        corners.forEach((_, index) => {
+          cornerX[index](xPositions[index]);
+          cornerY[index](yPositions[index]);
+        });
+
+        const horizontalLength = Math.max(1, width - cornerSize * 2);
+        const verticalLength = Math.max(1, height - cornerSize * 2);
+        const edgePositions = [
+          [left + cornerSize, top, horizontalLength, 1],
+          [left + width - 1, top + cornerSize, 1, verticalLength],
+          [left + cornerSize, top + height - 1, horizontalLength, 1],
+          [left, top + cornerSize, 1, verticalLength],
+        ];
+        edgePositions.forEach(([x, y, scaleX, scaleY], index) => {
+          edgeX[index](x);
+          edgeY[index](y);
+          edgeScaleX[index](scaleX);
+          edgeScaleY[index](scaleY);
+        });
+
+        recX(Math.max(left + 54, left + width - (compact ? 68 : 92)));
+        recY(top + (compact ? 10 : 15));
+        codeX(left + (compact ? 8 : 12));
+        codeY(top + height - (compact ? 15 : 20));
+        frameOpacity(1);
+        if (activeTarget !== target) {
+          activeTarget = target;
+          code.textContent = target.dataset.tsFrame ?? 'FRAME 024';
+          gsap.fromTo(code, { opacity: 0, xPercent: -18 }, { opacity: 1, xPercent: 0, duration: 0.38, ease: 'power2.out' });
+        }
+      };
+
+      const trackerTrigger = ScrollTrigger.create({
+        trigger: rootRef.current,
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate: placeFrame,
+        onRefresh: placeFrame,
+      });
+      placeFrame();
+      return () => trackerTrigger.kill();
     },
     { scope: rootRef, dependencies: [reducedMotion] },
   );
@@ -198,6 +308,18 @@ export default function CultureMachine() {
   return (
     <div ref={rootRef} className="ts-root">
       <div className="ts-grain" aria-hidden="true" />
+      <div ref={focusFrameRef} className="ts-focus-tracker" aria-hidden="true">
+        <i className="ts-tracker-corner ts-tracker-corner--tl" />
+        <i className="ts-tracker-corner ts-tracker-corner--tr" />
+        <i className="ts-tracker-corner ts-tracker-corner--br" />
+        <i className="ts-tracker-corner ts-tracker-corner--bl" />
+        <em className="ts-tracker-edge ts-tracker-edge--top" />
+        <em className="ts-tracker-edge ts-tracker-edge--right" />
+        <em className="ts-tracker-edge ts-tracker-edge--bottom" />
+        <em className="ts-tracker-edge ts-tracker-edge--left" />
+        <span className="ts-tracker-rec ts-mono">REC</span>
+        <b className="ts-tracker-code ts-mono">FRAME 024</b>
+      </div>
       <header className="ts-header">
         <BrandMark />
         <nav className={menuOpen ? 'ts-nav is-open' : 'ts-nav'} aria-label="Navegação Tenka Studios">
@@ -231,7 +353,7 @@ export default function CultureMachine() {
               VER PROJETOS <span>↘</span>
             </button>
           </div>
-          <div className="ts-hero-frame" aria-hidden="true"><i /><i /><i /><i /><span>REC</span></div>
+          <div className="ts-hero-frame-target" data-ts-focus data-ts-frame="FRAME 024 / HERO" data-ts-focus-pad="0" aria-hidden="true" />
           <p className="ts-frame-data ts-mono">FRAME 024<br />35MM / F2.8<br />ISO 800</p>
           <p className="ts-scroll-hint ts-mono">ROLE PARA EXPLORAR <span /></p>
         </section>
@@ -239,12 +361,12 @@ export default function CultureMachine() {
         <section id="projetos" className="ts-section ts-projects" aria-labelledby="projects-title">
           <div className="ts-section-heading ts-reveal">
             <p className="ts-kicker ts-mono">01 / TRABALHOS SELECIONADOS</p>
-            <h2 id="projects-title">Forma, matéria<br />e intenção.</h2>
+            <h2 id="projects-title" data-ts-focus data-ts-frame="FRAME 041 / DIREÇÃO">Forma, matéria<br />e intenção.</h2>
             <p>Projetos que atravessam escalas — de um símbolo a um espaço inteiro — com a mesma atenção ao detalhe.</p>
           </div>
           <div className="ts-project-grid">
             {PROJECTS.map((project, index) => (
-              <article className={`ts-project-card ts-project-card--${index + 1} ts-reveal`} key={project.id}>
+              <article className={`ts-project-card ts-project-card--${index + 1} ts-reveal`} data-ts-focus data-ts-frame={`FRAME 05${index + 1} / ${project.id}`} data-ts-focus-pad="8" key={project.id}>
                 <div className="ts-project-media">
                   <img src={project.image} alt={project.alt} />
                   <div className="ts-project-overlay" aria-hidden="true" />
@@ -264,12 +386,12 @@ export default function CultureMachine() {
         <section id="servicos" className="ts-section ts-services" aria-labelledby="services-title">
           <div className="ts-services-intro ts-reveal">
             <p className="ts-kicker ts-mono">02 / O QUE CRIAMOS</p>
-            <h2 id="services-title">Do conceito<br />à presença.</h2>
+            <h2 id="services-title" data-ts-focus data-ts-frame="FRAME 063 / SERVIÇOS">Do conceito<br />à presença.</h2>
             <p>Um estúdio multidisciplinar para construir a imagem antes da matéria — e a marca antes da percepção.</p>
           </div>
           <div className="ts-services-list">
             {SERVICES.map((service) => (
-              <article className="ts-service-row ts-reveal" key={service.index}>
+              <article className="ts-service-row ts-reveal" data-ts-focus data-ts-frame={`FRAME 07${service.index} / SERVIÇO`} data-ts-focus-pad="7" key={service.index}>
                 <span className="ts-service-index ts-mono">{service.index}</span>
                 <div>
                   <p className="ts-service-label ts-mono">{service.label}</p>
@@ -285,7 +407,7 @@ export default function CultureMachine() {
         </section>
 
         <section id="processo" className="ts-section ts-process" aria-labelledby="process-title">
-          <div className="ts-process-visual ts-reveal">
+          <div className="ts-process-visual ts-reveal" data-ts-focus data-ts-frame="FRAME 086 / OBJETO" data-ts-focus-pad="6">
             <img src="/images/studios/hero-maquete.png" alt="Maquete arquitetônica iluminada em vermelho no estúdio Tenka" />
             <div className="ts-focus-frame" aria-hidden="true"><i /><i /><i /><i /></div>
             <p className="ts-mono">FOCO / DETALHE / PRESENÇA</p>
@@ -293,7 +415,7 @@ export default function CultureMachine() {
           <div className="ts-process-copy">
             <div className="ts-reveal">
               <p className="ts-kicker ts-mono">03 / COMO CONSTRUÍMOS</p>
-              <h2 id="process-title">Ver antes.<br />Decidir melhor.</h2>
+              <h2 id="process-title" data-ts-focus data-ts-frame="FRAME 092 / PROCESSO">Ver antes.<br />Decidir melhor.</h2>
               <p>O processo transforma abstração em decisões visíveis. Cada etapa reduz ruído e aumenta a precisão da próxima.</p>
             </div>
             <ol className="ts-process-steps">
@@ -309,9 +431,15 @@ export default function CultureMachine() {
 
         <section id="contato" className="ts-contact" aria-labelledby="contact-title">
           <div className="ts-contact-art" aria-hidden="true" />
-          <div className="ts-contact-scan" aria-hidden="true" />
+          <div className="ts-contact-orbits" aria-hidden="true">
+            <div className="ts-contact-scan">
+              <i /><i /><i /><i />
+            </div>
+            <div className="ts-contact-orbit-secondary"><i /><i /><i /></div>
+            <div className="ts-contact-orbit-core" />
+          </div>
           <p className="ts-kicker ts-mono ts-reveal">04 / PRÓXIMA CRIAÇÃO</p>
-          <h2 id="contact-title" className="ts-reveal">Vamos dar forma<br />à sua ideia?</h2>
+          <h2 id="contact-title" className="ts-reveal" data-ts-focus data-ts-frame="FRAME 108 / CONTATO">Vamos dar forma<br />à sua ideia?</h2>
           <p className="ts-reveal">Conte o que precisa existir. A gente transforma intenção em imagem, objeto, espaço ou marca.</p>
           <a className="ts-primary-button ts-mono ts-reveal" href="/contato">INICIAR UM PROJETO <span>↗</span></a>
         </section>
