@@ -104,6 +104,14 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route
+          path="/tech"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <DesenvolvimentoPage />
+            </Suspense>
+          }
+        />
         <Route path="/contato" element={<ContactPage />} />
         <Route
           path="/painel/*"
