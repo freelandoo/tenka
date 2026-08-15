@@ -55,7 +55,7 @@ const DESKTOP_ROLES: Record<CardRole, CardRoleVars> = {
 const MOBILE_ROLES: Record<CardRole, CardRoleVars> = {
   center: {
     left: '50%',
-    top: '48%',
+    top: '43%',
     xPercent: -50,
     yPercent: -50,
     scale: 1,
@@ -67,7 +67,7 @@ const MOBILE_ROLES: Record<CardRole, CardRoleVars> = {
   },
   previous: {
     left: '-6%',
-    top: '50%',
+    top: '45%',
     xPercent: -50,
     yPercent: -50,
     scale: 0.52,
@@ -79,7 +79,7 @@ const MOBILE_ROLES: Record<CardRole, CardRoleVars> = {
   },
   next: {
     left: '106%',
-    top: '50%',
+    top: '45%',
     xPercent: -50,
     yPercent: -50,
     scale: 0.52,
