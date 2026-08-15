@@ -16,7 +16,7 @@ export interface CardRoleVars {
 const DESKTOP_ROLES: Record<CardRole, CardRoleVars> = {
   center: {
     left: '50%',
-    top: '58%',
+    top: '53%',
     xPercent: -50,
     yPercent: -50,
     scale: 1,
@@ -28,7 +28,7 @@ const DESKTOP_ROLES: Record<CardRole, CardRoleVars> = {
   },
   previous: {
     left: '12%',
-    top: '54%',
+    top: '50%',
     xPercent: -50,
     yPercent: -50,
     scale: 0.6,
@@ -40,7 +40,7 @@ const DESKTOP_ROLES: Record<CardRole, CardRoleVars> = {
   },
   next: {
     left: '88%',
-    top: '54%',
+    top: '50%',
     xPercent: -50,
     yPercent: -50,
     scale: 0.6,
