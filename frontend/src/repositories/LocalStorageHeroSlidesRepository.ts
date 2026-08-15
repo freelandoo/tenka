@@ -8,6 +8,18 @@ function cloneDefaults(): TenkaHeroSlide[] {
   return DEFAULT_HERO_SLIDES.map((slide) => ({ ...slide }));
 }
 
+function migrateLegacyStudiosSlide(slide: TenkaHeroSlide): TenkaHeroSlide {
+  if (slide.id !== 'tenka-multimidia') return slide;
+  const studios = DEFAULT_HERO_SLIDES.find((item) => item.id === 'tenka-studios');
+  if (!studios) return slide;
+  return {
+    ...studios,
+    order: slide.order,
+    isActive: slide.isActive,
+    imageUrl: slide.imageUrl,
+  };
+}
+
 function isTenkaHeroSlide(value: unknown): value is TenkaHeroSlide {
   if (typeof value !== 'object' || value === null) return false;
   const slide = value as Record<string, unknown>;
@@ -51,6 +63,7 @@ export class LocalStorageHeroSlidesRepository implements HeroSlidesRepository {
       if (!Array.isArray(parsed)) return cloneDefaults();
       const slides = parsed
         .filter(isTenkaHeroSlide)
+        .map(migrateLegacyStudiosSlide)
         .map((slide) => ({
           ...slide,
           // Dados salvos antes do campo existir herdam o preview default do

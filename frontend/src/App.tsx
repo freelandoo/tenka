@@ -61,7 +61,7 @@ function TechnologyFallback() {
 }
 
 function MultimediaFallback() {
-  return <div className="flex min-h-[100dvh] items-center justify-center bg-[#0b0506] text-[#bba8a7]"><p style={{ fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.3em', fontSize: 11 }}>SINALIZANDO CONTENT STAGE...</p></div>;
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-[#0b0b0d] text-[#aaa8a6]"><p style={{ fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.3em', fontSize: 11 }}>ABRINDO TENKA STUDIOS...</p></div>;
 }
 
 export default function App() {
@@ -82,6 +82,14 @@ export default function App() {
         />
         <Route
           path="/multimidia"
+          element={
+            <Suspense fallback={<MultimediaFallback />}>
+              <MultimidiaPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/studios"
           element={
             <Suspense fallback={<MultimediaFallback />}>
               <MultimidiaPage />
