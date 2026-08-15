@@ -12,6 +12,8 @@
   --wf-energy: var(--tg-orange);
   --wf-energy-2: #ff9a35;
   --wf-ok: #b8d6b5;
+  position: relative;
+  isolation: isolate;
   min-height: 100%;
   overflow: clip;
   background: var(--tg-bg);
@@ -23,12 +25,45 @@
 .tg-root button, .tg-root a { color: inherit; }
 .tg-root button { font: inherit; }
 .tg-mono { font-family: 'IBM Plex Mono', monospace; }
+.tg-root > main { position: relative; z-index: 1; }
 .tg-accent { color: var(--tg-orange); }
 .wf-mono { font-family: 'IBM Plex Mono', monospace; }
 .wf-display { font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; }
 .wf-scanlines::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0, rgba(255,255,255,.018) 1px, transparent 1px, transparent 4px); }
 .wf-cta { position: relative; overflow: hidden; transition: background 280ms ease, color 280ms ease; }
 .wf-cta:hover, .wf-cta:focus-visible { background: var(--tg-orange); color: var(--tg-bg); }
+
+.tg-world-engine { position: fixed; z-index: 0; inset: 0; overflow: hidden; opacity: 0; pointer-events: none; will-change: opacity; }
+.tg-engine-pointer { position: absolute; inset: 0; display: grid; place-items: center; will-change: transform; }
+.tg-engine-stage { position: relative; width: min(88vw, 1040px); aspect-ratio: 1; will-change: transform; }
+.tg-engine-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tg-engine-grid, .tg-engine-contours, .tg-engine-orbit-system { fill: none; transform-origin: center; will-change: transform, opacity; }
+.tg-engine-grid { opacity: 0.16; }
+.tg-engine-grid path { stroke: rgba(255, 100, 10, 0.3); stroke-width: 0.7; stroke-dasharray: 2 14; }
+.tg-engine-contours { opacity: 0.08; }
+.tg-engine-contours path { stroke: rgba(242, 240, 235, 0.45); stroke-width: 1; stroke-dasharray: 3 12; }
+.tg-engine-orbit-system { opacity: 0.48; animation: tg-engine-spin 54s linear infinite; }
+.tg-engine-orbit-system circle { stroke: rgba(255, 100, 10, 0.34); stroke-width: 1; stroke-dasharray: 5 11; }
+.tg-engine-orbit-system circle:nth-child(2) { stroke: rgba(242, 240, 235, 0.16); stroke-dasharray: 1 15; }
+.tg-engine-orbit-system circle:nth-child(3) { stroke: rgba(255, 100, 10, 0.5); stroke-dasharray: 18 8 2 8; }
+.tg-engine-orbit-system > path:not(.tg-engine-arc) { stroke: rgba(242, 240, 235, 0.1); stroke-width: 0.7; }
+.tg-engine-arc { stroke: rgba(255, 100, 10, 0.7); stroke-width: 2; stroke-dasharray: 34 420; animation: tg-engine-dash 9s linear infinite; }
+.tg-engine-arc--reverse { animation-direction: reverse; animation-duration: 13s; }
+.tg-engine-light { position: absolute; inset: 17%; border-radius: 50%; opacity: 0.34; background: radial-gradient(circle, rgba(255, 100, 10, 0.22), rgba(255, 100, 10, 0.07) 34%, transparent 70%); animation: tg-engine-breathe 6.8s ease-in-out infinite alternate; will-change: transform, opacity; }
+.tg-engine-core { position: absolute; top: 50%; left: 50%; width: 10%; aspect-ratio: 1; border: 1px solid rgba(255, 100, 10, 0.56); border-radius: 50%; transform: translate(-50%, -50%); animation: tg-engine-core 4.4s ease-in-out infinite alternate; }
+.tg-engine-core::before, .tg-engine-core::after { content: ''; position: absolute; border: 1px solid rgba(255, 100, 10, 0.28); border-radius: 50%; }
+.tg-engine-core::before { inset: -34%; border-style: dashed; animation: tg-engine-spin 13s linear infinite; }
+.tg-engine-core::after { inset: 26%; background: var(--tg-orange); border: 0; opacity: 0.72; }
+.tg-engine-core i { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: var(--tg-text); }
+.tg-engine-core i:nth-child(1) { transform: translate(48px, -2px); }
+.tg-engine-core i:nth-child(2) { transform: translate(-40px, 35px); }
+.tg-engine-core i:nth-child(3) { transform: translate(-32px, -42px); background: var(--tg-orange); }
+.tg-engine-fragments { position: absolute; inset: 3%; opacity: 0.44; will-change: opacity; }
+.tg-engine-fragments i { position: absolute; display: block; border: 1px solid rgba(255, 100, 10, 0.62); transform: rotate(45deg); animation: tg-engine-fragment ease-in-out infinite alternate; }
+.tg-engine-fragments i:nth-child(3n) { border-color: rgba(242, 240, 235, 0.34); border-radius: 50%; }
+.tg-engine-fragments i:nth-child(4n) { background: rgba(255, 100, 10, 0.38); }
+.tg-engine-readout { position: absolute; right: 9%; bottom: 12%; margin: 0; color: rgba(242, 240, 235, 0.32); font-size: 0.48rem; line-height: 1.8; letter-spacing: 0.17em; }
+.tg-engine-vignette { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, transparent 28%, rgba(13, 13, 13, 0.22) 66%, rgba(13, 13, 13, 0.72) 100%); }
 
 .tg-header {
   position: fixed;
@@ -186,7 +221,7 @@
 .tg-process-steps p { margin: 0; color: var(--tg-muted); line-height: 1.65; }
 
 .tg-contact { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 78dvh; overflow: hidden; padding: 100px 5vw; border-top: 1px solid var(--tg-line); text-align: center; isolation: isolate; }
-.tg-contact::before { content: ''; position: absolute; z-index: -2; inset: 0; background: linear-gradient(rgba(13, 13, 13, 0.74), rgba(13, 13, 13, 0.9)), url('/images/games/project-eclipse.png') center 42% / cover; }
+.tg-contact::before { content: ''; position: absolute; z-index: -2; inset: 0; opacity: 0.92; background: linear-gradient(rgba(13, 13, 13, 0.74), rgba(13, 13, 13, 0.9)), url('/images/games/project-eclipse.png') center 42% / cover; }
 .tg-contact-orbit { position: absolute; z-index: -1; width: min(62vw, 820px); aspect-ratio: 1; border: 1px solid rgba(255, 100, 10, 0.3); border-radius: 50%; animation: tg-orbit 50s linear infinite; }
 .tg-contact > p:not(.tg-kicker) { max-width: 42rem; margin: 30px auto 0; }
 .tg-contact .tg-primary-button { margin-top: 38px; }
@@ -237,6 +272,11 @@ h3.wf-display {
 @keyframes tg-orbit-reverse { to { transform: translate(-50%, -50%) rotate(-360deg); } }
 @keyframes tg-ember-rise { 0% { opacity: 0; translate: 0 0; } 12% { opacity: 0.8; } 100% { opacity: 0; translate: 24px -68vh; } }
 @keyframes tg-blink { 0%, 62% { opacity: 1; } 63%, 100% { opacity: 0.25; } }
+@keyframes tg-engine-spin { to { transform: rotate(360deg); } }
+@keyframes tg-engine-dash { to { stroke-dashoffset: -520; } }
+@keyframes tg-engine-breathe { from { transform: scale(0.82); opacity: 0.18; } to { transform: scale(1.12); opacity: 0.52; } }
+@keyframes tg-engine-core { from { transform: translate(-50%, -50%) scale(0.76); opacity: 0.5; } to { transform: translate(-50%, -50%) scale(1.08); opacity: 1; } }
+@keyframes tg-engine-fragment { from { translate: -8px -10px; rotate: 0deg; opacity: 0.18; } to { translate: 12px 16px; rotate: 110deg; opacity: 0.82; } }
 
 @media (max-width: 1280px) {
   .tg-header { grid-template-columns: 1fr auto; }
@@ -246,6 +286,7 @@ h3.wf-display {
   .tg-menu-button { display: block; justify-self: end; }
   .tg-header-cta { display: none; }
   .tg-hero-copy { width: 62vw; }
+  .tg-engine-stage { width: min(108vw, 980px); }
   .tg-project-grid { grid-template-columns: 1.15fr 1fr; }
   .tg-project-card--3 { grid-column: 1 / -1; display: grid; grid-template-columns: 1.25fr 1fr; }
   .tg-project-card--3 .tg-project-media { aspect-ratio: 16 / 9; }
@@ -264,6 +305,10 @@ h3.wf-display {
   .tg-orbit--one { width: 92vw; }
   .tg-orbit--two { width: 116vw; }
   .tg-hero-copy { width: 100%; margin: 0; padding: 110px 20px 74px; }
+  .tg-engine-stage { width: 154vw; opacity: 0.72; }
+  .tg-engine-fragments i:nth-child(n + 9) { display: none; }
+  .tg-engine-grid { opacity: 0.1; }
+  .tg-engine-readout { display: none; }
   .tg-eyebrow { font-size: 0.52rem; letter-spacing: 0.13em; }
   .tg-hero h1 { font-size: clamp(3.1rem, 18vw, 5.2rem); transform: scaleX(1.035); }
   .tg-section h2, .tg-services h2, .tg-process h2, .tg-contact h2 { transform: scaleX(1.035); }
@@ -292,4 +337,6 @@ h3.wf-display {
 @media (prefers-reduced-motion: reduce) {
   .tg-root *, .tg-root *::before, .tg-root *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   .tg-hero-art { transform: none; }
+  .tg-world-engine { opacity: 0.18 !important; }
+  .tg-engine-stage, .tg-engine-pointer, .tg-engine-grid, .tg-engine-contours, .tg-engine-orbit-system, .tg-engine-light, .tg-engine-core, .tg-engine-core::before, .tg-engine-fragments i { transform: none !important; animation: none !important; }
 }

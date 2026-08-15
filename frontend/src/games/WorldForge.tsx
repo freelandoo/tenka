@@ -4,6 +4,7 @@ import { gsap, ScrollTrigger } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useLenis } from './hooks/useLenis';
 import { ProjectBriefModal } from './components/ProjectBriefModal';
+import { WorldEngineBackground } from './components/WorldEngineBackground';
 import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import './games.css';
@@ -142,6 +143,51 @@ export default function WorldForge() {
         .to('.tg-orbit-layer', { yPercent: -13, rotate: 7, ease: 'none' }, 0)
         .to('.tg-hero-copy', { yPercent: -8, opacity: 0.28, ease: 'none' }, 0);
 
+      const engineTimeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: rootRef.current,
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 1.15,
+        },
+      });
+      engineTimeline
+        .to('.tg-world-engine', { opacity: 0, duration: 0.045, ease: 'none' })
+        .to('.tg-world-engine', { opacity: 0.72, duration: 0.075, ease: 'power2.out' })
+        .to('.tg-engine-stage', { xPercent: -28, yPercent: 14, scale: 0.82, rotate: -8, duration: 0.22, ease: 'none' }, '<')
+        .to('.tg-engine-fragments', { opacity: 0.85, duration: 0.18, ease: 'none' }, '<')
+        .to('.tg-engine-stage', { xPercent: 23, yPercent: -7, scale: 1.1, rotate: 12, duration: 0.23, ease: 'none' })
+        .to('.tg-engine-grid', { opacity: 0.72, duration: 0.2, ease: 'none' }, '<')
+        .to('.tg-engine-contours', { opacity: 0.18, duration: 0.18, ease: 'none' }, '<')
+        .to('.tg-engine-stage', { xPercent: -6, yPercent: 8, scale: 0.92, rotate: 45, duration: 0.24, ease: 'none' })
+        .to('.tg-engine-grid', { opacity: 0.28, duration: 0.18, ease: 'none' }, '<')
+        .to('.tg-engine-orbit-system', { opacity: 0.92, duration: 0.18, ease: 'none' }, '<')
+        .to('.tg-engine-stage', { xPercent: 0, yPercent: 0, scale: 1.34, rotate: 72, duration: 0.24, ease: 'none' })
+        .to('.tg-engine-fragments', { opacity: 0.28, duration: 0.18, ease: 'none' }, '<')
+        .to('.tg-engine-light', { opacity: 0.8, scale: 1.28, duration: 0.2, ease: 'none' }, '<');
+
+      gsap.utils.toArray<HTMLElement>('.tg-project-media img').forEach((image) => {
+        gsap.fromTo(
+          image,
+          { yPercent: -5, scale: 1.07 },
+          { yPercent: 5, scale: 1.07, ease: 'none', scrollTrigger: { trigger: image.parentElement, start: 'top bottom', end: 'bottom top', scrub: 1 } },
+        );
+      });
+
+      let removePointerListener: () => void = () => {};
+      const pointerLayer = rootRef.current?.querySelector<HTMLElement>('.tg-engine-pointer');
+      const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      if (pointerLayer && finePointer) {
+        const pointerX = gsap.quickTo(pointerLayer, 'x', { duration: 1.2, ease: 'power3.out' });
+        const pointerY = gsap.quickTo(pointerLayer, 'y', { duration: 1.2, ease: 'power3.out' });
+        const moveEngine = (event: PointerEvent) => {
+          pointerX((event.clientX / window.innerWidth - 0.5) * 18);
+          pointerY((event.clientY / window.innerHeight - 0.5) * 14);
+        };
+        window.addEventListener('pointermove', moveEngine, { passive: true });
+        removePointerListener = () => window.removeEventListener('pointermove', moveEngine);
+      }
+
       gsap.utils.toArray<HTMLElement>('.tg-reveal').forEach((element) => {
         gsap.fromTo(
           element,
@@ -165,13 +211,17 @@ export default function WorldForge() {
         scrollTrigger: { trigger: '#servicos', start: 'top 72%', once: true },
       });
 
-      return () => ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      return () => {
+        removePointerListener();
+        ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      };
     },
     { scope: rootRef, dependencies: [reducedMotion] },
   );
 
   return (
     <div ref={rootRef} className="tg-root">
+      <WorldEngineBackground />
       <header className="tg-header">
         <BrandMark />
         <nav id="games-navigation" className={menuOpen ? 'tg-nav is-open' : 'tg-nav'} aria-label="Navegação principal">
