@@ -1,210 +1,257 @@
-/*
- * TENKA // WORLD FORGE — design tokens and page-scoped styles.
- * Everything is scoped under .wf-root so the rest of the site is untouched.
- */
-
-.wf-root {
-  --wf-bg: #050505;
-  --wf-bg-elev: #0b0b0d;
-  --wf-text: #f5f5f2;
-  --wf-text-dim: #98989f;
-  --wf-border: rgba(255, 255, 255, 0.12);
-  --wf-energy: #ff4d00;
-  --wf-energy-2: #ffb000;
-  --wf-ok: #79ffb1;
-
-  --wf-font-display: 'Unbounded', 'Space Grotesk', sans-serif;
-  --wf-font-body: 'Space Grotesk', 'Inter', sans-serif;
-  --wf-font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-
-  background-color: var(--wf-bg);
-  color: var(--wf-text);
-  font-family: var(--wf-font-body);
-  font-size: 16px;
-  overflow-x: clip;
+.tg-root {
+  --tg-bg: #0d0d0d;
+  --tg-surface: #121212;
+  --tg-text: #f2f0eb;
+  --tg-muted: #9b9892;
+  --tg-line: rgba(242, 240, 235, 0.14);
+  --tg-orange: #ff640a;
+  --wf-bg: var(--tg-bg);
+  --wf-bg-elev: var(--tg-surface);
+  --wf-text: var(--tg-text);
+  --wf-text-dim: var(--tg-muted);
+  --wf-energy: var(--tg-orange);
+  --wf-energy-2: #ff9a35;
+  --wf-ok: #b8d6b5;
+  min-height: 100%;
+  overflow: clip;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: 'Archivo', sans-serif;
 }
 
-/* Film grain for placeholder media — reads as intentional texture, not noise
-   dumped over the whole page. Scoped to elements that opt in. */
-.wf-grain {
-  pointer-events: none;
-  opacity: 0.5;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
-}
+.tg-root *, .tg-root *::before, .tg-root *::after { box-sizing: border-box; }
+.tg-root button, .tg-root a { color: inherit; }
+.tg-root button { font: inherit; }
+.tg-mono { font-family: 'IBM Plex Mono', monospace; }
+.tg-accent { color: var(--tg-orange); }
+.wf-mono { font-family: 'IBM Plex Mono', monospace; }
+.wf-display { font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.wf-scanlines::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0, rgba(255,255,255,.018) 1px, transparent 1px, transparent 4px); }
+.wf-cta { position: relative; overflow: hidden; transition: background 280ms ease, color 280ms ease; }
+.wf-cta:hover, .wf-cta:focus-visible { background: var(--tg-orange); color: var(--tg-bg); }
 
-/* Horizontal scrollers (mobile category selector) — no visible scrollbar. */
-.wf-carousel-x {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.wf-carousel-x::-webkit-scrollbar {
-  display: none;
-}
-
-.wf-display {
-  font-family: var(--wf-font-display);
-  letter-spacing: -0.01em;
-}
-
-.wf-mono {
-  font-family: var(--wf-font-mono);
-  letter-spacing: 0.08em;
-}
-
-/* Custom cursor hides the native one only while the overlay cursor is mounted. */
-.wf-root.wf-cursor-active,
-.wf-root.wf-cursor-active a,
-.wf-root.wf-cursor-active button,
-.wf-root.wf-cursor-active [role='button'] {
-  cursor: none;
-}
-
-/* Energy border used by interactive modules — a border that reads as circuitry,
-   not as a decorative rounded box. */
-.wf-module {
-  border: 1px solid var(--wf-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease;
-}
-
-.wf-module:hover,
-.wf-module:focus-within {
-  border-color: color-mix(in srgb, var(--wf-energy) 65%, transparent);
-}
-
-/* Connection line that travels from a capability module toward the Core. */
-.wf-module .wf-module-line {
-  position: absolute;
+.tg-header {
+  position: fixed;
+  z-index: 40;
+  top: 0;
   left: 0;
-  bottom: -1px;
-  height: 1px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+  align-items: center;
   width: 100%;
-  transform: scaleX(0);
-  transform-origin: left;
-  background: linear-gradient(90deg, var(--wf-energy), transparent);
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  min-height: 82px;
+  padding: 0 4vw;
+  border-bottom: 1px solid rgba(242, 240, 235, 0.08);
+  background: linear-gradient(180deg, rgba(13, 13, 13, 0.92), rgba(13, 13, 13, 0.3) 78%, transparent);
+  backdrop-filter: blur(8px);
 }
 
-.wf-module:hover .wf-module-line,
-.wf-module:focus-within .wf-module-line {
-  transform: scaleX(1);
+.tg-brand { display: inline-flex; align-items: center; gap: 14px; width: fit-content; text-decoration: none; }
+.tg-brand-symbol { width: 34px; height: 44px; fill: currentColor; }
+.tg-brand-copy { display: grid; gap: 1px; }
+.tg-wordmark {
+  font-family: 'Unbounded', 'Arial Black', sans-serif;
+  font-size: clamp(1.15rem, 2vw, 1.7rem);
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: -0.08em;
+  transform: skewX(-4deg);
 }
-
-/* Headline lines are revealed through clipping masks, never plain fade-up. */
-.wf-line-mask {
-  display: block;
-  overflow: hidden;
+.tg-brand-division { color: var(--tg-orange); font: 500 0.58rem/1.1 'IBM Plex Mono', monospace; letter-spacing: 0.48em; }
+.tg-nav { display: flex; gap: clamp(18px, 3vw, 48px); }
+.tg-nav button, .tg-menu-button {
+  border: 0;
+  background: none;
+  font: 500 0.64rem/1 'IBM Plex Mono', monospace;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  transition: color 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-
-.wf-line-mask > span {
-  display: block;
-  will-change: transform;
+.tg-nav button:hover, .tg-nav button:focus-visible { color: var(--tg-orange); }
+.tg-header-cta, .tg-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border: 1px solid rgba(242, 240, 235, 0.28);
+  background: rgba(13, 13, 13, 0.2);
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  transition: color 320ms cubic-bezier(0.16, 1, 0.3, 1), border-color 320ms cubic-bezier(0.16, 1, 0.3, 1), background 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms ease;
 }
+.tg-header-cta { justify-self: end; padding: 13px 18px; font-size: 0.6rem; }
+.tg-header-cta:hover, .tg-primary-button:hover { border-color: var(--tg-orange); background: var(--tg-orange); color: var(--tg-bg); }
+.tg-header-cta:active, .tg-primary-button:active { transform: translateY(1px) scale(0.985); }
+.tg-menu-button { display: none; }
 
-/* Vertical technical status column (hero). */
-.wf-status-item {
+.tg-hero {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.625rem;
-  color: var(--wf-text-dim);
-}
-
-.wf-status-item::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: var(--wf-ok);
-  box-shadow: 0 0 8px var(--wf-ok);
-}
-
-/* CTA with border that fills like a progress bar on hover. */
-.wf-cta {
-  position: relative;
-  isolation: isolate;
+  min-height: 100dvh;
   overflow: hidden;
+  isolation: isolate;
 }
-
-.wf-cta::after {
-  content: '';
+.tg-hero-art {
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--wf-energy);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: -5;
+  inset: -5%;
+  background: url('/images/games/hero-portal.png') center center / cover no-repeat;
+  transform: scale(1.04);
+  animation: tg-drift 18s ease-in-out infinite alternate;
+  will-change: transform;
 }
-
-.wf-cta:hover::after,
-.wf-cta:focus-visible::after {
-  transform: scaleX(1);
-}
-
-.wf-cta:hover,
-.wf-cta:focus-visible {
-  color: #050505;
-}
-
-/* Scanline texture for boot screen / technical overlays. Purely decorative. */
-.wf-scanlines::before {
-  content: '';
+.tg-hero-shade {
   position: absolute;
+  z-index: -4;
   inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(255, 255, 255, 0.025) 0px,
-    rgba(255, 255, 255, 0.025) 1px,
-    transparent 1px,
-    transparent 4px
-  );
+  background: linear-gradient(90deg, rgba(13, 13, 13, 0.99) 0%, rgba(13, 13, 13, 0.91) 27%, rgba(13, 13, 13, 0.35) 56%, rgba(13, 13, 13, 0.08) 100%), linear-gradient(180deg, rgba(13, 13, 13, 0.4), transparent 28%, transparent 70%, var(--tg-bg));
+}
+.tg-orbit-layer { position: absolute; z-index: -2; inset: 0; pointer-events: none; transform-origin: 72% 48%; will-change: transform; }
+.tg-orbit { position: absolute; top: 49%; left: 73%; border: 1px solid rgba(255, 100, 10, 0.27); border-radius: 50%; transform: translate(-50%, -50%); }
+.tg-orbit--one { width: min(48vw, 720px); aspect-ratio: 1; animation: tg-orbit 38s linear infinite; }
+.tg-orbit--two { width: min(58vw, 880px); aspect-ratio: 1; border-style: dashed; opacity: 0.55; animation: tg-orbit-reverse 52s linear infinite; }
+.tg-orbit--three { width: min(70vw, 1040px); aspect-ratio: 1; opacity: 0.3; }
+.tg-orbit::before, .tg-orbit::after { content: ''; position: absolute; width: 6px; height: 6px; background: var(--tg-orange); }
+.tg-orbit::before { top: 17%; left: 12%; }
+.tg-orbit::after { right: 7%; bottom: 24%; transform: rotate(45deg); }
+.tg-embers { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
+.tg-embers i { position: absolute; bottom: -10px; width: 2px; height: 2px; background: var(--tg-orange); opacity: 0; animation: tg-ember-rise 7s ease-out infinite; }
+
+.tg-hero-copy { width: min(800px, 50vw); margin-left: 6vw; padding-top: 82px; will-change: transform, opacity; }
+.tg-eyebrow { display: flex; align-items: center; gap: 12px; margin: 0 0 24px; font-size: 0.67rem; letter-spacing: 0.2em; }
+.tg-eyebrow > span { width: 2px; height: 18px; background: var(--tg-orange); }
+.tg-eyebrow b { color: var(--tg-orange); }
+.tg-hero h1 { margin: 0; font: 800 clamp(3.8rem, 7.2vw, 8.2rem)/0.9 'Anton', sans-serif; letter-spacing: -0.035em; text-transform: uppercase; }
+.tg-hero h1 > span { display: block; }
+.tg-terminal { display: inline-block; width: 0.32em; height: 0.09em; margin-left: 0.12em; background: var(--tg-text); vertical-align: 0.04em; animation: tg-blink 1.4s steps(1) infinite; }
+.tg-hero-meta { display: flex; align-items: flex-start; gap: clamp(34px, 6vw, 96px); margin-top: 32px; padding-left: 18px; border-left: 1px solid rgba(255, 100, 10, 0.55); }
+.tg-hero-meta p { margin: 0; color: var(--tg-muted); font-size: 0.68rem; line-height: 1.75; letter-spacing: 0.12em; }
+.tg-hero-meta b { display: block; margin-bottom: 7px; color: var(--tg-orange); font-size: 0.62rem; letter-spacing: 0.2em; }
+.tg-primary-button { margin-top: 32px; padding: 16px 22px; font-size: 0.64rem; }
+.tg-hero-status { position: absolute; right: 2.5vw; top: 45%; display: grid; gap: 22px; color: rgba(242, 240, 235, 0.52); font-size: 0.53rem; line-height: 1.5; letter-spacing: 0.19em; }
+.tg-scroll-hint { position: absolute; right: 4vw; bottom: 26px; display: flex; align-items: center; gap: 14px; margin: 0; color: var(--tg-muted); font-size: 0.53rem; letter-spacing: 0.22em; }
+.tg-scroll-hint span { width: 58px; height: 1px; background: linear-gradient(90deg, var(--tg-orange), transparent); }
+
+.tg-section { position: relative; width: min(1480px, calc(100% - 10vw)); margin: 0 auto; padding: clamp(100px, 12vw, 190px) 0; }
+.tg-section-heading { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: end; gap: 5vw; margin-bottom: 60px; }
+.tg-kicker { margin: 0 0 24px; color: var(--tg-orange); font-size: 0.62rem; letter-spacing: 0.22em; }
+.tg-section h2, .tg-services h2, .tg-process h2, .tg-contact h2 { margin: 0; font: 700 clamp(3rem, 6vw, 7rem)/0.9 'Anton', sans-serif; letter-spacing: -0.025em; text-transform: uppercase; }
+.tg-section-heading > p:last-child, .tg-services-intro > p:last-child, .tg-process-copy > div > p:last-child, .tg-contact > p:not(.tg-kicker) { margin: 0; color: var(--tg-muted); line-height: 1.75; }
+
+.tg-project-grid { display: grid; grid-template-columns: 1.22fr 0.95fr 0.95fr; gap: 18px; perspective: 1100px; }
+.tg-project-card { min-width: 0; border: 1px solid var(--tg-line); background: var(--tg-surface); transform-style: preserve-3d; will-change: transform; }
+.tg-project-media { position: relative; overflow: hidden; aspect-ratio: 4 / 3; }
+.tg-project-card--1 .tg-project-media { aspect-ratio: 1.14 / 1; }
+.tg-project-media img { width: 100%; height: 100%; object-fit: cover; transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+.tg-project-card:hover .tg-project-media img { transform: scale(1.035); }
+.tg-project-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 42%, rgba(13, 13, 13, 0.88)); }
+.tg-project-index, .tg-project-type { position: absolute; top: 18px; font-size: 0.58rem; letter-spacing: 0.2em; }
+.tg-project-index { left: 18px; color: var(--tg-orange); font-size: 1rem; }
+.tg-project-type { right: 18px; color: rgba(242, 240, 235, 0.62); }
+.tg-project-copy { padding: 24px; }
+.tg-project-copy > .tg-mono { margin: 0 0 10px; color: var(--tg-orange); font-size: 0.53rem; letter-spacing: 0.2em; }
+.tg-project-copy h3 { margin: 0; font: 700 clamp(1.7rem, 2.6vw, 3rem)/0.96 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.tg-project-copy > p:not(.tg-mono) { min-height: 4.7em; margin: 17px 0; color: var(--tg-muted); font-size: 0.84rem; line-height: 1.6; }
+.tg-project-action { color: var(--tg-text); font-size: 0.55rem; letter-spacing: 0.16em; }
+.tg-project-action b { margin-left: 9px; color: var(--tg-orange); }
+
+.tg-services { display: grid; grid-template-columns: minmax(260px, 0.78fr) 1.6fr; gap: 9vw; border-top: 1px solid var(--tg-line); }
+.tg-services-intro { position: sticky; top: 130px; align-self: start; }
+.tg-services-intro > p:last-child { max-width: 32rem; margin-top: 30px; }
+.tg-services-list { border-top: 1px solid var(--tg-line); }
+.tg-service-row { display: grid; grid-template-columns: 44px minmax(190px, 0.9fr) 1.25fr minmax(120px, 0.65fr); gap: 24px; align-items: start; padding: 34px 0; border-bottom: 1px solid var(--tg-line); transition: padding 320ms cubic-bezier(0.16, 1, 0.3, 1), background 320ms ease; }
+.tg-service-row:hover { padding-left: 16px; padding-right: 16px; background: rgba(255, 100, 10, 0.035); }
+.tg-service-row.is-featured { border-left: 2px solid var(--tg-orange); padding-left: 20px; }
+.tg-service-index, .tg-service-label { color: var(--tg-orange); font-size: 0.56rem; letter-spacing: 0.18em; }
+.tg-service-label { margin: 0 0 10px; }
+.tg-service-row h3 { margin: 0; font: 700 clamp(1.5rem, 2.2vw, 2.45rem)/1 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.tg-service-description { margin: 0; color: var(--tg-muted); font-size: 0.86rem; line-height: 1.65; }
+.tg-service-tags { display: grid; gap: 8px; margin: 0; padding: 0; color: var(--tg-muted); font-size: 0.5rem; letter-spacing: 0.12em; list-style: none; }
+.tg-service-tags li::before { content: '— '; color: var(--tg-orange); }
+
+.tg-process { display: grid; grid-template-columns: 1fr 1fr; gap: 9vw; align-items: center; border-top: 1px solid var(--tg-line); }
+.tg-process-visual { position: sticky; top: 130px; display: grid; place-items: center; align-self: start; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--tg-line); background: radial-gradient(circle, rgba(255, 100, 10, 0.12), transparent 45%), #101010; }
+.tg-process-core { position: relative; z-index: 2; transform: scale(1.2); }
+.tg-process-ring { position: absolute; border: 1px solid rgba(255, 100, 10, 0.34); border-radius: 50%; animation: tg-orbit 32s linear infinite; }
+.tg-process-ring--1 { width: 58%; aspect-ratio: 1; }
+.tg-process-ring--2 { width: 82%; aspect-ratio: 1; border-style: dashed; animation-direction: reverse; animation-duration: 46s; }
+.tg-process-cross { position: absolute; width: 100%; height: 100%; background: linear-gradient(90deg, transparent calc(50% - .5px), var(--tg-line) 50%, transparent calc(50% + .5px)), linear-gradient(transparent calc(50% - .5px), var(--tg-line) 50%, transparent calc(50% + .5px)); }
+.tg-process-copy > div > p:last-child { margin-top: 28px; max-width: 34rem; }
+.tg-process-steps { margin: 60px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--tg-line); }
+.tg-process-steps li { display: grid; grid-template-columns: 50px 1fr; gap: 20px; padding: 28px 0; border-bottom: 1px solid var(--tg-line); }
+.tg-process-steps li > span { color: var(--tg-orange); font-size: 0.58rem; }
+.tg-process-steps h3 { margin: 0 0 8px; font: 700 1.7rem/1 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.tg-process-steps p { margin: 0; color: var(--tg-muted); line-height: 1.65; }
+
+.tg-contact { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 78dvh; overflow: hidden; padding: 100px 5vw; border-top: 1px solid var(--tg-line); text-align: center; isolation: isolate; }
+.tg-contact::before { content: ''; position: absolute; z-index: -2; inset: 0; background: linear-gradient(rgba(13, 13, 13, 0.74), rgba(13, 13, 13, 0.9)), url('/images/games/project-eclipse.png') center 42% / cover; }
+.tg-contact-orbit { position: absolute; z-index: -1; width: min(62vw, 820px); aspect-ratio: 1; border: 1px solid rgba(255, 100, 10, 0.3); border-radius: 50%; animation: tg-orbit 50s linear infinite; }
+.tg-contact > p:not(.tg-kicker) { max-width: 42rem; margin: 30px auto 0; }
+.tg-contact .tg-primary-button { margin-top: 38px; }
+.tg-footer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 30px; padding: 38px 4vw; border-top: 1px solid var(--tg-line); color: var(--tg-muted); font-size: 0.6rem; letter-spacing: 0.14em; }
+.tg-footer > p { margin: 0; text-align: center; }
+.tg-footer > p:last-child { justify-self: end; }
+
+.tg-root :focus-visible { outline: 2px solid var(--tg-orange); outline-offset: 4px; }
+
+@keyframes tg-drift { from { transform: scale(1.04) translate3d(-0.4%, -0.3%, 0); } to { transform: scale(1.09) translate3d(0.8%, 0.55%, 0); } }
+@keyframes tg-orbit { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes tg-orbit-reverse { to { transform: translate(-50%, -50%) rotate(-360deg); } }
+@keyframes tg-ember-rise { 0% { opacity: 0; translate: 0 0; } 12% { opacity: 0.8; } 100% { opacity: 0; translate: 24px -68vh; } }
+@keyframes tg-blink { 0%, 62% { opacity: 1; } 63%, 100% { opacity: 0.25; } }
+
+@media (max-width: 1280px) {
+  .tg-header { grid-template-columns: 1fr auto; }
+  .tg-nav { position: absolute; top: 82px; left: 0; display: none; width: 100%; flex-direction: column; align-items: flex-start; gap: 0; padding: 24px 5vw; border-bottom: 1px solid var(--tg-line); background: rgba(13, 13, 13, 0.97); }
+  .tg-nav.is-open { display: flex; }
+  .tg-nav button { width: 100%; padding: 18px 0; border-bottom: 1px solid var(--tg-line); text-align: left; }
+  .tg-menu-button { display: block; justify-self: end; }
+  .tg-header-cta { display: none; }
+  .tg-hero-copy { width: 62vw; }
+  .tg-project-grid { grid-template-columns: 1.15fr 1fr; }
+  .tg-project-card--3 { grid-column: 1 / -1; display: grid; grid-template-columns: 1.25fr 1fr; }
+  .tg-project-card--3 .tg-project-media { aspect-ratio: 16 / 9; }
+  .tg-service-row { grid-template-columns: 36px 1fr 1.15fr; }
+  .tg-service-tags { display: none; }
 }
 
-/* Mobile world carousel: native horizontal snap scrolling. */
-.wf-carousel {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+@media (max-width: 760px) {
+  .tg-header { min-height: 70px; padding: 0 20px; }
+  .tg-nav { top: 70px; padding-inline: 20px; }
+  .tg-brand-symbol { width: 26px; height: 34px; }
+  .tg-hero { align-items: flex-end; min-height: 100dvh; }
+  .tg-hero-art { inset: -2%; background-position: 66% center; }
+  .tg-hero-shade { background: linear-gradient(180deg, rgba(13,13,13,.2), rgba(13,13,13,.76) 47%, rgba(13,13,13,.98) 83%); }
+  .tg-orbit { left: 68%; top: 35%; }
+  .tg-orbit--one { width: 92vw; }
+  .tg-orbit--two { width: 116vw; }
+  .tg-hero-copy { width: 100%; margin: 0; padding: 110px 20px 74px; }
+  .tg-eyebrow { font-size: 0.52rem; letter-spacing: 0.13em; }
+  .tg-hero h1 { font-size: clamp(3.1rem, 18vw, 5.2rem); }
+  .tg-hero-meta { gap: 24px; }
+  .tg-hero-meta > div:last-child { display: none; }
+  .tg-hero-status, .tg-scroll-hint { display: none; }
+  .tg-section { width: calc(100% - 40px); padding: 96px 0; }
+  .tg-section-heading, .tg-services, .tg-process { grid-template-columns: 1fr; gap: 42px; }
+  .tg-section-heading > .tg-kicker { grid-column: 1; }
+  .tg-section-heading > p:last-child { margin-top: 0; }
+  .tg-project-grid { grid-template-columns: 1fr; }
+  .tg-project-card--3 { grid-column: auto; display: block; }
+  .tg-project-card--1 .tg-project-media, .tg-project-card--3 .tg-project-media { aspect-ratio: 4 / 3; }
+  .tg-project-copy > p:not(.tg-mono) { min-height: auto; }
+  .tg-services-intro, .tg-process-visual { position: relative; top: auto; }
+  .tg-service-row, .tg-service-row.is-featured { grid-template-columns: 36px 1fr; gap: 12px 14px; padding: 26px 0; border-left: 0; }
+  .tg-service-description { grid-column: 2; }
+  .tg-process { gap: 56px; }
+  .tg-process-visual { aspect-ratio: 1; }
+  .tg-contact { min-height: 70dvh; padding-inline: 20px; }
+  .tg-footer { grid-template-columns: 1fr; justify-items: start; padding: 38px 20px; }
+  .tg-footer > p, .tg-footer > p:last-child { justify-self: start; text-align: left; line-height: 1.8; }
 }
 
-.wf-carousel::-webkit-scrollbar {
-  display: none;
-}
-
-.wf-carousel > * {
-  scroll-snap-align: center;
-  flex-shrink: 0;
-}
-
-/* This stylesheet loads after Tailwind's (lazy chunk), so its display:flex
-   would win over lg:hidden — hide the carousel on desktop here instead. */
-@media (min-width: 64rem) {
-  .wf-carousel {
-    display: none;
-  }
-}
-
-/* Keyboard focus on dark surfaces. */
-.wf-root :focus-visible {
-  outline: 2px solid var(--wf-energy-2);
-  outline-offset: 3px;
-}
-
-/* Respect users who disabled animations at the OS level. */
 @media (prefers-reduced-motion: reduce) {
-  .wf-root *,
-  .wf-root *::before,
-  .wf-root *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
+  .tg-root *, .tg-root *::before, .tg-root *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .tg-hero-art { transform: none; }
 }

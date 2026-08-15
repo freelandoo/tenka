@@ -6,7 +6,7 @@ import { sceneChannels, pulseCore } from '../state/scene';
 import { scrollToSection } from '../lib/scrollBus';
 import { sfx } from '../lib/audio';
 
-const HEADLINE_LINES = ['NÃO CRIAMOS', 'APENAS JOGOS.', 'CONSTRUÍMOS', 'MUNDOS.'];
+const HEADLINE_LINES = ['MUNDOS FEITOS', 'PARA SEREM', 'VIVIDOS_'];
 
 export interface HeroSectionProps {
   booted: boolean;
@@ -110,27 +110,51 @@ export function HeroSection({ booted, reducedMotion, isTouch, onPhase, onOpenBri
     >
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-10">
         <div className="max-w-3xl">
-          <p className="hero-support wf-mono mb-6 text-[11px] tracking-[0.35em] text-[var(--wf-energy)]">
-            TENKA // DESENVOLVIMENTO DE GAMES
+          <p className="hero-support wf-mono mb-6 flex items-center gap-3 text-[11px] tracking-[0.35em] text-[var(--wf-text)]">
+            <span aria-hidden="true" className="block h-4 w-px bg-[var(--wf-energy)]" />
+            JOGOS <span className="text-[var(--wf-energy)]">•</span> UNIVERSOS{' '}
+            <span className="text-[var(--wf-energy)]">•</span> EXPERIÊNCIAS
           </p>
 
           <h1 className="wf-display text-[clamp(2.5rem,7.5vw,5.75rem)] font-extrabold leading-[1.04] text-[var(--wf-text)]">
-            {HEADLINE_LINES.map((line, index) => (
-              <span key={line} className="wf-line-mask">
-                <span
-                  className="hero-line"
-                  style={index === HEADLINE_LINES.length - 1 ? { color: 'var(--wf-energy)' } : undefined}
-                >
-                  {line}
+            {HEADLINE_LINES.map((line, index) => {
+              const isLast = index === HEADLINE_LINES.length - 1;
+              return (
+                <span key={line} className="wf-line-mask">
+                  <span className="hero-line" style={isLast ? { color: 'var(--wf-energy)' } : undefined}>
+                    {line}
+                    {/* Terminal cursor closing the wordmark, as in the identity. */}
+                    {isLast && (
+                      <span
+                        aria-hidden="true"
+                        className="ml-4 inline-block h-[0.13em] w-[0.42em] animate-pulse bg-[var(--wf-text)] align-baseline"
+                      />
+                    )}
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </h1>
 
-          <p className="hero-support mt-8 max-w-xl text-[17px] leading-relaxed text-[var(--wf-text)]/80">
-            Conceito, narrativa, design, desenvolvimento e experiências interativas construídas para
-            permanecer na memória.
-          </p>
+          {/* Mission + coordinates strip — the technical block from the identity. */}
+          <div className="hero-support mt-9 flex flex-wrap items-start gap-x-14 gap-y-6 border-l border-[var(--wf-energy)]/40 pl-5">
+            <div>
+              <p className="wf-mono text-[10px] tracking-[0.3em] text-[var(--wf-energy)]">[ MISSÃO ]</p>
+              <p className="wf-mono mt-2 text-[11px] leading-[1.9] tracking-[0.18em] text-[var(--wf-text)]/85">
+                CRIAR. CONSTRUIR. JOGAR.
+                <br />
+                IDEIAS QUE VIRAM MUNDOS.
+              </p>
+            </div>
+            <div>
+              <p className="wf-mono text-[11px] tracking-[0.18em] text-[var(--wf-text-dim)]">
+                23.5505° S, 46.6333° W
+              </p>
+              <p className="wf-mono mt-2 text-[11px] tracking-[0.3em] text-[var(--wf-energy)]">
+                TXK_GMS_2026
+              </p>
+            </div>
+          </div>
 
           <div className="hero-support mt-10 flex flex-wrap gap-4">
             <div className="relative">

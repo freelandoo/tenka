@@ -7,10 +7,13 @@ export interface ProjectMediaProps {
 }
 
 /**
- * Cinematic placeholder key-art for a world. Layered so it reads as intentional
- * art direction, not a flat rectangle: a diagonal base gradient, a radial
- * horizon light in the world's glow colour, film grain, scanlines, and the
- * technical badges. Swaps cleanly for real media (image/video) later.
+ * Cinematic key-art frame for a world: the real art over a colour bed in the
+ * world's own palette, finished with film grain, scanlines, a vignette and the
+ * technical badges so it reads as art direction rather than a dropped-in photo.
+ *
+ * The gradient bed sits *under* the image on purpose — it paints the frame in
+ * the right colour while the art decodes, and is what remains if the art ever
+ * 404s, so a missing file degrades to a tinted panel instead of a white gap.
  */
 export function ProjectMedia({ project, compact = false }: ProjectMediaProps) {
   const pad = compact ? 'p-3' : 'p-4';
@@ -32,16 +35,15 @@ export function ProjectMedia({ project, compact = false }: ProjectMediaProps) {
           background: `radial-gradient(ellipse 90% 70% at 60% 105%, ${project.image.glow}55, transparent 60%)`,
         }}
       />
-      {/* Monolith silhouettes — abstract structures on the horizon */}
-      <div
+      {/* The key art itself. `alt=""` because the wrapper already carries the
+          role="img" + aria-label for the whole composition. */}
+      <img
+        src={project.image.src}
+        alt=""
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-1/2"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent 12%, rgba(0,0,0,0.55) 18%, transparent 22%, transparent 46%, rgba(0,0,0,0.6) 52%, transparent 58%, transparent 78%, rgba(0,0,0,0.5) 84%, transparent 90%)',
-          maskImage: 'linear-gradient(to top, black 40%, transparent)',
-          WebkitMaskImage: 'linear-gradient(to top, black 40%, transparent)',
-        }}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
       />
       <div className="wf-grain absolute inset-0" aria-hidden="true" />
       <div className="wf-scanlines absolute inset-0" aria-hidden="true" />

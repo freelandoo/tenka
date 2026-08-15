@@ -3,11 +3,11 @@ import { AnimatePresence, motion } from 'motion/react';
 import { X, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 
 const PROJECT_TYPES = [
-  'Jogo completo',
-  'Protótipo',
-  'Experiência WebGL',
-  'Game para campanha',
-  'Arte e narrativa',
+  'Jogo de navegador',
+  'Jogo mobile',
+  'Jogo em VR',
+  'Ativação empresarial em VR',
+  'Treinamento em VR',
   'Ainda estou definindo',
 ];
 
@@ -183,7 +183,7 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0d0d0d]/90 p-4 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
@@ -327,7 +327,7 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
                           value={data.scope}
                           onChange={(event) => setData({ ...data, scope: event.target.value })}
                           className={fieldClass}
-                          placeholder="Ex.: um jogo de exploração 2D para PC, com foco em narrativa ambiental…"
+                          placeholder="Ex.: uma experiência em VR para treinamento de equipes…"
                         />
                       </div>
                     )}
@@ -384,7 +384,7 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
               <>
                 {error && (
                   <p role="alert" className="wf-mono mt-4 text-[11px] tracking-wide text-[var(--wf-energy-2)]">
-                    ⚠ {error}
+                    {error}
                   </p>
                 )}
                 <div className="mt-6 flex items-center justify-between">

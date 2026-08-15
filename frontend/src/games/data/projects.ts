@@ -6,9 +6,10 @@ export interface WorldProject {
   description: string;
   status: string;
   technologies: string[];
-  /** Layered placeholder media — reads as an intentional key art, not a flat
-   *  rectangle: a diagonal base gradient plus a radial "horizon" light. */
-  image: { from: string; to: string; glow: string; alt: string };
+  /** Key art plus the colour bed it sits on. `src` is the real art; the
+   *  gradient/glow trio stays as the backdrop that paints the frame while the
+   *  image decodes (and remains visible if it ever fails to load). */
+  image: { src: string; from: string; to: string; glow: string; alt: string };
   videoUrl?: string;
   /** Drives the DOM card border, world node and Core relight. */
   accent: string;
@@ -16,77 +17,64 @@ export interface WorldProject {
   atmosphere: string;
 }
 
+/** Os universos originais da Tenka Games, na ordem em que aparecem na
+ *  identidade visual ("UNIVERSOS EM DESTAQUE"). */
 export const WORLD_PROJECTS: WorldProject[] = [
   {
-    id: 'projeto-aurora',
-    title: 'Projeto Aurora',
-    category: 'Aventura narrativa',
-    year: '2025',
+    id: 'eclipse-primordial',
+    title: 'Eclipse Primordial',
+    category: 'Aventura de sobrevivência',
+    year: '2026',
     description:
-      'Uma jornada narrativa por um planeta em transformação, onde cada decisão altera o equilíbrio entre memória, tecnologia e sobrevivência.',
+      'Um mundo à beira do colapso, sob um eclipse que não termina. Escolhas moldam o que resta — e o que resta define quem você se torna.',
     status: 'EM PRODUÇÃO',
-    technologies: ['Unity', 'C#', 'Shader Graph', 'FMOD'],
+    technologies: ['Unreal Engine 5', 'Niagara', 'Houdini', 'Wwise'],
     image: {
-      from: '#081a2e',
-      to: '#2f6d8f',
-      glow: '#9fe6ff',
-      alt: 'Prévia do Projeto Aurora: paisagem glacial e alienígena com estruturas monumentais e luz quente no horizonte',
+      src: '/images/games/project-eclipse.png',
+      from: '#1a0800',
+      to: '#7a2a05',
+      glow: '#ff9a2e',
+      alt: 'Key art de Eclipse Primordial: um vale de rocha vulcânica com rios de lava e um eclipse em coroa alaranjada no céu, com uma figura solitária em primeiro plano',
     },
-    accent: '#7FD3F2',
-    atmosphere: '#0a2436',
+    accent: '#FF8A1F',
+    atmosphere: '#2a1003',
   },
   {
-    id: 'sector-nine',
-    title: 'Sector Nine',
-    category: 'Ação tática',
-    year: '2024',
+    id: 'fronteira-silenciada',
+    title: 'Fronteira Silenciada',
+    category: 'Ficção científica narrativa',
+    year: '2026',
     description:
-      'Combate tático e exploração em uma estação isolada, controlada por sistemas que já não obedecem aos seus criadores.',
+      'Após o contato, nada volta a ser como antes. Monolitos silenciosos marcam a fronteira de um território que aprendeu a responder.',
     status: 'PROTÓTIPO JOGÁVEL',
-    technologies: ['Unreal Engine', 'Blueprints', 'Houdini'],
+    technologies: ['Unity 6', 'C#', 'Shader Graph', 'FMOD'],
     image: {
-      from: '#2a0a06',
-      to: '#7a1608',
-      glow: '#ff5a2e',
-      alt: 'Prévia de Sector Nine: corredores metálicos de uma estação sob luz vermelha de emergência',
+      src: '/images/games/project-fronteira.png',
+      from: '#0d1116',
+      to: '#3a4048',
+      glow: '#c2ced9',
+      alt: 'Key art de Fronteira Silenciada: monolitos colossais de pedra escura sob um céu carregado, com veios de brasa alaranjada na base e uma figura caminhando ao longe',
     },
-    accent: '#FF4D2E',
-    atmosphere: '#2a0805',
+    accent: '#A8B6C4',
+    atmosphere: '#121820',
   },
   {
-    id: 'neon-strikers',
-    title: 'Neon Strikers',
-    category: 'Esporte arcade',
-    year: '2024',
-    description:
-      'Um esporte de alta velocidade que mistura precisão, estratégia de equipe e arenas que mudam durante a partida.',
-    status: 'LANÇADO',
-    technologies: ['Godot', 'GDScript', 'Blender'],
-    image: {
-      from: '#1a0530',
-      to: '#8a1fb0',
-      glow: '#ff5cf0',
-      alt: 'Prévia de Neon Strikers: arena urbana iluminada por magenta e ciano elétricos com trilhas de velocidade',
-    },
-    accent: '#E85CFF',
-    atmosphere: '#1a0530',
-  },
-  {
-    id: 'the-last-signal',
-    title: 'The Last Signal',
-    category: 'Terror e investigação',
+    id: 'coracoes-de-ferro',
+    title: 'Corações de Ferro',
+    category: 'RPG de ação',
     year: '2025',
     description:
-      'Uma transmissão impossível leva o jogador a investigar uma instalação abandonada onde o sinal parece conhecer quem o escuta.',
+      'Entre máquinas e memória, o que significa ser humano? Uma cidade-fundição mantém acesa a consciência que um dia a projetou.',
     status: 'EM PESQUISA',
-    technologies: ['Unreal Engine', 'Wwise', 'Web Audio API'],
+    technologies: ['Unreal Engine 5', 'Blueprints', 'Blender', 'Wwise'],
     image: {
-      from: '#02120c',
-      to: '#0c3a24',
-      glow: '#57ffab',
-      alt: 'Prévia de The Last Signal: uma estação de sinal escura com telas monocromáticas verdes e uma silhueta distante',
+      src: '/images/games/project-coracoes-ferro.png',
+      from: '#180a05',
+      to: '#6e2408',
+      glow: '#ff7a1f',
+      alt: 'Key art de Corações de Ferro: uma cabeça mecânica gigante com núcleo circular incandescente sobre uma cidade-fundição industrial, observada por uma figura humana',
     },
-    accent: '#57FFAB',
-    atmosphere: '#04160e',
+    accent: '#FF4D00',
+    atmosphere: '#26100a',
   },
 ];
