@@ -20,6 +20,19 @@ function migrateLegacyStudiosSlide(slide: TenkaHeroSlide): TenkaHeroSlide {
   };
 }
 
+const LEGACY_HEADLINES = new Set([
+  'DESENVOLVIMENTO DE GAMES',
+  '3D, DESIGN E BRANDING',
+  'SITES E SOFTWARES',
+]);
+
+function migrateIdentityCopy(slide: TenkaHeroSlide): TenkaHeroSlide {
+  if (!LEGACY_HEADLINES.has(slide.headline)) return slide;
+  const current = DEFAULT_HERO_SLIDES.find((item) => item.id === slide.id);
+  if (!current) return slide;
+  return { ...current, order: slide.order, isActive: slide.isActive, imageUrl: slide.imageUrl };
+}
+
 function isTenkaHeroSlide(value: unknown): value is TenkaHeroSlide {
   if (typeof value !== 'object' || value === null) return false;
   const slide = value as Record<string, unknown>;
@@ -64,6 +77,7 @@ export class LocalStorageHeroSlidesRepository implements HeroSlidesRepository {
       const slides = parsed
         .filter(isTenkaHeroSlide)
         .map(migrateLegacyStudiosSlide)
+        .map(migrateIdentityCopy)
         .map((slide) => ({
           ...slide,
           // Dados salvos antes do campo existir herdam o preview default do

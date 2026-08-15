@@ -46,12 +46,12 @@ export default function HeroScreenshotCard({
       ref={registerRef}
       data-hero-card
       data-hero-role={role}
-      className="pointer-events-auto absolute aspect-[4/5] w-[86vw] opacity-0 md:aspect-[16/9] md:w-[clamp(560px,52vw,940px)]"
+      className="th-card pointer-events-auto absolute opacity-0"
       style={{ transformStyle: 'preserve-3d' }}
     >
-      <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-[#101014] shadow-[0_40px_90px_-24px_rgba(0,0,0,0.55)]">
+      <div className="th-card-shell relative flex h-full w-full flex-col overflow-hidden">
         {/* Browser top bar */}
-        <div className="flex h-9 shrink-0 items-center gap-3 border-b border-white/5 bg-[#17171C] px-4">
+        <div className="th-card-chrome flex shrink-0 items-center gap-3 border-b px-4">
           <div className="flex shrink-0 gap-1.5" aria-hidden="true">
             <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
             <span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />

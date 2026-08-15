@@ -13,7 +13,7 @@ interface HeroContentProps {
 }
 
 const arrowButtonClasses =
-  'flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-white ' +
+  'th-home-arrow flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-white ' +
   'transition-[background-color,transform,opacity] duration-200 hover:scale-[1.06] hover:bg-white/[0.14] ' +
   'active:scale-[0.96] disabled:cursor-default disabled:opacity-40 md:h-16 md:w-16';
 
@@ -28,7 +28,7 @@ export default function HeroContent({
   return (
     <div
       data-hero-fade
-      className="absolute bottom-8 left-5 right-5 z-[60] sm:bottom-10 sm:left-14 sm:right-auto lg:bottom-16 lg:left-20 md:max-w-[420px]"
+      className="th-home-copy absolute bottom-8 left-5 right-5 z-[60] sm:bottom-10 sm:left-14 sm:right-auto lg:bottom-14 lg:left-20 md:max-w-[430px]"
     >
       <p
         data-hero-eyebrow

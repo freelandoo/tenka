@@ -26,19 +26,16 @@ export default function HeroHeader({
   );
 
   return (
-    <header className="absolute inset-x-0 top-0 z-[80]">
+    <header className="th-home-header absolute inset-x-0 top-0 z-[80]">
       <div className="flex items-center justify-between px-5 py-4 sm:px-10 sm:py-6 lg:px-14">
         <Link
           to="/"
           data-hero-logo
           aria-label="TENKA — página inicial"
-          className="flex min-h-[44px] items-center text-2xl font-bold uppercase text-white"
-          style={{ letterSpacing: '-0.04em' }}
+          className="flex min-h-[44px] items-center gap-2 text-white"
         >
-          TENKA
-          <span aria-hidden="true" style={{ color: underscoreColor }}>
-            _
-          </span>
+          <svg viewBox="0 0 40 52" className="h-8 w-6 fill-current" aria-hidden="true"><path d="M4 3h32L24 26l12 23H4l12-23L4 3Zm10 7 6 11 6-11H14Zm6 21-6 11h12l-6-11Z" /></svg>
+          <span className="th-home-wordmark text-xl font-extrabold">TENKA<span aria-hidden="true" style={{ color: underscoreColor }}>_</span></span>
         </Link>
 
         {/* Center: division navigation (desktop only) */}

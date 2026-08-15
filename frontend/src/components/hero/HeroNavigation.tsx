@@ -19,7 +19,7 @@ export default function HeroNavigation({
   return (
     <nav aria-label="Indicadores de divisão">
       {/* Desktop: vertical indicator rail */}
-      <div className="absolute right-8 top-1/2 z-[60] hidden -translate-y-1/2 flex-col items-end gap-4 md:flex">
+      <div className="th-division-rail absolute right-6 top-1/2 z-[60] hidden -translate-y-1/2 flex-col items-end gap-3 md:flex">
         {slides.map((slide, index) => {
           const active = index === activeIndex;
           return (

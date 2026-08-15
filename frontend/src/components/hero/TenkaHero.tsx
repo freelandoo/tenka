@@ -16,6 +16,8 @@ import HeroNavigation from './HeroNavigation';
 import HeroProgress from './HeroProgress';
 import MobileMenu from './MobileMenu';
 import SmartLink from '../SmartLink';
+import HeroEnvironment from './HeroEnvironment';
+import './home-hero.css';
 
 gsap.registerPlugin(useGSAP, Observer);
 
@@ -413,7 +415,7 @@ export default function TenkaHero() {
       .fromTo(
         headlineEl,
         { yPercent: 26, opacity: 0, filter: 'blur(10px)', letterSpacing: '0.08em' },
-        { yPercent: 0, opacity: headlineOpacity, filter: 'blur(0px)', letterSpacing: '-0.035em', duration: 0.58, ease: 'power3.out' },
+        { yPercent: 0, opacity: headlineOpacity, filter: 'blur(0px)', letterSpacing: '-0.055em', duration: 0.58, ease: 'power3.out' },
         0.4,
       )
       .fromTo(
@@ -540,7 +542,8 @@ export default function TenkaHero() {
     <section
       ref={containerRef}
       aria-label="Divisões da TENKA"
-      className="relative min-h-[100svh] w-full select-none overflow-hidden font-sans text-white"
+      data-division={activeSlide.division}
+      className="tenka-home relative min-h-[100dvh] w-full select-none overflow-hidden text-white"
       style={{ backgroundColor: slides[0].backgroundColor }}
       onPointerEnter={(event) => {
         if (event.pointerType !== 'mouse') return;
@@ -553,6 +556,8 @@ export default function TenkaHero() {
         if (!document.hidden) progressTweenRef.current?.resume();
       }}
     >
+      <HeroEnvironment slide={activeSlide} />
+
       {/* Grain texture */}
       <div
         aria-hidden="true"
@@ -564,7 +569,7 @@ export default function TenkaHero() {
       <div
         data-hero-glow
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-[56%] z-[6] h-[55vh] w-[72vw] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-40 blur-[140px]"
+        className="th-home-glow pointer-events-none absolute left-1/2 top-[56%] z-[6] h-[55vh] w-[72vw] -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{ backgroundColor: slides[0].accentColor }}
       />
 
@@ -580,15 +585,13 @@ export default function TenkaHero() {
       {/* Giant background headline */}
       <div
         data-hero-fade
-        className="pointer-events-none absolute left-1/2 top-[10%] z-[10] w-full -translate-x-1/2 select-none"
+        className="th-headline-wrap select-none"
       >
         <h1
           data-hero-headline
-          className="font-display text-center uppercase"
+          className="th-headline"
           style={{
-            fontSize: 'clamp(40px, 5.5vw, 80px)',
-            lineHeight: 0.82,
-            letterSpacing: '-0.035em',
+            letterSpacing: '-0.055em',
             whiteSpace: 'pre-line',
             opacity: isMobile ? 0.75 : 0.92,
             color: activeSlide.textColor,
@@ -618,12 +621,12 @@ export default function TenkaHero() {
       {/* Bottom-right CTA (desktop) */}
       <div
         data-hero-fade
-        className="absolute bottom-10 right-8 z-[60] hidden md:block lg:bottom-16 lg:right-14"
+        className="absolute bottom-10 right-8 z-[60] hidden md:block lg:bottom-14 lg:right-14"
       >
         <SmartLink data-hero-cta to={activeSlide.ctaHref} className="group block text-white">
           <span className="flex items-center gap-4">
             <span
-              className="font-display uppercase leading-none"
+              className="th-home-cta uppercase leading-none"
               style={{ fontSize: 'clamp(24px, 3.5vw, 54px)' }}
             >
               {activeSlide.ctaLabel}
