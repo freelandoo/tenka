@@ -17,6 +17,15 @@
 .ts-root button { font: inherit; }
 .ts-mono { font-family: 'IBM Plex Mono', monospace; }
 .ts-grain { position: fixed; z-index: 80; inset: 0; pointer-events: none; opacity: 0.16; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.88' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.34'/%3E%3C/svg%3E"); mix-blend-mode: soft-light; }
+.ts-promotion-layer { position: fixed; z-index: 14; inset: 0; overflow: hidden; pointer-events: none; }
+.ts-promoter { position: absolute; top: 0; left: 0; overflow: hidden; opacity: 0; border: 1px solid rgba(242,240,236,.2); background: var(--ts-surface); box-shadow: 0 24px 70px rgba(11,11,13,.38); transform-origin: center; will-change: transform, opacity, clip-path; }
+.ts-promoter::before, .ts-promoter::after { content: ''; position: absolute; z-index: 3; pointer-events: none; }
+.ts-promoter::before { inset: 10px; border: 1px solid rgba(242,240,236,.12); }
+.ts-promoter::after { top: 0; left: 14%; width: 1px; height: 100%; background: linear-gradient(transparent,rgba(217,35,46,.54),transparent); }
+.ts-promoter img { width: 100%; height: 100%; object-fit: cover; }
+.ts-promoter--process img { object-position: 66% center; }
+.ts-promoter-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(145deg,rgba(11,11,13,.32),transparent 45%,rgba(11,11,13,.18)); }
+.ts-promoter-label { position: absolute; z-index: 4; right: 17px; bottom: 14px; color: rgba(242,240,236,.68); font-size: .44rem; font-weight: 500; letter-spacing: .16em; }
 .ts-focus-tracker { position: fixed; z-index: 38; inset: 0; opacity: 0; pointer-events: none; }
 .ts-tracker-corner, .ts-tracker-edge, .ts-tracker-rec, .ts-tracker-code { position: fixed; top: 0; left: 0; display: block; margin: 0; will-change: transform; }
 .ts-tracker-corner { width: 38px; height: 38px; border-color: rgba(242,240,236,.72); border-style: solid; }
@@ -170,6 +179,8 @@
 }
 
 @media (max-width: 760px) {
+  .ts-promotion-layer { display: none; }
+  .ts-project-media img, .ts-process-visual img { opacity: 1 !important; }
   .ts-header { min-height: 70px; padding: 0 20px; }
   .ts-nav { top: 70px; padding-inline: 20px; }
   .ts-brand-symbol { width: 26px; height: 34px; }
@@ -205,5 +216,7 @@
 @media (prefers-reduced-motion: reduce) {
   .ts-root *, .ts-root *::before, .ts-root *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .ts-focus-tracker { display: none; }
+  .ts-promotion-layer { display: none; }
+  .ts-project-media img, .ts-process-visual img { opacity: 1 !important; }
   .ts-hero-art, .ts-contact-art { transform: none; }
 }

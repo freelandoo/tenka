@@ -143,7 +143,6 @@ export default function CultureMachine() {
       document.documentElement.style.backgroundColor = previousHtml;
       document.body.style.backgroundColor = previousBody;
       restoreMeta.forEach((restore) => restore());
-      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
     };
   }, []);
 
@@ -201,6 +200,114 @@ export default function CultureMachine() {
         );
       });
 
+      const promoters = gsap.utils.toArray<HTMLElement>('.ts-promoter');
+      const syncPromoterSize = (promoter: HTMLElement) => {
+        const destination = document.querySelector<HTMLElement>(promoter.dataset.tsDestination ?? '');
+        if (!destination) return;
+        const rect = destination.getBoundingClientRect();
+        gsap.set(promoter, { width: rect.width, height: rect.height });
+      };
+
+      if (window.innerWidth > 760 && promoters.length > 0) {
+        const projectPromoters = promoters.filter((promoter) => promoter.dataset.tsGroup === 'projects');
+        const projectTimeline = gsap.timeline({
+          scrollTrigger: {
+            trigger: '.ts-project-grid',
+            start: 'top 102%',
+            end: 'top 8%',
+            scrub: 1.15,
+            invalidateOnRefresh: true,
+            onRefreshInit: () => projectPromoters.forEach(syncPromoterSize),
+          },
+        });
+
+        const projectStarts = [0, 0.28, 0.56];
+        const projectOrigins = [
+          { x: () => window.innerWidth * 0.58, y: () => window.innerHeight * 0.2, scale: 1.62, rotate: -5 },
+          { x: () => -window.innerWidth * 0.05, y: () => window.innerHeight * 0.46, scale: 1.46, rotate: 4 },
+          { x: () => window.innerWidth * 0.43, y: () => window.innerHeight * 0.62, scale: 1.34, rotate: -3 },
+        ];
+
+        projectPromoters.forEach((promoter, index) => {
+          const destination = document.querySelector<HTMLElement>(promoter.dataset.tsDestination ?? '');
+          const destinationImage = destination?.querySelector<HTMLElement>('img');
+          if (!destination || !destinationImage) return;
+          syncPromoterSize(promoter);
+          gsap.set(destinationImage, { opacity: 0 });
+          const start = projectStarts[index] ?? index * 0.28;
+          const origin = projectOrigins[index] ?? projectOrigins[0];
+
+          projectTimeline.fromTo(
+            promoter,
+            {
+              x: origin.x,
+              y: origin.y,
+              scale: origin.scale,
+              rotate: origin.rotate,
+              opacity: 0,
+              clipPath: 'inset(10% 8% 12% 9%)',
+            },
+            {
+              x: () => destination.getBoundingClientRect().left,
+              y: () => destination.getBoundingClientRect().top,
+              scale: 1,
+              rotate: 0,
+              opacity: 1,
+              clipPath: 'inset(0% 0% 0% 0%)',
+              duration: 0.3,
+              ease: 'power2.inOut',
+            },
+            start,
+          );
+          projectTimeline.to(destinationImage, { opacity: 1, duration: 0.055, ease: 'none' }, start + 0.255);
+          projectTimeline.to(promoter, { opacity: 0, duration: 0.07, ease: 'power2.out' }, start + 0.29);
+        });
+
+        const processPromoter = promoters.find((promoter) => promoter.dataset.tsGroup === 'process');
+        const processDestination = document.querySelector<HTMLElement>('.ts-process-visual');
+        const processImage = processDestination?.querySelector<HTMLElement>('img');
+        if (processPromoter && processDestination && processImage) {
+          syncPromoterSize(processPromoter);
+          gsap.set(processImage, { opacity: 0 });
+          const processTimeline = gsap.timeline({
+            scrollTrigger: {
+              trigger: '.ts-process',
+              start: 'top 94%',
+              end: 'top 30%',
+              scrub: 1.1,
+              invalidateOnRefresh: true,
+              onRefreshInit: () => syncPromoterSize(processPromoter),
+            },
+          });
+          processTimeline
+            .fromTo(
+              processPromoter,
+              {
+                x: () => window.innerWidth * 0.5,
+                y: () => window.innerHeight * 0.18,
+                scale: 1.52,
+                rotate: 3.5,
+                opacity: 0,
+                clipPath: 'inset(8% 12% 9% 7%)',
+              },
+              {
+                x: () => processDestination.getBoundingClientRect().left,
+                y: () => processDestination.getBoundingClientRect().top,
+                scale: 1,
+                rotate: 0,
+                opacity: 1,
+                clipPath: 'inset(0% 0% 0% 0%)',
+                duration: 0.78,
+                ease: 'power2.inOut',
+              },
+            )
+            .to(processImage, { opacity: 1, duration: 0.1, ease: 'none' }, 0.72)
+            .to(processPromoter, { opacity: 0, duration: 0.14, ease: 'power2.out' }, 0.76);
+        }
+      } else {
+        gsap.set('.ts-project-media img, .ts-process-visual img', { opacity: 1 });
+      }
+
       const focusFrame = focusFrameRef.current;
       if (!focusFrame) return;
       const targets = gsap.utils.toArray<HTMLElement>('[data-ts-focus]');
@@ -229,9 +336,11 @@ export default function CultureMachine() {
         const viewportCenter = window.innerHeight * 0.52;
         const visible = targets.filter((target) => {
           const rect = target.getBoundingClientRect();
-          return rect.bottom > 72 && rect.top < window.innerHeight - 24;
+          const promoterVisible = !target.dataset.tsPromoter || Number(gsap.getProperty(target, 'opacity')) > 0.12;
+          return promoterVisible && rect.bottom > 72 && rect.top < window.innerHeight - 24;
         });
-        const pool = visible.length > 0 ? visible : targets;
+        const visiblePromoters = visible.filter((target) => target.dataset.tsPromoter);
+        const pool = visiblePromoters.length > 0 ? visiblePromoters : visible.length > 0 ? visible : targets;
         const target = pool.reduce((closest, candidate) => {
           const closestRect = closest.getBoundingClientRect();
           const candidateRect = candidate.getBoundingClientRect();
@@ -308,6 +417,37 @@ export default function CultureMachine() {
   return (
     <div ref={rootRef} className="ts-root">
       <div className="ts-grain" aria-hidden="true" />
+      <div className="ts-promotion-layer" aria-hidden="true">
+        {PROJECTS.map((project, index) => (
+          <div
+            className={`ts-promoter ts-promoter--${index + 1}`}
+            data-ts-destination={`.ts-project-card--${index + 1} .ts-project-media`}
+            data-ts-group="projects"
+            data-ts-promoter="true"
+            data-ts-focus
+            data-ts-frame={`OBJECT 0${index + 1} / IN TRANSIT`}
+            data-ts-focus-pad="7"
+            key={project.id}
+          >
+            <img src={project.image} alt="" />
+            <span className="ts-promoter-shade" />
+            <b className="ts-promoter-label ts-mono">OBJ_0{index + 1} / PROMOTION</b>
+          </div>
+        ))}
+        <div
+          className="ts-promoter ts-promoter--process"
+          data-ts-destination=".ts-process-visual"
+          data-ts-group="process"
+          data-ts-promoter="true"
+          data-ts-focus
+          data-ts-frame="OBJECT 04 / MATERIALIZAÇÃO"
+          data-ts-focus-pad="7"
+        >
+          <img src="/images/studios/hero-maquete.png" alt="" />
+          <span className="ts-promoter-shade" />
+          <b className="ts-promoter-label ts-mono">OBJ_04 / MAQUETE</b>
+        </div>
+      </div>
       <div ref={focusFrameRef} className="ts-focus-tracker" aria-hidden="true">
         <i className="ts-tracker-corner ts-tracker-corner--tl" />
         <i className="ts-tracker-corner ts-tracker-corner--tr" />
