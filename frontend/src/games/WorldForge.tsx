@@ -8,6 +8,7 @@ import { ProjectBriefModal } from './components/ProjectBriefModal';
 import { WorldEngineBackground } from './components/WorldEngineBackground';
 import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
+import TenkaSymbol from '../components/TenkaSymbol';
 import './games.css';
 
 const PAGE_TITLE = 'Tenka Games — Jogos, experiências e treinamentos em VR';
@@ -25,10 +26,7 @@ const EMBERS = Array.from({ length: 18 }, (_, index) => ({
 function BrandMark() {
   return (
     <Link className="tg-brand" to="/" aria-label="TENKA — página inicial">
-      <svg className="tg-brand-symbol" viewBox="0 0 40 52" aria-hidden="true">
-        <path d="M4 3h32L24 26l12 23H4l12-23L4 3Zm10 7 6 11 6-11H14Zm6 21-6 11h12l-6-11Z" />
-        <path d="M4 49 16 26 4 3h8l12 23-12 23H4Zm32 0L24 26 36 3h-8L16 26l12 23h8Z" opacity=".72" />
-      </svg>
+      <TenkaSymbol className="tg-brand-symbol" />
       <span className="tg-brand-copy">
         <span className="tg-wordmark">TENKA_</span>
         <span className="tg-brand-division">GAMES</span>

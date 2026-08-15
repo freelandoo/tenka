@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { LockKeyhole, Menu } from 'lucide-react';
 import type { TenkaHeroSlide } from '../../types/hero';
 import { pickAccentOrWhite } from '../../utils/color';
+import TenkaSymbol from '../TenkaSymbol';
 
 interface HeroHeaderProps {
   slides: TenkaHeroSlide[];
@@ -34,7 +35,7 @@ export default function HeroHeader({
           aria-label="TENKA — página inicial"
           className="flex min-h-[44px] items-center gap-2 text-white"
         >
-          <svg viewBox="0 0 40 52" className="h-8 w-6 fill-current" aria-hidden="true"><path d="M4 3h32L24 26l12 23H4l12-23L4 3Zm10 7 6 11 6-11H14Zm6 21-6 11h12l-6-11Z" /></svg>
+          <TenkaSymbol className="h-8 w-8 shrink-0" />
           <span className="th-home-wordmark text-xl font-extrabold">TENKA<span aria-hidden="true" style={{ color: underscoreColor }}>_</span></span>
         </Link>
 
