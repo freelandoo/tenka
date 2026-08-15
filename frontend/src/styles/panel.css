@@ -2096,6 +2096,34 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 .postit--daily .postit__company { left: 11px; bottom: 5px; font-size: 8px; }
 
+/* Pin vermelho para Planejamentos herdados de semanas anteriores. */
+.postit__overdue-pin {
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: 13px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(92, 5, 9, 0.75);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #ff9b9f 0 12%, #e3232b 38%, #8f080e 100%);
+  box-shadow: 0 3px 5px rgba(20, 0, 0, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+.postit__overdue-pin::after {
+  content: '';
+  position: absolute;
+  top: 11px;
+  left: 7px;
+  width: 2px;
+  height: 10px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(180deg, #63070b, #d7d7d3);
+  transform: rotate(8deg);
+  transform-origin: top;
+}
+
 /* ---- rodapé do post-it de diária: responsável + projeto ----
    O .postit__company nasceu solto e absoluto no post-it do Kanban. Aqui ele
    divide a linha com o responsável, então dentro do rodapé ele volta ao fluxo

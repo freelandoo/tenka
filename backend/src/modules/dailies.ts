@@ -24,17 +24,23 @@ const moveSchema = z.object({
   index: z.number().int().nonnegative(),
 });
 
-const rangeSchema = z.object({ start: z.string(), end: z.string() });
+const rangeSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+  includeOverduePlanning: z.literal('true').optional(),
+});
 
 export async function dailyRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dailies', { preHandler: requireUser }, async (req, reply) => {
     const q = rangeSchema.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'invalid-query' });
+    const includeOverduePlanning = q.data.includeOverduePlanning === 'true';
     const { rows } = await getPool().query(
       `select * from public.daily_tasks
-        where day >= $1 and day <= $2
+        where (day >= $1 and day <= $2)
+           or ($3::boolean and row_key = 'planejamento' and day < $1)
         order by day, row_key, position`,
-      [q.data.start, q.data.end],
+      [q.data.start, q.data.end, includeOverduePlanning],
     );
     return reply.send({ tasks: rows });
   });

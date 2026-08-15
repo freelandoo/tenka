@@ -51,10 +51,13 @@ export function DiariasView({ projects, profiles, currentUserId }: DiariasViewPr
   // Meses têm de 4 a 6 semanas; o clamp evita índice órfão ao trocar de mês.
   const week = weeks[Math.min(weekIndex, weeks.length - 1)];
 
-  const { status, cells, taskById, refresh, move } = useDailies(
+  const isCurrentWeek = Boolean(week && today >= week.start && today <= week.end);
+
+  const { status, cells, taskById, overdueTaskIds, refresh, move } = useDailies(
     week?.start ?? null,
     week?.end ?? null,
     true,
+    isCurrentWeek ? today : null,
   );
 
   const projectNameById = useMemo(
@@ -188,6 +191,7 @@ export function DiariasView({ projects, profiles, currentUserId }: DiariasViewPr
           today={today}
           cells={cells}
           taskById={taskById}
+          overdueTaskIds={overdueTaskIds}
           projectNameById={projectNameById}
           assigneeNameById={assigneeNameById}
           onMove={handleMove}

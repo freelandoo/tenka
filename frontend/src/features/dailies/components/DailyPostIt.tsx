@@ -10,6 +10,8 @@ interface DailyPostItProps {
   projectName: string | null;
   /** Nome de quem vai executar; null quando o perfil foi removido. */
   assigneeName: string | null;
+  /** Planning item promoted from a previous week. */
+  isOverdue?: boolean;
   onOpen(taskId: string): void;
   /** true logo após um drag — suprime o click fantasma que o segue. */
   dragGuard?: MutableRefObject<boolean>;
@@ -23,6 +25,7 @@ export function DailyPostIt({
   task,
   projectName,
   assigneeName,
+  isOverdue = false,
   onOpen,
   dragGuard,
 }: DailyPostItProps) {
@@ -60,8 +63,10 @@ export function DailyPostIt({
       style={style}
       data-postit-color={task.color_key}
       data-task-id={task.id}
-      className={`postit postit--daily${isDragging ? ' postit--dragging' : ''}`}
-      aria-label={`${task.title}. Responsável: ${
+      className={`postit postit--daily${isOverdue ? ' postit--overdue' : ''}${
+        isDragging ? ' postit--dragging' : ''
+      }`}
+      aria-label={`${task.title}.${isOverdue ? ' Atrasado.' : ''} Responsável: ${
         assigneeName ?? 'não definido'
       }. Enter abre a edição; Espaço inicia o arraste.`}
       aria-roledescription="post-it arrastável"
@@ -75,6 +80,9 @@ export function DailyPostIt({
         sortableKeyDown?.(event);
       }}
     >
+      {isOverdue && (
+        <span className="postit__overdue-pin" aria-hidden="true" title="Planejamento atrasado" />
+      )}
       <span className="postit__name">{task.title}</span>
       <DailyPostItMeta projectName={projectName} assigneeName={assigneeName} />
     </div>
@@ -106,18 +114,21 @@ export function DailyPostItOverlay({
   task,
   projectName,
   assigneeName,
+  isOverdue = false,
 }: {
   task: DailyTaskRow;
   projectName: string | null;
   assigneeName: string | null;
+  isOverdue?: boolean;
 }) {
   const phys = postItPhysicality(task.id);
   return (
     <div
       data-postit-color={task.color_key}
-      className="postit postit--daily postit--overlay"
+      className={`postit postit--daily postit--overlay${isOverdue ? ' postit--overdue' : ''}`}
       style={{ '--postit-tilt': `${phys.tilt}deg` } as CSSProperties}
     >
+      {isOverdue && <span className="postit__overdue-pin" aria-hidden="true" />}
       <span className="postit__name">{task.title}</span>
       <DailyPostItMeta projectName={projectName} assigneeName={assigneeName} />
     </div>

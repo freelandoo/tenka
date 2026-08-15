@@ -27,9 +27,17 @@ export interface UpdateDailyTaskInput {
  * Post-its de um intervalo fechado de dias, já na ordem de renderização.
  * A tela carrega uma semana por vez — nunca o mês inteiro.
  */
-export async function fetchRange(startDay: string, endDay: string): Promise<DailyTaskRow[]> {
+export async function fetchRange(
+  startDay: string,
+  endDay: string,
+  includeOverduePlanning = false,
+): Promise<DailyTaskRow[]> {
   const data = await apiRequest<{ tasks: DailyTaskRow[] }>('/dailies', {
-    query: { start: startDay, end: endDay },
+    query: {
+      start: startDay,
+      end: endDay,
+      includeOverduePlanning: includeOverduePlanning ? 'true' : undefined,
+    },
   });
   return data.tasks;
 }

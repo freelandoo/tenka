@@ -31,6 +31,7 @@ interface DailyGridProps {
   today: string;
   cells: Map<string, DailyTaskRow[]>;
   taskById: Map<string, DailyTaskRow>;
+  overdueTaskIds: Set<string>;
   projectNameById: Map<string, string>;
   assigneeNameById: Map<string, string>;
   onMove(id: string, toDay: string, toRow: DailyRowKey, toIndex: number): void;
@@ -67,6 +68,7 @@ export function DailyGrid({
   today,
   cells,
   taskById,
+  overdueTaskIds,
   projectNameById,
   assigneeNameById,
   onMove,
@@ -227,6 +229,7 @@ export function DailyGrid({
               days={days}
               today={today}
               cells={cells}
+              overdueTaskIds={overdueTaskIds}
               projectNameById={projectNameById}
               assigneeNameById={assigneeNameById}
               overCell={overCell}
@@ -249,6 +252,7 @@ export function DailyGrid({
             assigneeName={
               activeTask.assignee_id ? assigneeNameById.get(activeTask.assignee_id) ?? null : null
             }
+            isOverdue={overdueTaskIds.has(activeTask.id)}
           />
         ) : null}
       </DragOverlay>
@@ -261,6 +265,7 @@ interface RowProps {
   days: string[];
   today: string;
   cells: Map<string, DailyTaskRow[]>;
+  overdueTaskIds: Set<string>;
   projectNameById: Map<string, string>;
   assigneeNameById: Map<string, string>;
   overCell: string | null;
@@ -275,6 +280,7 @@ function Row({
   days,
   today,
   cells,
+  overdueTaskIds,
   projectNameById,
   assigneeNameById,
   overCell,
@@ -299,6 +305,7 @@ function Row({
               day={day}
               rowKey={rowKey}
               tasks={cells.get(key) ?? []}
+              overdueTaskIds={overdueTaskIds}
               projectNameById={projectNameById}
               assigneeNameById={assigneeNameById}
               isDropTarget={dragging && overCell === key}

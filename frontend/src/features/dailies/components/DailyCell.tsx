@@ -11,6 +11,7 @@ interface DailyCellProps {
   day: string;
   rowKey: DailyRowKey;
   tasks: DailyTaskRow[];
+  overdueTaskIds: Set<string>;
   projectNameById: Map<string, string>;
   assigneeNameById: Map<string, string>;
   isDropTarget: boolean;
@@ -26,6 +27,7 @@ export function DailyCell({
   day,
   rowKey,
   tasks,
+  overdueTaskIds,
   projectNameById,
   assigneeNameById,
   isDropTarget,
@@ -54,6 +56,7 @@ export function DailyCell({
             task={task}
             projectName={task.project_id ? projectNameById.get(task.project_id) ?? null : null}
             assigneeName={task.assignee_id ? assigneeNameById.get(task.assignee_id) ?? null : null}
+            isOverdue={overdueTaskIds.has(task.id)}
             onOpen={onOpen}
             dragGuard={dragGuard}
           />
