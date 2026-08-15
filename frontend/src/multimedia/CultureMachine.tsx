@@ -90,14 +90,20 @@ const PROCESS = [
   ['04', 'Refino', 'Ajustamos forma, luz, movimento e detalhe até a entrega final.'],
 ];
 
-function BrandMark() {
+function BrandMark({ header = false }: { header?: boolean }) {
   return (
-    <Link className="ts-brand" to="/" aria-label="TENKA — página inicial">
-      <TenkaSymbol className="ts-brand-symbol" />
-      <span className="ts-brand-copy">
-        <span className="ts-wordmark">TENKA_</span>
-        <span className="ts-brand-division">STUDIOS</span>
-      </span>
+    <Link className="ts-brand" to="/" aria-label="TENKA Studios — página inicial">
+      {header ? (
+        <img className="ts-header-logo" src="/images/brand/tenka-studios.svg" alt="" />
+      ) : (
+        <>
+          <TenkaSymbol className="ts-brand-symbol" />
+          <span className="ts-brand-copy">
+            <span className="ts-wordmark">TENKA_</span>
+            <span className="ts-brand-division">STUDIOS</span>
+          </span>
+        </>
+      )}
     </Link>
   );
 }
@@ -460,7 +466,7 @@ export default function CultureMachine() {
         <b className="ts-tracker-code ts-mono">FRAME 024</b>
       </div>
       <header className="ts-header">
-        <BrandMark />
+        <BrandMark header />
         <nav className={menuOpen ? 'ts-nav is-open' : 'ts-nav'} aria-label="Navegação Tenka Studios">
           <button type="button" onClick={() => navigate('projetos')}>PROJETOS</button>
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>

@@ -23,14 +23,20 @@ const EMBERS = Array.from({ length: 18 }, (_, index) => ({
   scale: 0.55 + (index % 4) * 0.22,
 }));
 
-function BrandMark() {
+function BrandMark({ header = false }: { header?: boolean }) {
   return (
-    <Link className="tg-brand" to="/" aria-label="TENKA — página inicial">
-      <TenkaSymbol className="tg-brand-symbol" />
-      <span className="tg-brand-copy">
-        <span className="tg-wordmark">TENKA_</span>
-        <span className="tg-brand-division">GAMES</span>
-      </span>
+    <Link className="tg-brand" to="/" aria-label="TENKA Games — página inicial">
+      {header ? (
+        <img className="tg-header-logo" src="/images/brand/tenka-games.svg" alt="" />
+      ) : (
+        <>
+          <TenkaSymbol className="tg-brand-symbol" />
+          <span className="tg-brand-copy">
+            <span className="tg-wordmark">TENKA_</span>
+            <span className="tg-brand-division">GAMES</span>
+          </span>
+        </>
+      )}
     </Link>
   );
 }
@@ -222,7 +228,7 @@ export default function WorldForge() {
     <div ref={rootRef} className="tg-root">
       <WorldEngineBackground />
       <header className="tg-header">
-        <BrandMark />
+        <BrandMark header />
         <nav id="games-navigation" className={menuOpen ? 'tg-nav is-open' : 'tg-nav'} aria-label="Navegação principal">
           <button type="button" onClick={() => scrollTo('projetos')}>PROJETOS</button>
           <button type="button" onClick={() => scrollTo('servicos')}>SERVIÇOS</button>

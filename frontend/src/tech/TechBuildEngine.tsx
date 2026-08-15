@@ -68,11 +68,17 @@ function upsertMeta(attribute: 'name' | 'property', key: string, content: string
   };
 }
 
-function BrandMark() {
+function BrandMark({ header = false }: { header?: boolean }) {
   return (
-    <Link className="tt-brand" to="/" aria-label="TENKA — página inicial">
-      <TenkaSymbol />
-      <span><b>TENKA_</b><em>TECH</em></span>
+    <Link className="tt-brand" to="/" aria-label="TENKA Tech — página inicial">
+      {header ? (
+        <img className="tt-header-logo" src="/images/brand/tenka-tech.svg" alt="" />
+      ) : (
+        <>
+          <TenkaSymbol />
+          <span><b>TENKA_</b><em>TECH</em></span>
+        </>
+      )}
     </Link>
   );
 }
@@ -206,7 +212,7 @@ export default function TechBuildEngine() {
       <div className="tt-grain" aria-hidden="true" />
       <div className="tt-progress" aria-hidden="true"><span /></div>
       <header className="tt-header">
-        <BrandMark />
+        <BrandMark header />
         <nav className={menuOpen ? 'is-open' : ''} aria-label="Navegação Tenka Tech">
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>
           <button type="button" onClick={() => navigate('metodo')}>MÉTODO</button>
