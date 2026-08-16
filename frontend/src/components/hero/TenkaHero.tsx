@@ -537,7 +537,6 @@ export default function TenkaHero() {
       <HeroHeader
         slides={slides}
         activeIndex={activeIndex}
-        activeSlide={activeSlide}
         isAnimating={isAnimating}
         onSelectDivision={(index) => goToIndexRef.current(index)}
         onOpenMenu={() => setIsMenuOpen(true)}

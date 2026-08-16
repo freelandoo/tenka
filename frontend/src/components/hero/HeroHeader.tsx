@@ -1,13 +1,10 @@
 import { Link } from 'react-router-dom';
 import { LockKeyhole, Menu } from 'lucide-react';
 import type { TenkaHeroSlide } from '../../types/hero';
-import { pickAccentOrWhite } from '../../utils/color';
-import TenkaSymbol from '../TenkaSymbol';
 
 interface HeroHeaderProps {
   slides: TenkaHeroSlide[];
   activeIndex: number;
-  activeSlide: TenkaHeroSlide;
   isAnimating: boolean;
   onSelectDivision: (index: number) => void;
   onOpenMenu: () => void;
@@ -16,27 +13,24 @@ interface HeroHeaderProps {
 export default function HeroHeader({
   slides,
   activeIndex,
-  activeSlide,
   isAnimating,
   onSelectDivision,
   onOpenMenu,
 }: HeroHeaderProps) {
-  const underscoreColor = pickAccentOrWhite(
-    activeSlide.accentColor,
-    activeSlide.backgroundColor,
-  );
-
   return (
     <header className="th-home-header absolute inset-x-0 top-0 z-[80]">
       <div className="flex items-center justify-between px-5 py-4 sm:px-10 sm:py-6 lg:px-14">
         <Link
           to="/"
           data-hero-logo
-          aria-label="TENKA — página inicial"
-          className="flex min-h-[44px] items-center gap-2 text-white"
+          aria-label="TENKA Group — página inicial"
+          className="flex min-h-[44px] items-center text-white"
         >
-          <TenkaSymbol className="h-8 w-8 shrink-0" />
-          <span className="th-home-wordmark text-xl font-extrabold">TENKA<span aria-hidden="true" style={{ color: underscoreColor }}>_</span></span>
+          <img
+            className="th-home-group-logo"
+            src="/images/brand/tenka-group.png"
+            alt=""
+          />
         </Link>
 
         {/* Center: division navigation (desktop only) */}
