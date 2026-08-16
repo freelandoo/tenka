@@ -28,7 +28,7 @@ export default function HeroHeader({
         >
           <img
             className="th-home-group-logo"
-            src="/images/brand/tenka-group.png"
+            src="/images/brand/tenka-group.svg"
             alt=""
           />
         </Link>
