@@ -13,5 +13,6 @@
 .tt-footer .tt-brand svg{width:26px;height:26px}
 @media(max-width:760px){.tt-header .tt-brand svg{width:30px;height:30px}}
 .tt-header .tt-brand b{font-style:normal}
-.tt-header-logo{display:block;width:clamp(162px,14vw,192px);height:auto}
-@media(max-width:760px){.tt-header-logo{width:150px}}
+.tt-division-logo{display:block;width:clamp(162px,14vw,192px);height:auto}
+.tt-footer .tt-division-logo{width:148px}
+@media(max-width:760px){.tt-division-logo{width:150px}}

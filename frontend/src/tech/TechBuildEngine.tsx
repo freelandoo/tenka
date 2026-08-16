@@ -68,11 +68,11 @@ function upsertMeta(attribute: 'name' | 'property', key: string, content: string
   };
 }
 
-function BrandMark({ header = false }: { header?: boolean }) {
+function BrandMark({ official = false }: { official?: boolean }) {
   return (
     <Link className="tt-brand" to="/" aria-label="TENKA Tech — página inicial">
-      {header ? (
-        <img className="tt-header-logo" src="/images/brand/tenka-tech.svg" alt="" />
+      {official ? (
+        <img className="tt-division-logo" src="/images/brand/tenka-tech.svg" alt="" />
       ) : (
         <>
           <TenkaSymbol />
@@ -212,7 +212,7 @@ export default function TechBuildEngine() {
       <div className="tt-grain" aria-hidden="true" />
       <div className="tt-progress" aria-hidden="true"><span /></div>
       <header className="tt-header">
-        <BrandMark header />
+        <BrandMark official />
         <nav className={menuOpen ? 'is-open' : ''} aria-label="Navegação Tenka Tech">
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>
           <button type="button" onClick={() => navigate('metodo')}>MÉTODO</button>
@@ -282,7 +282,7 @@ export default function TechBuildEngine() {
         </section>
       </main>
 
-      <footer className="tt-footer tt-mono"><BrandMark /><p>SITES · SAAS · AUTOMAÇÕES · APLICATIVOS</p><p>CREATE. BUILD. PLAY. — 2026</p></footer>
+      <footer className="tt-footer tt-mono"><BrandMark official /><p>SITES · SAAS · AUTOMAÇÕES · APLICATIVOS</p><p>CREATE. BUILD. PLAY. — 2026</p></footer>
     </div>
   );
 }

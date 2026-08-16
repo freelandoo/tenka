@@ -23,11 +23,11 @@ const EMBERS = Array.from({ length: 18 }, (_, index) => ({
   scale: 0.55 + (index % 4) * 0.22,
 }));
 
-function BrandMark({ header = false }: { header?: boolean }) {
+function BrandMark({ official = false }: { official?: boolean }) {
   return (
     <Link className="tg-brand" to="/" aria-label="TENKA Games — página inicial">
-      {header ? (
-        <img className="tg-header-logo" src="/images/brand/tenka-games.svg" alt="" />
+      {official ? (
+        <img className="tg-division-logo" src="/images/brand/tenka-games.svg" alt="" />
       ) : (
         <>
           <TenkaSymbol className="tg-brand-symbol" />
@@ -228,7 +228,7 @@ export default function WorldForge() {
     <div ref={rootRef} className="tg-root">
       <WorldEngineBackground />
       <header className="tg-header">
-        <BrandMark header />
+        <BrandMark official />
         <nav id="games-navigation" className={menuOpen ? 'tg-nav is-open' : 'tg-nav'} aria-label="Navegação principal">
           <button type="button" onClick={() => scrollTo('projetos')}>PROJETOS</button>
           <button type="button" onClick={() => scrollTo('servicos')}>SERVIÇOS</button>
@@ -374,7 +374,7 @@ export default function WorldForge() {
       </main>
 
       <footer className="tg-footer">
-        <BrandMark />
+        <BrandMark official />
         <p>JOGOS DE NAVEGADOR · MOBILE · VR · EXPERIÊNCIAS CORPORATIVAS</p>
         <p className="tg-mono">CREATE. BUILD. PLAY. — 2026</p>
       </footer>

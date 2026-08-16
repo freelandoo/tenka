@@ -90,11 +90,11 @@ const PROCESS = [
   ['04', 'Refino', 'Ajustamos forma, luz, movimento e detalhe até a entrega final.'],
 ];
 
-function BrandMark({ header = false }: { header?: boolean }) {
+function BrandMark({ official = false }: { official?: boolean }) {
   return (
     <Link className="ts-brand" to="/" aria-label="TENKA Studios — página inicial">
-      {header ? (
-        <img className="ts-header-logo" src="/images/brand/tenka-studios.svg" alt="" />
+      {official ? (
+        <img className="ts-division-logo" src="/images/brand/tenka-studios.svg" alt="" />
       ) : (
         <>
           <TenkaSymbol className="ts-brand-symbol" />
@@ -466,7 +466,7 @@ export default function CultureMachine() {
         <b className="ts-tracker-code ts-mono">FRAME 024</b>
       </div>
       <header className="ts-header">
-        <BrandMark header />
+        <BrandMark official />
         <nav className={menuOpen ? 'ts-nav is-open' : 'ts-nav'} aria-label="Navegação Tenka Studios">
           <button type="button" onClick={() => navigate('projetos')}>PROJETOS</button>
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>
@@ -591,7 +591,7 @@ export default function CultureMachine() {
       </main>
 
       <footer className="ts-footer ts-mono">
-        <BrandMark />
+        <BrandMark official />
         <p>3D · VISUALIZAÇÃO · IDENTIDADE · BRANDING</p>
         <p>CREATE. BUILD. PLAY. — 2026</p>
       </footer>
