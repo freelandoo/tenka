@@ -64,6 +64,12 @@ const moveSchema = z.object({
   index: z.number().int().nonnegative(),
 });
 
+const competenceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+const paymentSchema = z.object({
+  competence: competenceSchema,
+  paid: z.boolean(),
+});
+
 function isAdmin(req: FastifyRequest): boolean {
   return req.profile?.role === 'admin';
 }
@@ -114,6 +120,69 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     }));
     return reply.send({ projects });
   });
+
+  // ---- Recebimentos mensais -----------------------------------------------
+  // A recorrência diz se a cobrança continua existindo; esta tabela responde
+  // uma pergunta diferente: "a competência selecionada já foi paga?".
+  app.get('/subscription-payments', { preHandler: requireUser }, async (req, reply) => {
+    const parsed = competenceSchema.safeParse(
+      (req.query as { competence?: string }).competence,
+    );
+    if (!parsed.success) return reply.code(400).send({ error: 'competencia-invalida' });
+
+    const { rows } = await getPool().query<{ project_id: string }>(
+      `select sp.project_id
+         from public.subscription_payments sp
+         join public.projects p on p.id = sp.project_id
+        where sp.competence = ($1 || '-01')::date
+          and p.archived_at is null
+          and ($3 or exists (select 1 from public.project_assignees a
+                              where a.project_id = p.id and a.user_id = $2))`,
+      [parsed.data, req.userId, isAdmin(req)],
+    );
+    return reply.send({ paidProjectIds: rows.map((row) => row.project_id) });
+  });
+
+  app.put(
+    '/projects/:id/subscription-payment',
+    { preHandler: [requireUser, ensureAdmin] },
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const parsed = paymentSchema.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+
+      try {
+        if (parsed.data.paid) {
+          const { rows } = await withActor(req.userId!, (client) =>
+            client.query(
+              `insert into public.subscription_payments
+                 (project_id, competence, paid_by)
+               select id, ($2 || '-01')::date, $3
+                 from public.projects
+                where id = $1 and monthly_fee_cents > 0
+               on conflict (project_id, competence) do update
+                 set paid_at = now(), paid_by = excluded.paid_by
+               returning project_id`,
+              [id, parsed.data.competence, req.userId],
+            ),
+          );
+          if (rows.length === 0)
+            return reply.code(404).send({ error: 'mensalidade-inexistente' });
+        } else {
+          await withActor(req.userId!, (client) =>
+            client.query(
+              `delete from public.subscription_payments
+                where project_id = $1 and competence = ($2 || '-01')::date`,
+              [id, parsed.data.competence],
+            ),
+          );
+        }
+        return reply.send({ paid: parsed.data.paid });
+      } catch (err) {
+        return sendDbError(err, reply);
+      }
+    },
+  );
 
   // ---- Criação (admin) via RPC + update dos campos extras ------------------
   app.post('/projects', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {

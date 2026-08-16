@@ -209,11 +209,14 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
           </header>
           <p className="cart-panel__hint">
             Toda recorrência cadastrada, <strong>independente do mês selecionado</strong> — é a
-            composição do card <strong>Mensalidade ativa acumulada</strong>.
+            composição do card <strong>Mensalidade ativa acumulada</strong>. Pagamentos referentes
+            a <strong>{MESES_LONGOS[mes]} de {ano}</strong>.
           </p>
           <SubscriptionList
             projects={projects}
             isAdmin={isAdmin}
+            competence={`${ano}-${String(mes + 1).padStart(2, '0')}`}
+            competenceLabel={`${MESES_LONGOS[mes]} de ${ano}`}
             onChanged={onProjectsChanged}
           />
         </section>

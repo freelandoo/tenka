@@ -111,6 +111,26 @@ export async function setSubscriptionActive(
   await updateProject(projectId, { subscription_active: active });
 }
 
+/** Projetos cuja mensalidade foi confirmada na competência `YYYY-MM`. */
+export async function fetchSubscriptionPayments(competence: string): Promise<string[]> {
+  const data = await apiRequest<{ paidProjectIds: string[] }>('/subscription-payments', {
+    query: { competence },
+  });
+  return data.paidProjectIds;
+}
+
+/** Marca ou desfaz o recebimento da mensalidade em uma competência específica. */
+export async function setSubscriptionPaid(
+  projectId: string,
+  competence: string,
+  paid: boolean,
+): Promise<void> {
+  await apiRequest(`/projects/${projectId}/subscription-payment`, {
+    method: 'PUT',
+    body: { competence, paid },
+  });
+}
+
 /**
  * O ator (quem adiciona) vem do JWT no backend — `_assignedBy` fica só para
  * compatibilidade com os chamadores atuais.

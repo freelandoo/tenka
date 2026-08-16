@@ -2870,7 +2870,7 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
    --------------------------------------------------------------------------- */
 .fees__row {
   display: grid;
-  grid-template-columns: 1fr 64px auto auto;
+  grid-template-columns: 1fr 64px auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 7px 9px;
@@ -2903,12 +2903,40 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 .fees__parada { font-size: 11px; color: var(--panel-text-faint); }
 
+.fees__paid {
+  min-width: 52px;
+  padding: 4px 8px;
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--panel-text-faint);
+  font-family: var(--panel-mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.fees__paid:hover:not(:disabled) { border-color: rgba(63, 185, 80, 0.5); color: var(--panel-text); }
+.fees__paid:active:not(:disabled) { transform: translateY(1px); }
+.fees__paid.is-paid {
+  border-color: rgba(63, 185, 80, 0.5);
+  background: rgba(63, 185, 80, 0.1);
+  color: #3fb950;
+}
+.fees__paid:disabled { cursor: default; }
+.fees__payment-error {
+  margin: 0 0 8px;
+  color: var(--panel-danger, #d96c5f);
+  font-size: 11px;
+}
+
 @media (max-width: 720px) {
   .costs__form { grid-template-columns: 1fr 1fr; }
   .costs__row { grid-template-columns: 1fr auto auto; row-gap: 6px; }
   /* Sem espaço para o dia do vencimento ao lado do valor; ele já aparece na
      faixa financeira do Extrato. */
-  .fees__row { grid-template-columns: 1fr auto auto; }
+  .fees__row { grid-template-columns: 1fr auto auto auto; }
   .fees__due { display: none; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
   .leads__contact,

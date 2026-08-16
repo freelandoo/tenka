@@ -21,7 +21,8 @@ export type ChangeType =
   | 'wa_conversations'
   | 'wa_messages'
   | 'clients'
-  | 'costs';
+  | 'costs'
+  | 'subscription_payments';
 
 /**
  * Carga do evento. O backend manda só um sinal — quem recebe refaz o próprio
