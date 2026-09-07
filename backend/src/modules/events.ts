@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getPool } from '../db/pool';
 import { verifyAccessToken } from '../auth/tokens';
-import { loadProfile } from '../auth/service';
+import { loadProfile, isStaffRole } from '../auth/service';
 import { realtimeBus, type ChangeEvent, type Subscriber } from '../realtime/bus';
 
 /**
@@ -47,6 +47,7 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
 
     const subscriber: Subscriber = {
       userId,
+      staff: isStaffRole(profile.role),
       send: (event: ChangeEvent) => raw.write(`data: ${JSON.stringify(event)}\n\n`),
     };
     realtimeBus.subscribe(subscriber);

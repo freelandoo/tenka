@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
-import AdminHeroPage from './pages/AdminHeroPage';
 import ContactPage from './pages/ContactPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
@@ -71,7 +70,11 @@ export default function App() {
     <RouteErrorBoundary>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/admin/hero" element={<AdminHeroPage />} />
+        {/* A antiga área /admin era pública e sem autenticação. Ela virou
+            /painel/admin (login + papel de admin); o redirecionamento fica
+            aqui para não deixar link antigo em 404 — e para que digitar a URL
+            à mão caia no painel, que sabe quem pode entrar. */}
+        <Route path="/admin/*" element={<Navigate to="/painel/admin" replace />} />
         <Route
           path="/games"
           element={

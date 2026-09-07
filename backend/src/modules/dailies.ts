@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
-import { requireUser } from '../auth/middleware';
+import { staffOnly } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 
-// Mural compartilhado: toda rota exige apenas usuário autenticado (requireUser).
+// Mural interno da equipe: toda rota exige conta da TENKA (staffOnly) — a
+// agenda da semana é operação, não some no portal do cliente por acidente.
 const DAILY_PATCH_COLS = ['title', 'description', 'color_key', 'project_id', 'assignee_id'] as const;
 
 const createSchema = z.object({
@@ -31,7 +32,7 @@ const rangeSchema = z.object({
 });
 
 export async function dailyRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/dailies', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/dailies', staffOnly, async (req, reply) => {
     const q = rangeSchema.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'invalid-query' });
     const includeOverduePlanning = q.data.includeOverduePlanning === 'true';
@@ -45,7 +46,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ tasks: rows });
   });
 
-  app.post('/dailies', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/dailies', staffOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const i = parsed.data;
@@ -63,7 +64,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.patch('/dailies/:id', { preHandler: requireUser }, async (req, reply) => {
+  app.patch('/dailies/:id', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const patch = buildPatch(DAILY_PATCH_COLS, (req.body ?? {}) as Record<string, unknown>);
     if (!patch) return reply.code(400).send({ error: 'nada-a-atualizar' });
@@ -80,7 +81,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.delete('/dailies/:id', { preHandler: requireUser }, async (req, reply) => {
+  app.delete('/dailies/:id', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     await withActor(req.userId!, (client) =>
       client.query('delete from public.daily_tasks where id = $1', [id]),
@@ -88,7 +89,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true });
   });
 
-  app.post('/dailies/:id/move', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/dailies/:id/move', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = moveSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
@@ -108,7 +109,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Estatísticas do mês (a agregação em si roda no frontend — teamService).
-  app.get('/dailies/stats', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/dailies/stats', staffOnly, async (req, reply) => {
     const q = rangeSchema.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'invalid-query' });
     const { rows } = await getPool().query(
@@ -120,7 +121,7 @@ export async function dailyRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Acúmulo: planejadas cujo dia já passou (não recortado por mês).
-  app.get('/dailies/backlog', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/dailies/backlog', staffOnly, async (req, reply) => {
     const q = z.object({ today: z.string() }).safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'invalid-query' });
     const { rows } = await getPool().query(

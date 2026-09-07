@@ -13,7 +13,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
-import { requireUser } from '../auth/middleware';
+import { staffOnly } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 
@@ -54,7 +54,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
    * Lista custos. `?scope=company` traz só os da empresa; `?projectId=` traz os
    * de um projeto; sem filtro, todos os visíveis (o que a Carteira soma).
    */
-  app.get('/costs', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/costs', staffOnly, async (req, reply) => {
     const { scope, projectId } = req.query as { scope?: string; projectId?: string };
     const admin = isAdmin(req);
 
@@ -92,7 +92,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ costs: rows });
   });
 
-  app.post('/costs', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/costs', staffOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const { projectId, description, amountCents, kind, incurredOn } = parsed.data;
@@ -117,7 +117,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Editar valor/descrição/tipo e — o caso comum — ligar/desligar o custo. */
-  app.patch('/costs/:id', { preHandler: requireUser }, async (req, reply) => {
+  app.patch('/costs/:id', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { rows: existing } = await getPool().query<{ project_id: string | null }>(
       'select project_id from public.costs where id = $1',
@@ -147,7 +147,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
    * Apaga de verdade. Desativar (`active = false`) é o caminho para "parou de
    * valer" e preserva o histórico; DELETE é para lançamento errado.
    */
-  app.delete('/costs/:id', { preHandler: requireUser }, async (req, reply) => {
+  app.delete('/costs/:id', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { rows: existing } = await getPool().query<{ project_id: string | null }>(
       'select project_id from public.costs where id = $1',

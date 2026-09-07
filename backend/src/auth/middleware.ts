@@ -1,7 +1,7 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import { verifyAccessToken } from './tokens';
 import { getPool } from '../db/pool';
-import { loadProfile, type Profile } from './service';
+import { loadProfile, isStaffRole, type Profile } from './service';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -46,3 +46,36 @@ export async function ensureAdmin(req: FastifyRequest, reply: FastifyReply): Pro
     await reply.code(403).send({ error: 'Somente administradores podem executar esta ação.' });
   }
 }
+
+/**
+ * Exige conta da EQUIPE (admin ou staff). É o piso de toda rota da operação —
+ * board, diárias, clientes, custos, atendimento: nada disso é do cliente, e sem
+ * este guard bastaria adivinhar a URL para ler a carteira inteira da agência.
+ * O cliente tem a superfície própria em `/me/*` (modules/portal.ts).
+ */
+export async function ensureStaff(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  if (!req.profile) {
+    await reply.code(401).send({ error: 'Não autenticado.' });
+    return;
+  }
+  if (!isStaffRole(req.profile.role)) {
+    await reply.code(403).send({ error: 'Esta área é restrita à equipe TENKA.' });
+  }
+}
+
+/** Exige conta de CLIENTE com vínculo — o portal em `/me/*`. */
+export async function ensureClient(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  if (!req.profile) {
+    await reply.code(401).send({ error: 'Não autenticado.' });
+    return;
+  }
+  if (req.profile.role !== 'client' || !req.profile.client_id) {
+    await reply.code(403).send({ error: 'Esta área é exclusiva de contas de cliente.' });
+  }
+}
+
+/** Atalhos para `preHandler` — toda rota do painel usa um destes quatro. */
+export const authedOnly: RouteShorthandOptions = { preHandler: requireUser };
+export const staffOnly: RouteShorthandOptions = { preHandler: [requireUser, ensureStaff] };
+export const adminOnly: RouteShorthandOptions = { preHandler: [requireUser, ensureAdmin] };
+export const clientOnly: RouteShorthandOptions = { preHandler: [requireUser, ensureClient] };

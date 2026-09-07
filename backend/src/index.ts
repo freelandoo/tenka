@@ -9,6 +9,7 @@ import { projectRoutes } from './modules/projects';
 import { dailyRoutes } from './modules/dailies';
 import { notificationRoutes } from './modules/notifications';
 import { userRoutes } from './modules/users';
+import { portalRoutes } from './modules/portal';
 import { clientRoutes } from './modules/clients';
 import { costRoutes } from './modules/costs';
 import { eventRoutes } from './modules/events';
@@ -34,6 +35,8 @@ async function main(): Promise<void> {
   await app.register(dailyRoutes);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
+  // Portal do cliente (/me/*): a única superfície aberta a `role: 'client'`.
+  await app.register(portalRoutes);
   await app.register(clientRoutes);
   await app.register(costRoutes);
   await app.register(eventRoutes);

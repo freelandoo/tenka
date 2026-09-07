@@ -75,14 +75,18 @@ export default function LoginPage() {
       setServerError(ERROR_MESSAGES[result.error ?? 'unknown']);
       return;
     }
+    // Sem destino guardado, vai para /painel — que redireciona conforme o
+    // papel (equipe cai nos projetos, cliente na visão geral dele). Mandar
+    // todo mundo para /painel/projetos jogaria o cliente numa rota da
+    // operação só para o guard devolvê-lo em seguida.
     const from = (location.state as { from?: string } | null)?.from;
-    navigate(from && from.startsWith('/painel') ? from : '/painel/projetos', {
+    navigate(from && from.startsWith('/painel') ? from : '/painel', {
       replace: true,
     });
   });
 
   // O backend próprio não envia e-mail: a recuperação de senha é feita por um
-  // administrador (redefine a senha na aba Usuários). Orientamos o usuário.
+  // administrador (redefine a senha em Administração › Usuários).
   const onForgotPassword = () => {
     setServerError(null);
     setResetSent(true);
@@ -109,7 +113,7 @@ export default function LoginPage() {
                   marginTop: 10,
                 }}
               >
-                Entre para acessar o mural de projetos.
+                Entre para acessar o Painel TENKA.
               </span>
             </h1>
           </header>
@@ -129,7 +133,7 @@ export default function LoginPage() {
               style={{ marginBottom: 18 }}
             >
               Para redefinir sua senha, peça a um administrador do painel — ele
-              gera uma nova senha para você na aba Usuários.
+              gera uma nova senha para você em Administração › Usuários.
             </div>
           )}
 

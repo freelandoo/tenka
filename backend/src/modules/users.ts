@@ -1,25 +1,35 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
-import { requireUser, ensureAdmin } from '../auth/middleware';
+import { requireUser, staffOnly, adminOnly } from '../auth/middleware';
+import { PANEL_ROLES } from '../auth/service';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 
 export async function userRoutes(app: FastifyInstance): Promise<void> {
-  // Perfis para atribuição/exibição — leitura para qualquer autenticado.
-  app.get('/profiles', { preHandler: requireUser }, async (_req, reply) => {
+  // Perfis para atribuição/exibição — a lista da EQUIPE, para a equipe. Conta
+  // de cliente não enumera quem trabalha na TENKA (e não teria o que fazer com
+  // a lista: atribuição de projeto é interna).
+  app.get('/profiles', staffOnly, async (_req, reply) => {
     const { rows } = await getPool().query(
-      'select id, name, email, avatar_url, role, active, created_at, updated_at from public.profiles order by name',
+      `select id, name, email, avatar_url, role, active, client_id, created_at, updated_at
+         from public.profiles
+        where role in ('admin', 'staff')
+        order by name`,
     );
     return reply.send({ profiles: rows });
   });
 
   // Gestão de usuários (admin): perfis + nomes dos projetos atribuídos.
-  app.get('/users', { preHandler: [requireUser, ensureAdmin] }, async (_req, reply) => {
+  app.get('/users', adminOnly, async (_req, reply) => {
     const pool = getPool();
     const [profilesRes, assigneesRes] = await Promise.all([
       pool.query(
-        'select id, name, email, avatar_url, role, active, created_at, updated_at from public.profiles order by created_at',
+        `select p.id, p.name, p.email, p.avatar_url, p.role, p.active, p.client_id,
+                c.name as client_name, p.created_at, p.updated_at
+           from public.profiles p
+           left join public.clients c on c.id = p.client_id
+          order by p.created_at`,
       ),
       pool.query(
         `select pa.user_id, p.name from public.project_assignees pa
@@ -39,14 +49,33 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ users });
   });
 
-  // Alterar função/status (admin). Os guards do banco protegem o último admin.
-  app.patch('/users/:id', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  /**
+   * Alterar função/status/vínculo (admin). Os guards do banco protegem o último
+   * admin e recusam papel `client` sem cliente (constraint 0017), mas a troca
+   * de papel é normalizada aqui: virar equipe LIMPA o vínculo, e virar cliente
+   * EXIGE um — senão o portal do cliente ficaria sem recorte.
+   */
+  app.patch('/users/:id', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = z
-      .object({ role: z.enum(['admin', 'collaborator']).optional(), active: z.boolean().optional() })
+      .object({
+        role: z.enum(PANEL_ROLES).optional(),
+        active: z.boolean().optional(),
+        client_id: z.string().uuid().nullable().optional(),
+      })
       .safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid-body' });
-    const patch = buildPatch(['role', 'active'], body.data as Record<string, unknown>);
+
+    const data = { ...body.data } as Record<string, unknown>;
+    if (data.role === 'client') {
+      if (data.client_id === undefined || data.client_id === null) {
+        return reply.code(400).send({ error: 'client-required' });
+      }
+    } else if (data.role !== undefined) {
+      data.client_id = null;
+    }
+
+    const patch = buildPatch(['role', 'active', 'client_id'], data);
     if (!patch) return reply.code(400).send({ error: 'nada-a-atualizar' });
     try {
       await withActor(req.userId!, (client) =>
@@ -58,7 +87,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // Editar o próprio perfil (nome/avatar).
+  // Editar o próprio perfil (nome/avatar) — vale para qualquer papel.
   app.patch('/profiles/me', { preHandler: requireUser }, async (req, reply) => {
     const body = z
       .object({ name: z.string().min(1).optional(), avatar_url: z.string().nullable().optional() })

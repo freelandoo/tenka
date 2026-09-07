@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
-import { requireUser, ensureAdmin } from '../auth/middleware';
+import { staffOnly, adminOnly } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 import {
@@ -86,7 +86,7 @@ async function canAccess(userId: string, admin: boolean, projectId: string): Pro
 
 export async function projectRoutes(app: FastifyInstance): Promise<void> {
   // ---- Board: projetos visíveis + responsáveis, montados -------------------
-  app.get('/projects/board', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/projects/board', staffOnly, async (req, reply) => {
     const userId = req.userId!;
     const admin = isAdmin(req);
     const pool = getPool();
@@ -124,7 +124,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   // ---- Recebimentos mensais -----------------------------------------------
   // A recorrência diz se a cobrança continua existindo; esta tabela responde
   // uma pergunta diferente: "a competência selecionada já foi paga?".
-  app.get('/subscription-payments', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/subscription-payments', staffOnly, async (req, reply) => {
     const parsed = competenceSchema.safeParse(
       (req.query as { competence?: string }).competence,
     );
@@ -145,7 +145,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
 
   app.put(
     '/projects/:id/subscription-payment',
-    { preHandler: [requireUser, ensureAdmin] },
+    adminOnly,
     async (req, reply) => {
       const { id } = req.params as { id: string };
       const parsed = paymentSchema.safeParse(req.body);
@@ -185,7 +185,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // ---- Criação (admin) via RPC + update dos campos extras ------------------
-  app.post('/projects', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.post('/projects', adminOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const i = parsed.data;
@@ -223,7 +223,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Movimentação (admin ou atribuído) via RPC --------------------------
-  app.post('/projects/:id/move', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/projects/:id/move', staffOnly, async (req, reply) => {
     const parsed = moveSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const { id } = req.params as { id: string };
@@ -242,7 +242,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Edição de campos (admin) -------------------------------------------
-  app.patch('/projects/:id', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.patch('/projects/:id', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const patch = buildPatch(PROJECT_PATCH_COLS, (req.body ?? {}) as Record<string, unknown>);
     if (!patch) return reply.code(400).send({ error: 'nada-a-atualizar' });
@@ -268,12 +268,12 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       );
       return reply.send({ ok: true });
     };
-  app.post('/projects/:id/archive', { preHandler: [requireUser, ensureAdmin] }, stamp('archived_at', 'now'));
-  app.post('/projects/:id/finalize', { preHandler: [requireUser, ensureAdmin] }, stamp('finalized_at', 'now'));
-  app.post('/projects/:id/reopen', { preHandler: [requireUser, ensureAdmin] }, stamp('finalized_at', null));
+  app.post('/projects/:id/archive', adminOnly, stamp('archived_at', 'now'));
+  app.post('/projects/:id/finalize', adminOnly, stamp('finalized_at', 'now'));
+  app.post('/projects/:id/reopen', adminOnly, stamp('finalized_at', null));
 
   // ---- Responsáveis (admin) -----------------------------------------------
-  app.post('/projects/:id/assignees', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.post('/projects/:id/assignees', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({ userId: z.string().uuid() }).safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid-body' });
@@ -293,7 +293,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete(
     '/projects/:id/assignees/:userId',
-    { preHandler: [requireUser, ensureAdmin] },
+    adminOnly,
     async (req, reply) => {
       const { id, userId } = req.params as { id: string; userId: string };
       await withActor(req.userId!, (client) =>
@@ -307,7 +307,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // ---- Observações ---------------------------------------------------------
-  app.get('/projects/:id/notes', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/projects/:id/notes', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await canAccess(req.userId!, isAdmin(req), id)))
       return reply.code(403).send({ error: 'sem-acesso' });
@@ -327,7 +327,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
    * do envio, o texto que a pessoa escreveu não se perde — ela volta e vê a
    * observação registrada com a entrega marcada como falha.
    */
-  app.post('/projects/:id/notes', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/projects/:id/notes', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = noteSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
@@ -397,7 +397,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
    * tem telefone — o aviso some sozinho porque, nesses casos, os botões que ele
    * qualifica já estão indisponíveis.
    */
-  app.get('/projects/:id/contact-status', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/projects/:id/contact-status', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await canAccess(req.userId!, isAdmin(req), id)))
       return reply.code(403).send({ error: 'sem-acesso' });
@@ -414,7 +414,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Trilha de atividade -------------------------------------------------
-  app.get('/projects/:id/activity', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/projects/:id/activity', staffOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!(await canAccess(req.userId!, isAdmin(req), id)))
       return reply.code(403).send({ error: 'sem-acesso' });

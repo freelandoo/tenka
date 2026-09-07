@@ -2,21 +2,33 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { LoaderCircle, RefreshCw, Search, ShieldCheck, UserPlus } from 'lucide-react';
-import type { PanelRole } from '../../lib/supabase/database.types';
-import * as usersService from '../../features/users/usersService';
-import type { UserWithProjects } from '../../features/users/usersService';
-import { useAuth } from '../../features/auth/AuthContext';
-import { useToast } from '../../features/panel/ToastContext';
-import { PanelOverlay } from '../../features/panel/PanelOverlay';
-import { formatDate, initials } from '../../features/panel/format';
+import { Briefcase, LoaderCircle, RefreshCw, Search, ShieldCheck, UserPlus } from 'lucide-react';
+import type { ClientWithTotals, PanelRole } from '../../../lib/supabase/database.types';
+import { PANEL_ROLE_LABELS } from '../../../lib/supabase/database.types';
+import * as usersService from '../../../features/users/usersService';
+import type { UserWithProjects } from '../../../features/users/usersService';
+import { fetchClients } from '../../../features/clients/clientsService';
+import { useAuth } from '../../../features/auth/AuthContext';
+import { useToast } from '../../../features/panel/ToastContext';
+import { PanelOverlay } from '../../../features/panel/PanelOverlay';
+import { formatDate, initials } from '../../../features/panel/format';
 
-const createUserSchema = z.object({
-  name: z.string().trim().min(2, 'Informe o nome completo.'),
-  email: z.string().trim().min(3, 'Informe o usuário.'),
-  password: z.string().min(8, 'A senha precisa de no mínimo 8 caracteres.'),
-  role: z.enum(['admin', 'collaborator']),
-});
+const createUserSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Informe o nome completo.'),
+    email: z.string().trim().min(3, 'Informe o usuário.'),
+    password: z.string().min(8, 'A senha precisa de no mínimo 8 caracteres.'),
+    role: z.enum(['admin', 'staff', 'client']),
+    /** Só para `role: 'client'` — é o recorte que a conta vai enxergar. */
+    clientId: z.string().optional(),
+  })
+  // Conta de cliente SEM cliente vinculado não teria recorte nenhum: o backend
+  // recusa (e o banco também, pela constraint da migration 0017). Barrar aqui
+  // é só para o erro aparecer no campo certo.
+  .refine((data) => data.role !== 'client' || Boolean(data.clientId), {
+    path: ['clientId'],
+    message: 'Escolha o cliente que esta conta vai acessar.',
+  });
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
 // O backend usa o mesmo código 'email-taken' (a coluna única ainda se chama
@@ -25,9 +37,17 @@ type CreateUserForm = z.infer<typeof createUserSchema>;
 const CREATE_USER_ERRORS: Record<string, string> = {
   'email-taken': 'Já existe um usuário com esse login. Escolha outro.',
   'invalid-body': 'Confira os campos e tente novamente.',
+  'client-required': 'Conta de cliente precisa de um cliente vinculado.',
+  'client-not-found': 'O cliente escolhido não existe mais. Recarregue a lista.',
 };
 
 type RoleFilter = 'todos' | PanelRole;
+
+function roleChipClass(role: PanelRole): string {
+  if (role === 'admin') return 'role-chip role-chip--admin';
+  if (role === 'client') return 'role-chip role-chip--client';
+  return 'role-chip';
+}
 
 interface ConfirmState {
   user: UserWithProjects;
@@ -37,12 +57,12 @@ interface ConfirmState {
 const CONFIRM_COPY: Record<ConfirmState['action'], { title: string; body: string; cta: string }> = {
   promote: {
     title: 'Promover a administrador?',
-    body: 'Administradores veem todos os projetos, valores e podem gerenciar usuários.',
+    body: 'Administradores veem todos os projetos e valores, entram na área de Administração e gerenciam usuários.',
     cta: 'Sim, promover',
   },
   demote: {
-    title: 'Rebaixar para colaborador?',
-    body: 'O usuário passará a ver somente os projetos em que estiver atribuído.',
+    title: 'Rebaixar para equipe?',
+    body: 'O usuário passará a ver somente os projetos em que estiver atribuído e perde a área de Administração.',
     cta: 'Sim, rebaixar',
   },
   deactivate: {
@@ -57,7 +77,7 @@ const CONFIRM_COPY: Record<ConfirmState['action'], { title: string; body: string
   },
 };
 
-export default function UsersPage() {
+export default function AdminUsersPage() {
   const { profile: me } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserWithProjects[] | null>(null);
@@ -110,7 +130,7 @@ export default function UsersPage() {
     setBusy(true);
     try {
       if (action === 'promote') await usersService.setUserRole(user.id, 'admin');
-      if (action === 'demote') await usersService.setUserRole(user.id, 'collaborator');
+      if (action === 'demote') await usersService.setUserRole(user.id, 'staff');
       if (action === 'deactivate') await usersService.setUserActive(user.id, false);
       if (action === 'activate') await usersService.setUserActive(user.id, true);
       toast('success', 'Usuário atualizado.');
@@ -185,7 +205,8 @@ export default function UsersPage() {
         >
           <option value="todos">Todas as funções</option>
           <option value="admin">Administradores</option>
-          <option value="collaborator">Colaboradores</option>
+          <option value="staff">Equipe</option>
+          <option value="client">Clientes</option>
         </select>
       </div>
 
@@ -248,12 +269,14 @@ export default function UsersPage() {
                     </td>
                     <td>{user.email ?? '—'}</td>
                     <td>
-                      <span
-                        className={`role-chip${user.role === 'admin' ? ' role-chip--admin' : ''}`}
-                      >
+                      <span className={roleChipClass(user.role)}>
                         {user.role === 'admin' && <ShieldCheck size={12} aria-hidden="true" />}
-                        {user.role === 'admin' ? 'Admin' : 'Colaborador'}
+                        {user.role === 'client' && <Briefcase size={12} aria-hidden="true" />}
+                        {PANEL_ROLE_LABELS[user.role]}
                       </span>
+                      {user.role === 'client' && user.client_name && (
+                        <span className="users-table__sub">{user.client_name}</span>
+                      )}
                     </td>
                     <td>
                       <span className={`role-chip${user.active ? '' : ' role-chip--inactive'}`}>
@@ -282,24 +305,30 @@ export default function UsersPage() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          className="panel-btn panel-btn--sm"
-                          disabled={lastAdmin && user.role === 'admin'}
-                          title={
-                            lastAdmin
-                              ? 'O último administrador ativo não pode ser rebaixado.'
-                              : undefined
-                          }
-                          onClick={() =>
-                            setConfirm({
-                              user,
-                              action: user.role === 'admin' ? 'demote' : 'promote',
-                            })
-                          }
-                        >
-                          {user.role === 'admin' ? 'Tornar colaborador' : 'Tornar admin'}
-                        </button>
+                        {/* Conta de cliente não troca de papel num clique: ela
+                            existe para enxergar UM cliente, e virar equipe é
+                            mudança de natureza (some o vínculo, abre a operação
+                            inteira). Desative e crie a conta certa. */}
+                        {user.role !== 'client' && (
+                          <button
+                            type="button"
+                            className="panel-btn panel-btn--sm"
+                            disabled={lastAdmin && user.role === 'admin'}
+                            title={
+                              lastAdmin
+                                ? 'O último administrador ativo não pode ser rebaixado.'
+                                : undefined
+                            }
+                            onClick={() =>
+                              setConfirm({
+                                user,
+                                action: user.role === 'admin' ? 'demote' : 'promote',
+                              })
+                            }
+                          >
+                            {user.role === 'admin' ? 'Tornar equipe' : 'Tornar admin'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={`panel-btn panel-btn--sm${
@@ -394,19 +423,35 @@ function CreateUserModal({
 }) {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [clients, setClients] = useState<ClientWithTotals[] | null>(null);
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { name: '', email: '', password: '', role: 'collaborator' },
+    defaultValues: { name: '', email: '', password: '', role: 'staff', clientId: '' },
   });
+
+  const role = watch('role');
+
+  // A lista de clientes só é buscada quando o papel exige — nenhum admin abre
+  // este modal para criar cliente na maioria das vezes.
+  useEffect(() => {
+    if (role !== 'client' || clients !== null) return;
+    fetchClients()
+      .then(setClients)
+      .catch(() => setClients([]));
+  }, [role, clients]);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
     try {
-      await usersService.createUser(values);
+      await usersService.createUser({
+        ...values,
+        clientId: values.role === 'client' ? values.clientId : undefined,
+      });
       toast('success', `Usuário ${values.name} criado.`);
       onCreated();
     } catch (error) {
@@ -460,10 +505,33 @@ function CreateUserModal({
         <div className="panel-field">
           <label htmlFor="new-user-role">Função</label>
           <select id="new-user-role" className="panel-select" {...register('role')}>
-            <option value="collaborator">Colaborador</option>
+            <option value="staff">Equipe</option>
             <option value="admin">Administrador</option>
+            <option value="client">Cliente</option>
           </select>
+          <p className="panel-field__hint">
+            {role === 'admin' && 'Acessa a área de Administração e gerencia usuários.'}
+            {role === 'staff' && 'Vê a operação: board, diárias e os projetos atribuídos.'}
+            {role === 'client' && 'Vê apenas a conta do cliente vinculado abaixo.'}
+          </p>
         </div>
+
+        {role === 'client' && (
+          <div className="panel-field">
+            <label htmlFor="new-user-client">Cliente vinculado *</label>
+            <select id="new-user-client" className="panel-select" {...register('clientId')}>
+              <option value="">
+                {clients === null ? 'Carregando clientes…' : 'Selecione o cliente'}
+              </option>
+              {(clients ?? []).map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+            {errors.clientId && <p className="panel-field__error">{errors.clientId.message}</p>}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button type="button" className="panel-btn panel-btn--ghost" onClick={onClose}>

@@ -290,24 +290,6 @@
   text-transform: uppercase;
 }
 
-.panel-nav { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
-
-.panel-nav__link {
-  padding: 8px 14px;
-  border-radius: 9px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--panel-text-dim);
-  text-decoration: none;
-  transition: color 140ms ease, background-color 140ms ease;
-}
-.panel-nav__link:hover { color: var(--panel-text); background: rgba(255, 255, 255, 0.05); }
-.panel-nav__link[aria-current='page'] {
-  color: var(--panel-text);
-  background: var(--panel-accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(241, 90, 36, 0.35);
-}
-
 .panel-header__spacer { flex: 1; }
 
 .panel-iconbtn {
@@ -382,9 +364,6 @@
   z-index: 60;
 }
 
-/* Navegação dentro do menu da conta: só aparece no mobile */
-.panel-menu__nav { display: none; }
-
 .panel-menu__item {
   display: flex;
   width: 100%;
@@ -409,8 +388,16 @@
   box-shadow: inset 0 0 0 1px rgba(241, 90, 36, 0.35);
 }
 
+.panel-body {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
 .panel-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: clamp(16px, 2.6vw, 30px) clamp(16px, 3vw, 32px) 26px;
@@ -1802,6 +1789,19 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 .role-chip--admin { border-color: rgba(241, 90, 36, 0.5); color: #ff9c72; background: rgba(241, 90, 36, 0.08); }
 .role-chip--inactive { opacity: 0.55; text-decoration: line-through; }
+.role-chip--client {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+  background: rgba(96, 165, 250, 0.08);
+}
+
+/* Segunda linha da célula (ex.: o cliente vinculado à conta) */
+.users-table__sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--panel-text-faint);
+}
 
 /* Chips de responsáveis */
 .assignee-chip {
@@ -1843,23 +1843,13 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   .postit__obs { top: 6px; right: 6px; width: 24px; height: 24px; font-size: 7px; }
 
   .panel-drawer { width: 100vw; border-left: 0; }
-  .panel-nav__link { padding: 8px 10px; font-size: 12.5px; }
 }
 
-/* Mobile: navegação e conta migram para o menu de 3 pontinhos */
+/* Mobile: a conta vira 3 pontinhos (a navegação já está na gaveta lateral) */
 @media (max-width: 640px) {
-  .panel-nav { display: none; }
   .panel-account__avatar { display: none; }
   .panel-account__dots { display: inline-flex; }
   .panel-account__trigger { width: 40px; height: 40px; padding: 0; border-radius: 10px; }
-  .panel-menu__nav {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    border-bottom: 1px solid var(--panel-line);
-    padding: 6px 0;
-    margin-bottom: 6px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -2994,4 +2984,327 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 @media (max-width: 620px) {
   .cart-row__fin { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+}
+
+
+/* ========================== BARRA LATERAL DO PAINEL ======================
+   A navegação interna saiu do cabeçalho e virou coluna: é o que dá ao Painel
+   cara de produto próprio, e é onde o grupo "Administração" aparece (só para
+   admin — ver layouts/panelNav.ts). No mobile ela vira gaveta sobre o
+   conteúdo, aberta pelo botão de menu do cabeçalho.
+   ======================================================================== */
+
+.panel-sidebar {
+  flex: none;
+  width: 236px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px 14px 28px;
+  border-right: 1px solid var(--panel-line);
+  background: rgba(13, 15, 21, 0.6);
+  position: sticky;
+  top: 64px;
+  align-self: flex-start;
+  /* Altura fixa (e não `max-height`): a coluna acompanha a tela inteira, senão
+     a borda da direita para no meio do vazio quando a página é curta. */
+  height: calc(100dvh - 64px);
+  overflow-y: auto;
+}
+
+.panel-sidebar__head { display: none; }
+
+.panel-sidebar__brand {
+  font-family: var(--panel-mono);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+}
+
+.panel-sidebar__group { display: flex; flex-direction: column; gap: 2px; }
+
+.panel-sidebar__label {
+  padding: 0 12px 8px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--panel-accent);
+}
+
+.panel-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--panel-text-dim);
+  text-decoration: none;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.panel-sidebar__link:hover { color: var(--panel-text); background: rgba(255, 255, 255, 0.05); }
+.panel-sidebar__link[aria-current='page'] {
+  color: var(--panel-text);
+  background: var(--panel-accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(241, 90, 36, 0.35);
+}
+
+.panel-sidebar__toggle { display: none; }
+.panel-sidebar__backdrop { display: none; }
+
+/* ============================ BLOCOS DE CONTEÚDO =========================
+   Peças compartilhadas pelas telas novas (portal do cliente e Administração):
+   cartões de número, cartões de seção, listas simples e etiquetas.
+   ======================================================================== */
+
+.panel-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: 14px;
+}
+
+.panel-stat {
+  padding: 16px 18px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+}
+.panel-stat__label {
+  font-family: var(--panel-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+}
+.panel-stat__value { margin-top: 8px; font-size: 26px; font-weight: 700; line-height: 1.1; }
+.panel-stat__hint { margin-top: 6px; font-size: 12.5px; color: var(--panel-text-dim); }
+
+.panel-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.panel-section__title { font-size: 16px; font-weight: 700; }
+
+.panel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--panel-accent);
+  text-decoration: none;
+}
+.panel-link:hover { text-decoration: underline; }
+
+.panel-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+}
+
+.panel-card--link {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.panel-card--link:hover {
+  border-color: var(--panel-line-strong);
+  background: var(--panel-surface-2);
+}
+.panel-card--link:hover .panel-card__arrow { color: var(--panel-accent); }
+
+.panel-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.panel-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15.5px;
+  font-weight: 700;
+}
+.panel-card__arrow { color: var(--panel-text-faint); flex: none; }
+.panel-card__text { font-size: 13.5px; line-height: 1.55; color: var(--panel-text-dim); }
+.panel-card__note { color: var(--panel-text-faint); font-size: 12.5px; }
+
+.panel-card__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px;
+}
+.panel-card__grid dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+}
+.panel-card__grid dd { margin-top: 5px; font-size: 14px; font-weight: 600; }
+
+.panel-card__foot { border-top: 1px solid var(--panel-line); padding-top: 12px; }
+.panel-card__foot-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--panel-text-faint);
+}
+
+.panel-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.panel-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(95, 211, 148, 0.4);
+  background: rgba(95, 211, 148, 0.1);
+  color: #8ee5b6;
+  font-family: var(--panel-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.panel-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--panel-line);
+  border-radius: var(--panel-radius);
+  background: var(--panel-surface);
+  overflow: hidden;
+}
+.panel-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-line);
+}
+.panel-list__row:last-child { border-bottom: 0; }
+.panel-list__title { font-size: 14.5px; font-weight: 600; }
+.panel-list__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--panel-text-dim);
+}
+
+.panel-badge {
+  flex: none;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line-strong);
+  font-family: var(--panel-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--panel-text-dim);
+}
+.panel-badge--em_andamento {
+  border-color: rgba(241, 90, 36, 0.45);
+  color: #ff9c72;
+  background: rgba(241, 90, 36, 0.08);
+}
+.panel-badge--finalizado {
+  border-color: rgba(95, 211, 148, 0.4);
+  color: #8ee5b6;
+  background: rgba(95, 211, 148, 0.08);
+}
+
+.panel-pill {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line-strong);
+  font-family: var(--panel-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--panel-text-dim);
+}
+.panel-pill--ok { border-color: rgba(95, 211, 148, 0.45); color: #8ee5b6; }
+.panel-pill--pendente { border-color: rgba(241, 90, 36, 0.45); color: #ff9c72; }
+
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 34px 20px;
+  border: 1px dashed var(--panel-line-strong);
+  border-radius: var(--panel-radius);
+  color: var(--panel-text-dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ---------------------- Barra lateral no mobile (gaveta) ---------------- */
+@media (max-width: 860px) {
+  .panel-sidebar__toggle { display: inline-flex; }
+
+  .panel-sidebar {
+    position: fixed;
+    z-index: 55;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 264px;
+    max-height: none;
+    padding-top: 16px;
+    background: var(--panel-surface);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+  }
+  .panel-sidebar[data-open='true'] { transform: translateX(0); }
+
+  .panel-sidebar__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 8px 4px;
+  }
+
+  .panel-sidebar__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    border: 0;
+    padding: 0;
+    background: rgba(4, 5, 8, 0.6);
+    cursor: pointer;
+  }
+}
+
+@media (min-width: 861px) {
+  .panel-sidebar__close { display: none; }
 }

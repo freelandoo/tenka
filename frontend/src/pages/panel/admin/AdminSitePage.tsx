@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, RotateCcw, Save } from 'lucide-react';
-import type { TenkaHeroSlide } from '../types/hero';
-import { useHeroSlides } from '../hooks/useHeroSlides';
+import type { TenkaHeroSlide } from '../../../types/hero';
+import { useHeroSlides } from '../../../hooks/useHeroSlides';
 import {
   isEmbeddableUrl,
   isRenderableImageUrl,
-} from '../utils/imageValidation';
+} from '../../../utils/imageValidation';
 
 /* =========================================================================
- * SECURITY — READ BEFORE SHIPPING TO PRODUCTION
+ * Editor do hero da home — HOJE EM /painel/admin/site.
  *
- * This admin route is intentionally unauthenticated in the prototype.
- * Before production it MUST be protected with authentication AND
- * authorization (e.g. wrap the route in a <ProtectedRoute> that validates
- * an admin session/token), and the persistence layer (the future
- * PUT /api/hero-slides endpoint) must enforce the same checks server-side.
+ * Era uma rota pública e sem autenticação (`/admin/hero`, com link no menu
+ * hambúrguer do site). Agora vive dentro do Painel, atrás de <RequireAdmin>.
+ *
+ * Persistência: ainda `localStorage` (o repositório em
+ * repositories/LocalStorageHeroSlidesRepository). Quando isso virar API, a
+ * rota de escrita PRECISA repetir a checagem no servidor — guard de tela não
+ * protege endpoint.
  * ========================================================================= */
 
 const HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -86,7 +88,7 @@ function validate(slides: TenkaHeroSlide[]): FieldErrors {
   return errors;
 }
 
-export default function AdminHeroPage() {
+export default function AdminSitePage() {
   const { slides, status, saveAll, reset } = useHeroSlides();
   const [draft, setDraft] = useState<TenkaHeroSlide[]>([]);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -175,34 +177,35 @@ export default function AdminHeroPage() {
   };
 
   return (
-    <main className="min-h-[100svh] bg-[#0F0F13] pb-32 font-sans text-white">
-      <header className="border-b border-white/10">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-          <Link
-            to="/"
-            className="text-xl font-bold uppercase"
-            style={{ letterSpacing: '-0.04em' }}
-          >
-            TENKA<span className="text-[#FF7A30]">_</span>
-            <span className="ml-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
-              Admin · Hero
-            </span>
-          </Link>
-          <Link
-            to="/"
-            className="min-h-[44px] py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60 transition-colors hover:text-white"
-          >
-            Ver homepage →
-          </Link>
+    <div className="w-full pb-10 font-sans text-white">
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          flexWrap: 'wrap',
+          marginBottom: 6,
+        }}
+      >
+        <div>
+          <p className="panel-eyebrow" style={{ marginBottom: 6 }}>
+            Site institucional
+          </p>
+          <h1 style={{ fontSize: 23, fontWeight: 700 }}>Hero da home</h1>
         </div>
+        <div style={{ flex: 1 }} />
+        <Link to="/" className="panel-btn" target="_blank" rel="noreferrer">
+          Ver homepage
+        </Link>
       </header>
 
-      <div className="mx-auto max-w-6xl px-5">
-        <p className="mt-8 max-w-2xl text-sm leading-relaxed text-white/60">
+      <div className="w-full">
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/60">
           Edite o conteúdo, as cores e as imagens dos slides do hero. Os
           placeholders sólidos são exibidos enquanto não houver uma URL de
           screenshot válida. As alterações são gravadas via repositório
-          (localStorage neste protótipo; API no futuro).
+          (localStorage neste protótipo; API no futuro) — ou seja, valem neste
+          navegador.
         </p>
 
         {feedback && (
@@ -241,9 +244,9 @@ export default function AdminHeroPage() {
         </div>
       </div>
 
-      {/* Sticky action bar */}
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-white/10 bg-[#0F0F13]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-5 py-4">
+      {/* Barra de ações — colada no rodapé do conteúdo do painel */}
+      <div className="sticky bottom-0 z-10 mt-8 border-t border-white/10 bg-[#0F0F13]/95 backdrop-blur">
+        <div className="flex items-center justify-end gap-3 py-4">
           <button
             type="button"
             onClick={handleReset}
@@ -263,7 +266,7 @@ export default function AdminHeroPage() {
           </button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

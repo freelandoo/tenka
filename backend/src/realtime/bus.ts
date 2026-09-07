@@ -32,6 +32,8 @@ export interface ChangeEvent {
 
 export interface Subscriber {
   userId: string;
+  /** Conta da TENKA. Cliente conectado só recebe as próprias notificações. */
+  staff: boolean;
   send: (event: ChangeEvent) => void;
 }
 
@@ -42,8 +44,14 @@ let stopped = false;
 
 function broadcast(event: ChangeEvent): void {
   for (const sub of subscribers) {
-    // Eventos de notificação vão só para o dono; o resto é board-wide.
-    if (event.t === 'notifications' && event.u && sub.userId !== event.u) continue;
+    // Eventos de notificação vão só para o dono; o resto é board-wide — e
+    // board é operação: uma conta de cliente não é avisada de mudanças no
+    // Kanban, na carteira ou no atendimento da agência.
+    if (event.t === 'notifications') {
+      if (event.u && sub.userId !== event.u) continue;
+    } else if (!sub.staff) {
+      continue;
+    }
     try {
       sub.send(event);
     } catch {

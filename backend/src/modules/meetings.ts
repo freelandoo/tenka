@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import { env } from '../env';
-import { requireUser, ensureAdmin } from '../auth/middleware';
+import { staffOnly, adminOnly } from '../auth/middleware';
 import { getPool } from '../db/pool';
 import { GOOGLE_OAUTH_KEY, deleteSetting } from '../db/settings';
 import {
@@ -43,7 +43,7 @@ function fail(reply: import('fastify').FastifyReply, e: unknown) {
 
 export async function meetingRoutes(app: FastifyInstance): Promise<void> {
   // ---- Estado da integração ------------------------------------------------
-  app.get('/google/status', { preHandler: requireUser }, async (_req, reply) =>
+  app.get('/google/status', staffOnly, async (_req, reply) =>
     reply.send(await googleStatus()),
   );
 
@@ -52,7 +52,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
    * do painel: o callback do Google chega sem sessão (é um redirect do
    * navegador), e é ele que prova que o pedido saiu daqui e de um admin.
    */
-  app.get('/google/auth-url', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.get('/google/auth-url', adminOnly, async (req, reply) => {
     try {
       const state = jwt.sign({ sub: req.userId!, k: 'google-oauth' }, env.jwtSecret, {
         expiresIn: '10m',
@@ -101,14 +101,14 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.delete('/google/authorization', { preHandler: [requireUser, ensureAdmin] }, async (_req, reply) => {
+  app.delete('/google/authorization', adminOnly, async (_req, reply) => {
     await deleteSetting(GOOGLE_OAUTH_KEY);
     forgetCachedToken();
     return reply.send({ ok: true });
   });
 
   // ---- Criação da reunião --------------------------------------------------
-  app.post('/meetings', { preHandler: requireUser }, async (req, reply) => {
+  app.post('/meetings', staffOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const { projectId, startsAt, durationMinutes, title, inviteClient } = parsed.data;

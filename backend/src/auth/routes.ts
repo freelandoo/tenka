@@ -1,7 +1,15 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { requireUser, ensureAdmin } from './middleware';
-import { AuthError, changePassword, createUser, login, logout, refresh } from './service';
+import { requireUser, adminOnly } from './middleware';
+import {
+  AuthError,
+  PANEL_ROLES,
+  changePassword,
+  createUser,
+  login,
+  logout,
+  refresh,
+} from './service';
 
 // O identificador de login pode ser um e-mail OU um usuário simples (ex.:
 // "alex.rodriguus"). É guardado na coluna `email` (é só uma chave única de
@@ -17,11 +25,14 @@ const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
 const passwordSchema = z.object({ newPassword: z.string().min(8) });
 
+// `clientId` só faz sentido em `role: 'client'` — é o cliente que a conta vai
+// enxergar no portal. O service recusa cliente sem vínculo (e o banco também).
 const createUserSchema = z.object({
   email: identifier,
   password: z.string().min(8),
   name: z.string().min(1),
-  role: z.enum(['admin', 'collaborator']).default('collaborator'),
+  role: z.enum(PANEL_ROLES).default('staff'),
+  clientId: z.string().uuid().nullish(),
 });
 
 function handleAuthError(err: unknown, reply: FastifyReply): boolean {
@@ -81,19 +92,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Porte da ação create_user da Edge Function admin-users.
-  app.post(
-    '/admin/users',
-    { preHandler: [requireUser, ensureAdmin] },
-    async (req, reply) => {
-      const parsed = createUserSchema.safeParse(req.body);
-      if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-      try {
-        const profile = await createUser(parsed.data);
-        return reply.code(201).send({ profile });
-      } catch (err) {
-        if (handleAuthError(err, reply)) return;
-        throw err;
-      }
-    },
-  );
+  app.post('/admin/users', adminOnly, async (req, reply) => {
+    const parsed = createUserSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    try {
+      const profile = await createUser(parsed.data);
+      return reply.code(201).send({ profile });
+    } catch (err) {
+      if (handleAuthError(err, reply)) return;
+      throw err;
+    }
+  });
 }

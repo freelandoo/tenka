@@ -7,15 +7,29 @@ usuários. Carregado de forma independente (lazy) — as experiências públicas
 
 ## Rotas
 
-| Rota                    | Conteúdo                              | Proteção            |
-| ----------------------- | ------------------------------------- | ------------------- |
-| `/painel/login`         | Tela de login                         | pública (redireciona logados) |
-| `/painel`               | Redireciona para `/painel/projetos`   | autenticado         |
-| `/painel/projetos`      | Kanban de projetos (post-its)         | autenticado         |
-| `/painel/usuarios`      | Gerenciamento de usuários             | **administrador**   |
-| `/painel/configuracoes` | Conta (nome, senha)                   | autenticado         |
+O painel tem três superfícies, decididas pelo papel da conta:
 
-A rota administrativa antiga `/admin/hero` permanece intacta.
+| Rota                          | Conteúdo                                  | Proteção          |
+| ----------------------------- | ----------------------------------------- | ----------------- |
+| `/painel/login`               | Tela de login                             | pública (redireciona logados) |
+| `/painel`                     | Redireciona para a home do papel          | autenticado       |
+| `/painel/visao-geral`         | Portal: resumo da conta do cliente        | **cliente**       |
+| `/painel/meus-projetos`       | Portal: projetos e cobranças do cliente   | **cliente**       |
+| `/painel/suporte`             | Portal: canais de contato                 | **cliente**       |
+| `/painel/projetos`            | Kanban, diárias, carteira, leads, equipe  | **equipe/admin**  |
+| `/painel/atendimento`         | Inbox do WhatsApp                         | **administrador** |
+| `/painel/configuracoes`       | Conta (nome, senha)                       | autenticado       |
+| `/painel/admin`               | Administração — visão geral               | **administrador** |
+| `/painel/admin/clientes`      | Clientes                                  | **administrador** |
+| `/painel/admin/usuarios`      | Usuários, funções e vínculos              | **administrador** |
+| `/painel/admin/financeiro`    | Carteira / financeiro                     | **administrador** |
+| `/painel/admin/site`          | Hero da home do site                      | **administrador** |
+| `/painel/admin/configuracoes` | Integrações e referência de papéis        | **administrador** |
+
+A antiga área pública `/admin` (com item "Admin" no menu hambúrguer do site)
+**não existe mais**: virou `/painel/admin`, e `/admin/*` redireciona para lá.
+O editor do hero, que era `/admin/hero` sem autenticação nenhuma, é hoje
+`/painel/admin/site`.
 
 ## 0. Ambiente local com Docker (recomendado para testar)
 
@@ -99,7 +113,7 @@ role key. O `.env`/`.env.local` existente nunca deve ser commitado
 
 1. Crie o primeiro usuário: Dashboard → Authentication → Users →
    **Add user** (e-mail + senha, marque *Auto confirm*).
-2. O trigger `handle_new_user` cria o profile como `collaborator`.
+2. O trigger `handle_new_user` cria o profile como `staff`.
 3. Promova-o via SQL Editor:
 
    ```sql
@@ -109,7 +123,7 @@ role key. O `.env`/`.env.local` existente nunca deve ser commitado
    ```
 
 A partir daí, todos os demais usuários são criados **pelo painel**
-(`/painel/usuarios` → "Novo usuário"), que chama a Edge Function
+(`/painel/admin/usuarios` → "Novo usuário"), que chama a Edge Function
 `admin-users` — ela valida que o solicitante é um admin ativo antes de usar
 a API administrativa.
 
@@ -137,20 +151,42 @@ O projeto continua sendo um SPA Vite estático:
 
 ## 6. Modelo de permissões
 
-Perfis: `admin` e `collaborator` (coluna `profiles.role`).
+Papéis (coluna `profiles.role`, migration `0017_roles.sql`):
 
-| Capacidade                                   | Admin | Colaborador           |
-| -------------------------------------------- | ----- | --------------------- |
-| Ver todos os projetos                        | ✅    | ❌ (somente atribuídos) |
-| Criar/editar/arquivar projetos               | ✅    | ❌                    |
-| Mover projetos (status/posição)              | ✅    | ✅ somente atribuídos |
-| Adicionar/remover responsáveis               | ✅    | ❌                    |
-| Ver valores (R$)                             | ✅    | ❌ (oculto na UI)     |
-| Criar observações                            | ✅    | ✅ somente atribuídos |
-| Editar observações                           | ✅ todas | ✅ somente as próprias |
-| Ver histórico                                | ✅    | ✅ dos atribuídos     |
-| Notificações                                 | somente as próprias | somente as próprias |
-| Gerenciar usuários / funções                 | ✅    | ❌                    |
+- **`admin`** — administra a TENKA: usuários, clientes, projetos, permissões,
+  financeiro e configurações globais. É quem entra em `/painel/admin`.
+- **`staff`** — equipe TENKA (era `collaborator`; só o nome mudou). Vê a
+  operação, com os projetos em que está atribuída.
+- **`client`** — cliente. Vê **apenas a própria conta**, pelo portal. A conta
+  aponta para um cliente em `profiles.client_id`, e é esse vínculo — não um
+  parâmetro do front — que recorta tudo que ela lê.
+
+| Capacidade                                   | Admin | Equipe                | Cliente |
+| -------------------------------------------- | ----- | --------------------- | ------- |
+| Ver todos os projetos                        | ✅    | ❌ (somente atribuídos) | ❌ (somente os seus) |
+| Criar/editar/arquivar projetos               | ✅    | ❌                    | ❌ |
+| Mover projetos (status/posição)              | ✅    | ✅ somente atribuídos | ❌ |
+| Adicionar/remover responsáveis               | ✅    | ❌                    | ❌ |
+| Ver valores (R$)                             | ✅    | ❌ (oculto na UI)     | ✅ só os do próprio contrato |
+| Criar observações                            | ✅    | ✅ somente atribuídos | ❌ |
+| Editar observações                           | ✅ todas | ✅ somente as próprias | ❌ |
+| Ver histórico                                | ✅    | ✅ dos atribuídos     | ❌ |
+| Notificações                                 | somente as próprias | somente as próprias | somente as próprias |
+| Gerenciar usuários / funções                 | ✅    | ❌                    | ❌ |
+| Área de Administração (`/painel/admin`)      | ✅    | ❌                    | ❌ |
+
+### Onde o papel é aplicado (backend próprio)
+
+Esconder o item de menu não protege nada — a autorização vive na API:
+
+- `staffOnly` (`backend/src/auth/middleware.ts`) fecha TODA a operação:
+  `/projects/*`, `/dailies/*`, `/clients/*`, `/costs/*`, `/whatsapp/*`,
+  `/profiles`. Conta de cliente recebe 403 mesmo acertando a URL.
+- `adminOnly` fecha o que é de administração: `/users`, `/admin/users`,
+  escrita de clientes/projetos, integrações.
+- `clientOnly` abre a superfície do portal (`/me/client`, `/me/projects`,
+  `/me/payments`), sempre filtrada por `profiles.client_id`.
+- O SSE (`/events`) só entrega eventos da operação para conta da equipe.
 
 ### Onde as regras são aplicadas
 

@@ -130,12 +130,14 @@ export default function MobileMenu({
         aria-label="Menu secundário"
         className="mb-4 flex flex-col gap-1"
       >
+        {/* Só o que é público + a porta do Painel. A administração saiu daqui:
+            vive dentro do Painel (/painel/admin), atrás de login e do papel de
+            admin — não é item de menu de visitante. */}
         {[
           { to: '/projetos', label: 'Projetos' },
           { to: '/sobre', label: 'Sobre' },
           { to: '/contato', label: 'Contato' },
           { to: '/painel', label: 'Painel' },
-          { to: '/admin/hero', label: 'Admin' },
         ].map((item) => (
           <Link
             key={item.to}

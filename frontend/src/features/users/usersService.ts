@@ -3,6 +3,8 @@ import type { PanelRole, ProfileRow } from '../../lib/supabase/database.types';
 
 export interface UserWithProjects extends ProfileRow {
   projectNames: string[];
+  /** Nome do cliente vinculado — preenchido só em contas com papel `client`. */
+  client_name: string | null;
 }
 
 /**
@@ -14,9 +16,19 @@ export async function fetchUsers(): Promise<UserWithProjects[]> {
   return data.users;
 }
 
-/** Só admin muda role; o guard do banco garante que o último admin nunca cai. */
-export async function setUserRole(userId: string, role: PanelRole): Promise<void> {
-  await apiRequest(`/users/${userId}`, { method: 'PATCH', body: { role } });
+/**
+ * Só admin muda role; o guard do banco garante que o último admin nunca cai.
+ * `clientId` acompanha o papel `client` — o backend limpa o vínculo sozinho
+ * quando a conta volta a ser da equipe.
+ */
+export async function setUserRole(
+  userId: string,
+  role: PanelRole,
+  clientId?: string,
+): Promise<void> {
+  const body: { role: PanelRole; client_id?: string } = { role };
+  if (role === 'client' && clientId) body.client_id = clientId;
+  await apiRequest(`/users/${userId}`, { method: 'PATCH', body });
 }
 
 export async function setUserActive(userId: string, active: boolean): Promise<void> {
@@ -28,6 +40,8 @@ export interface CreateUserInput {
   password: string;
   name: string;
   role: PanelRole;
+  /** Obrigatório em `role: 'client'`: o cliente que a conta vai enxergar. */
+  clientId?: string;
 }
 
 /**

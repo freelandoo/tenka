@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireUser, ensureAdmin } from '../auth/middleware';
+import { staffOnly, adminOnly } from '../auth/middleware';
 import { withActor } from '../db/pool';
 import {
   EvolutionError,
@@ -37,8 +37,6 @@ import {
 import { deliver, requireConnectedInstance, WhatsappUnavailable } from '../whatsapp/outbound';
 import { env } from '../env';
 
-const adminOnly = { preHandler: [requireUser, ensureAdmin] };
-
 /** Traduz erro de Evolution/indisponibilidade no status HTTP certo. */
 function sendFailure(reply: import('fastify').FastifyReply, e: unknown) {
   if (e instanceof EvolutionError) return reply.code(e.status).send({ error: e.message });
@@ -48,7 +46,7 @@ function sendFailure(reply: import('fastify').FastifyReply, e: unknown) {
 
 export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
   // ---- Estado geral --------------------------------------------------------
-  app.get('/whatsapp/status', { preHandler: requireUser }, async (_req, reply) => {
+  app.get('/whatsapp/status', staffOnly, async (_req, reply) => {
     const cfg = evolutionConfig();
     const [instance, internal] = await Promise.all([currentInstance(), internalConversation()]);
     return reply.send({

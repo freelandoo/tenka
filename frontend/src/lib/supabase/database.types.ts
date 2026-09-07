@@ -4,7 +4,19 @@
  * schema mudar, atualize aqui e nas migrations em conjunto.
  */
 
-export type PanelRole = 'admin' | 'collaborator';
+/**
+ * Papéis do painel (migration 0017):
+ *   admin  — administra a TENKA (usuários, clientes, financeiro, configurações);
+ *   staff  — equipe TENKA (o antigo `collaborator`);
+ *   client — cliente: vê apenas a própria conta, no portal `/painel`.
+ */
+export type PanelRole = 'admin' | 'staff' | 'client';
+
+export const PANEL_ROLE_LABELS: Record<PanelRole, string> = {
+  admin: 'Administrador',
+  staff: 'Equipe',
+  client: 'Cliente',
+};
 
 export type ProjectStatus = 'inicio' | 'em_andamento' | 'finalizado';
 
@@ -27,6 +39,8 @@ export interface ProfileRow {
   avatar_url: string | null;
   role: PanelRole;
   active: boolean;
+  /** Cliente que a conta enxerga — preenchido só quando `role = 'client'`. */
+  client_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ApiError, loadTokens, onUnauthorized } from '../../lib/api/client';
-import type { ProfileRow } from '../../lib/supabase/database.types';
+import type { PanelRole, ProfileRow } from '../../lib/supabase/database.types';
 import * as auth from './authService';
 
 export type AuthStatus = 'loading' | 'signed-out' | 'signed-in';
@@ -34,7 +34,14 @@ interface AuthContextValue {
   status: AuthStatus;
   session: AuthSession | null;
   profile: ProfileRow | null;
+  /** Papel efetivo da sessão — `null` enquanto o perfil não chegou. */
+  role: PanelRole | null;
+  /** Administrador ATIVO: manda na área /painel/admin. */
   isAdmin: boolean;
+  /** Gente da TENKA (admin ou equipe): vê a operação. */
+  isStaff: boolean;
+  /** Conta de cliente: vê só a própria conta, no portal. */
+  isClient: boolean;
   /** Sessão anterior expirou (para mensagem na tela de login). */
   sessionExpired: boolean;
   signIn(email: string, password: string, remember: boolean): Promise<SignInResult>;
@@ -131,19 +138,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    // Conta desativada não tem papel — o backend já a barra, e aqui a UI some
+    // junto (nada de menu de admin piscando antes do 401).
+    const active = profile?.active === true;
+    const role = active ? profile!.role : null;
+    return {
       status,
       session: sessionFromProfile(profile),
       profile,
-      isAdmin: profile?.role === 'admin' && profile.active,
+      role,
+      isAdmin: role === 'admin',
+      isStaff: role === 'admin' || role === 'staff',
+      isClient: role === 'client',
       sessionExpired,
       signIn,
       signOut,
       refreshProfile,
-    }),
-    [status, profile, sessionExpired, signIn, signOut, refreshProfile],
-  );
+    };
+  }, [status, profile, sessionExpired, signIn, signOut, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

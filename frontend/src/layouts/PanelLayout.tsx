@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { FolderKanban, LogOut, MessageSquare, MoreVertical, Settings, Users } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, Menu, MoreVertical, Settings, X } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import { NotificationsProvider } from '../features/notifications/NotificationsContext';
 import { NotificationBell } from '../features/notifications/NotificationBell';
 import { AssignmentModal } from '../features/notifications/AssignmentModal';
 import { initials } from '../features/panel/format';
+import { PANEL_ROLE_LABELS } from '../lib/supabase/database.types';
+import { panelNavFor } from './panelNav';
 
 function AccountMenu() {
-  const { profile, signOut, isAdmin } = useAuth();
+  const { profile, role, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -70,47 +72,13 @@ function AccountMenu() {
                 fontSize: 10.5,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color:
-                  profile?.role === 'admin' ? 'var(--panel-accent)' : 'var(--panel-text-faint)',
+                color: role === 'admin' ? 'var(--panel-accent)' : 'var(--panel-text-faint)',
                 marginTop: 3,
               }}
             >
-              {profile?.role === 'admin' ? 'Administrador' : 'Colaborador'}
+              {role ? PANEL_ROLE_LABELS[role] : 'Sem acesso'}
             </p>
           </div>
-          <nav className="panel-menu__nav" aria-label="Navegação do painel">
-            <NavLink
-              to="/painel/projetos"
-              role="menuitem"
-              className="panel-menu__item"
-              onClick={() => setOpen(false)}
-            >
-              <FolderKanban size={16} aria-hidden="true" />
-              Projetos
-            </NavLink>
-            {isAdmin && (
-              <NavLink
-                to="/painel/atendimento"
-                role="menuitem"
-                className="panel-menu__item"
-                onClick={() => setOpen(false)}
-              >
-                <MessageSquare size={16} aria-hidden="true" />
-                Atendimento
-              </NavLink>
-            )}
-            {isAdmin && (
-              <NavLink
-                to="/painel/usuarios"
-                role="menuitem"
-                className="panel-menu__item"
-                onClick={() => setOpen(false)}
-              >
-                <Users size={16} aria-hidden="true" />
-                Usuários
-              </NavLink>
-            )}
-          </nav>
           <Link
             to="/painel/configuracoes"
             role="menuitem"
@@ -118,7 +86,7 @@ function AccountMenu() {
             onClick={() => setOpen(false)}
           >
             <Settings size={16} aria-hidden="true" />
-            Configurações
+            Configurações da conta
           </Link>
           <button
             type="button"
@@ -139,53 +107,108 @@ function AccountMenu() {
 }
 
 /**
- * Layout compartilhado da área interna: cabeçalho fixo com marca TENKA,
- * navegação, sino de notificações e menu de conta. O conteúdo das rotas
- * entra no <Outlet />.
+ * Layout do Painel: cabeçalho fixo + barra lateral por papel + conteúdo.
+ *
+ * A barra lateral é o que faz o Painel parecer um produto próprio em vez de uma
+ * página do site institucional — e é onde o grupo "Administração" aparece, só
+ * para admin. A lista vem de `panelNavFor(role)`; as rotas continuam guardadas
+ * por <RequireStaff>/<RequireAdmin>, que é o que de fato barra.
  */
 export default function PanelLayout() {
-  const { isAdmin } = useAuth();
+  const { role, isStaff } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const groups = panelNavFor(role);
+
+  // Navegou (inclusive pelo próprio menu): a gaveta do mobile fecha.
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
 
   return (
     <NotificationsProvider>
       <div className="tenka-panel panel-shell">
         <header className="panel-header">
+          <button
+            type="button"
+            className="panel-iconbtn panel-sidebar__toggle"
+            aria-label={menuOpen ? 'Fechar navegação' : 'Abrir navegação'}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+
           {/* O logo SAI do painel para a home do site (o showroom dos três
-              cards). Antes apontava para /painel/projetos, que já é o primeiro
-              item da navegação ao lado — o clique não levava a lugar nenhum. */}
+              cards) — a navegação interna vive na barra lateral. */}
           <Link to="/" className="panel-header__brand" title="Ir para a home do site TENKA">
             <strong>TENKA</strong>
             <span>Painel</span>
           </Link>
 
-          <nav className="panel-nav" aria-label="Navegação do painel">
-            <NavLink to="/painel/projetos" className="panel-nav__link">
-              Projetos
-            </NavLink>
-            {isAdmin && (
-              <NavLink to="/painel/atendimento" className="panel-nav__link">
-                Atendimento
-              </NavLink>
-            )}
-            {isAdmin && (
-              <NavLink to="/painel/usuarios" className="panel-nav__link">
-                Usuários
-              </NavLink>
-            )}
-            <NavLink to="/painel/configuracoes" className="panel-nav__link">
-              Configurações
-            </NavLink>
-          </nav>
-
           <div className="panel-header__spacer" />
 
-          <NotificationBell />
+          {/* O sino é da operação: as notificações nascem de atribuição de
+              projeto, que não existe para conta de cliente. */}
+          {isStaff && <NotificationBell />}
           <AccountMenu />
         </header>
 
-        <main className="panel-main">
-          <Outlet />
-        </main>
+        <div className="panel-body">
+          <aside
+            className="panel-sidebar"
+            data-open={menuOpen ? 'true' : 'false'}
+            aria-label="Navegação do painel"
+          >
+            <div className="panel-sidebar__head">
+              <p className="panel-sidebar__brand">Painel TENKA</p>
+              <button
+                type="button"
+                className="panel-iconbtn panel-sidebar__close"
+                aria-label="Fechar navegação"
+                onClick={() => setMenuOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {groups.map((group, index) => (
+              <nav
+                key={group.label ?? `grupo-${index}`}
+                className="panel-sidebar__group"
+                aria-label={group.label ?? 'Navegação principal'}
+              >
+                {group.label && <p className="panel-sidebar__label">{group.label}</p>}
+                {group.items.map(({ to, label, icon: Icon, end }) => (
+                  <NavLink key={to} to={to} end={end} className="panel-sidebar__link">
+                    <Icon size={16} aria-hidden="true" />
+                    {label}
+                  </NavLink>
+                ))}
+              </nav>
+            ))}
+          </aside>
+
+          {menuOpen && (
+            <button
+              type="button"
+              className="panel-sidebar__backdrop"
+              aria-label="Fechar navegação"
+              onClick={() => setMenuOpen(false)}
+            />
+          )}
+
+          <main className="panel-main">
+            <Outlet />
+          </main>
+        </div>
       </div>
 
       <AssignmentModal />

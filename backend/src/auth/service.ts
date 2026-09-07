@@ -8,13 +8,30 @@ import {
   refreshExpiry,
 } from './tokens';
 
+/**
+ * Papéis do painel (migration 0017):
+ *   admin  — administra a TENKA;
+ *   staff  — equipe (o antigo `collaborator`);
+ *   client — cliente, vê apenas a própria conta.
+ */
+export type PanelRole = 'admin' | 'staff' | 'client';
+
+export const PANEL_ROLES = ['admin', 'staff', 'client'] as const;
+
 export interface Profile {
   id: string;
   name: string;
   email: string | null;
   avatar_url: string | null;
-  role: 'admin' | 'collaborator';
+  role: PanelRole;
   active: boolean;
+  /** Cliente que a conta enxerga — preenchido só quando `role = 'client'`. */
+  client_id: string | null;
+}
+
+/** Gente da TENKA (o que a interface chama de "equipe"). */
+export function isStaffRole(role: PanelRole): boolean {
+  return role === 'admin' || role === 'staff';
 }
 
 export interface Session {
@@ -31,7 +48,9 @@ export class AuthError extends Error {
       | 'user-disabled'
       | 'invalid-refresh'
       | 'email-taken'
-      | 'not-found',
+      | 'not-found'
+      | 'client-required'
+      | 'client-not-found',
     public status = 400,
   ) {
     super(code);
@@ -46,7 +65,7 @@ export async function loadProfile(
   userId: string,
 ): Promise<Profile | null> {
   const { rows } = await exec.query(
-    `select id, name, email, avatar_url, role, active
+    `select id, name, email, avatar_url, role, active, client_id
        from public.profiles where id = $1`,
     [userId],
   );
@@ -147,10 +166,14 @@ export async function createUser(input: {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'collaborator';
+  role: PanelRole;
+  /** Obrigatório para `role = 'client'`: o cliente que a conta vai enxergar. */
+  clientId?: string | null;
 }): Promise<Profile> {
   const email = input.email.trim().toLowerCase();
   const passwordHash = await hashPassword(input.password);
+  const clientId = input.role === 'client' ? (input.clientId ?? null) : null;
+  if (input.role === 'client' && !clientId) throw new AuthError('client-required', 400);
 
   return withActor(null, async (client) => {
     let userId: string;
@@ -168,13 +191,20 @@ export async function createUser(input: {
       throw err;
     }
 
-    // O trigger on_user_created já criou o profile como collaborator;
-    // ajusta nome e papel.
-    await client.query('update public.profiles set name = $2, role = $3 where id = $1', [
-      userId,
-      input.name.trim(),
-      input.role,
-    ]);
+    if (clientId) {
+      const { rowCount } = await client.query(
+        'select 1 from public.clients where id = $1 and archived_at is null',
+        [clientId],
+      );
+      if (!rowCount) throw new AuthError('client-not-found', 404);
+    }
+
+    // O trigger on_user_created já criou o profile como staff;
+    // ajusta nome, papel e (para cliente) o vínculo.
+    await client.query(
+      'update public.profiles set name = $2, role = $3, client_id = $4 where id = $1',
+      [userId, input.name.trim(), input.role, clientId],
+    );
 
     const profile = await loadProfile(client, userId);
     return profile!;

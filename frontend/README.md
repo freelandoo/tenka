@@ -21,12 +21,11 @@ npm run dev
 | Rota               | Conteúdo                          |
 | ------------------ | --------------------------------- |
 | `/`                | Hero da homepage                  |
-| `/admin/hero`      | Editor administrativo (protótipo) |
 | `/games`           | Placeholder da divisão            |
 | `/multimidia`      | Placeholder da divisão            |
 | `/desenvolvimento` | Placeholder da divisão            |
 | `/contato`         | Placeholder de contato            |
-| `/painel/*`        | Área interna (login + Kanban de projetos) — ver [docs/PAINEL.md](docs/PAINEL.md) |
+| `/painel/*`        | Área interna: portal do cliente, operação da equipe e Administração — ver [docs/PAINEL.md](docs/PAINEL.md) |
 
 ## Área interna (Painel)
 
@@ -49,8 +48,10 @@ componentes. Enquanto um slide não tiver `imageUrl`, o screenshot é um
 retângulo sólido (`placeholderColor`) — o rótulo de desenvolvimento é
 controlado por `SHOW_PLACEHOLDER_LABELS` em `HeroScreenshotCard.tsx`.
 
-⚠️ `/admin/hero` não tem autenticação neste protótipo — ver o comentário de
-segurança em `src/pages/AdminHeroPage.tsx` antes de ir para produção.
+O editor do hero fica em `/painel/admin/site` — dentro do Painel, atrás de
+login e do papel de administrador (era `/admin/hero`, público). A persistência
+ainda é `localStorage`: quando virar API, a rota de escrita precisa repetir a
+checagem no servidor.
 
 ## Navegação do hero
 

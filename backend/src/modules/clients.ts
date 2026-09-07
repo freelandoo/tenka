@@ -13,7 +13,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
-import { requireUser, ensureAdmin } from '../auth/middleware';
+import { staffOnly, adminOnly } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 
@@ -38,7 +38,7 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
    * O agregado sai em SQL porque o front não recebe os projetos arquivados —
    * somar no cliente daria número diferente do que a Carteira mostra.
    */
-  app.get('/clients', { preHandler: requireUser }, async (req, reply) => {
+  app.get('/clients', staffOnly, async (req, reply) => {
     const admin = isAdmin(req);
     const { rows } = await getPool().query(
       `select c.*,
@@ -68,7 +68,7 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ clients: rows });
   });
 
-  app.post('/clients', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.post('/clients', adminOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const { name, phone, email, notes } = parsed.data;
@@ -92,7 +92,7 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
    * o trigger `clients_sync_projects` cuida disso, então quem lê o telefone do
    * projeto (o botão Aprovação do WhatsApp, por exemplo) não fica defasado.
    */
-  app.patch('/clients/:id', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.patch('/clients/:id', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const patch = buildPatch(CLIENT_PATCH_COLS, (req.body ?? {}) as Record<string, unknown>);
     if (!patch) return reply.code(400).send({ error: 'nada-para-atualizar' });
@@ -116,7 +116,7 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
    * apagar o cliente levaria o histórico junto — arquivar some da lista e
    * preserva o passado, igual ao `archived_at` do projeto.
    */
-  app.delete('/clients/:id', { preHandler: [requireUser, ensureAdmin] }, async (req, reply) => {
+  app.delete('/clients/:id', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const result = await withActor(req.userId!, (db) =>
       db.query('update public.clients set archived_at = now() where id = $1 and archived_at is null', [id]),
