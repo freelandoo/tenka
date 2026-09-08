@@ -6,6 +6,7 @@ import { env, hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
 import { nextMonthlyDueDate } from '../finance/dueDate';
+import { projectPlanTotalError } from '../finance/projectPlan';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -26,12 +27,18 @@ const planSchema = z.object({
 });
 
 const paymentPatchSchema = z.object({
-  status: z.enum(['draft', 'pending', 'paid', 'cancelled']),
+  status: z.enum(['draft', 'pending', 'paid', 'cancelled']).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().trim().max(2000).optional(),
   receiptUrl: z.string().trim().max(1000).optional(),
+}).refine((value) => Object.values(value).some((item) => item !== undefined), {
+  message: 'nothing-to-update',
 });
 
-const defaultPaymentSchema = z.object({ paid: z.boolean() });
+const defaultPaymentSchema = z.object({
+  paid: z.boolean(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+});
 
 async function queueOperation(
   client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
@@ -77,22 +84,24 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                   pp.amount_cents, pp.due_date, pp.paid_at, pp.status::text as status,
                   pp.position, pp.notes, pp.receipt_url, p.name as project_name,
                   coalesce(c.name, p.client_name) as client_name,
-                  false as virtual, pp.created_at
+                  p.value_cents as project_value_cents, false as virtual, pp.created_at
              from public.project_payments pp
              join public.projects p on p.id = pp.project_id
              left join public.clients c on c.id = p.client_id
             where p.archived_at is null
            union all
            select 'virtual:' || p.id::text, p.id, 'Pagamento do projeto', '',
-                  p.value_cents, p.due_date, null::timestamptz, 'pending',
-                  0, '', '', p.name, coalesce(c.name, p.client_name), true, p.created_at
+                  p.value_cents, null::date, null::timestamptz, 'pending',
+                  0, '', '', p.name, coalesce(c.name, p.client_name),
+                  p.value_cents, true, p.created_at
              from public.projects p
              left join public.clients c on c.id = p.client_id
             where p.archived_at is null and p.value_cents > 0
               and not exists (select 1 from public.project_payments pp where pp.project_id = p.id)
          )
          select id, project_id, name, description, amount_cents, due_date, paid_at,
-                status, position, notes, receipt_url, project_name, client_name, virtual
+                status, position, notes, receipt_url, project_name, client_name,
+                project_value_cents, virtual
            from listed
           order by case status when 'pending' then 0 when 'draft' then 1 when 'paid' then 2 else 3 end,
                    coalesce(due_date, created_at::date), lower(project_name)
@@ -266,7 +275,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           `select name, description, amount_cents, due_date, status, position
              from public.project_payments where project_id = $1 order by position`, [id]);
         const total = parsed.data.payments.reduce((sum, item) => sum + item.amountCents, 0);
-        if (parsed.data.status === 'active' && total !== rows[0].value_cents) return 'sum-mismatch';
+        const totalError = projectPlanTotalError(parsed.data.status, total, rows[0].value_cents);
+        if (totalError) return totalError;
         await client.query('delete from public.project_payments where project_id = $1', [id]);
         for (const [position, payment] of parsed.data.payments.entries()) {
           await client.query(
@@ -293,6 +303,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'has-paid') return reply.code(409).send({ error: 'plano-com-pagamento-realizado' });
+      if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
       if (result === 'sum-mismatch') return reply.code(409).send({ error: 'soma-diferente-do-valor-do-projeto' });
       return reply.send({ ok: true });
     } catch (error) {
@@ -305,16 +316,23 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = paymentPatchSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const rows = await withActor(req.userId!, async (client) => {
-      const previous = await client.query<{ project_id: string; status: string; name: string }>(
-        'select project_id, status, name from public.project_payments where id = $1 for update', [id]);
+      const previous = await client.query<{ project_id: string; status: string; name: string; due_date: string | null }>(
+        'select project_id, status, name, due_date from public.project_payments where id = $1 for update', [id]);
       if (!previous.rows[0]) return [];
       const updated = await client.query(
         `update public.project_payments
-          set status = $2,
-              paid_at = case when $2 = 'paid' then coalesce(paid_at, now()) else null end,
-              notes = coalesce($3, notes), receipt_url = coalesce($4, receipt_url)
+          set status = coalesce($2, status),
+              paid_at = case
+                when $2 is null then paid_at
+                when $2 = 'paid' then coalesce(paid_at, now())
+                else null
+              end,
+              notes = coalesce($3, notes), receipt_url = coalesce($4, receipt_url),
+              due_date = case when $5 then $6::date else due_date end
         where id = $1 returning *`,
-        [id, parsed.data.status, parsed.data.notes ?? null, parsed.data.receiptUrl ?? null],
+        [id, parsed.data.status ?? null, parsed.data.notes ?? null,
+          parsed.data.receiptUrl ?? null, parsed.data.dueDate !== undefined,
+          parsed.data.dueDate ?? null],
       );
       await client.query(
         `insert into public.project_activity (project_id, actor_id, action, metadata)
@@ -322,7 +340,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         [previous.rows[0].project_id, req.userId, JSON.stringify({
           paymentName: previous.rows[0].name,
           from: previous.rows[0].status,
-          to: parsed.data.status,
+          to: parsed.data.status ?? previous.rows[0].status,
+          previousDueDate: previous.rows[0].due_date,
+          dueDate: parsed.data.dueDate ?? previous.rows[0].due_date,
         })],
       );
       return updated.rows;
@@ -339,8 +359,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     try {
       const result = await withActor(req.userId!, async (client) => {
-        const project = await client.query<{ value_cents: number; due_date: string }>(
-          `select value_cents, due_date from public.projects
+        const project = await client.query<{ value_cents: number }>(
+          `select value_cents from public.projects
             where id = $1 and archived_at is null for update`, [id]);
         if (!project.rows[0]) return 'missing' as const;
         const existing = await client.query(
@@ -354,7 +374,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                    case when $4 then now() else null end,
                    case when $4 then 'paid' else 'pending' end,0,$5)
            returning *`,
-          [id, project.rows[0].value_cents, project.rows[0].due_date, parsed.data.paid, req.userId],
+          [id, project.rows[0].value_cents, parsed.data.dueDate ?? null, parsed.data.paid, req.userId],
         );
         await client.query(
           `update public.projects set financial_plan_status = 'active' where id = $1;

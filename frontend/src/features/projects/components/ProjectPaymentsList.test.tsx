@@ -6,6 +6,8 @@ import { ProjectPaymentsList } from './ProjectPaymentsList';
 
 vi.mock('../../finance/financeService', () => ({
   fetchFinanceOverview: vi.fn(),
+  fetchProjectFinance: vi.fn(),
+  savePaymentPlan: vi.fn(),
   setDefaultProjectPayment: vi.fn(),
   updateProjectPayment: vi.fn(),
 }));
@@ -29,6 +31,7 @@ const payment = (over: Partial<ProjectPaymentRow> = {}): ProjectPaymentRow => ({
   receipt_url: '',
   project_name: 'Site Braslar',
   client_name: 'Braslar',
+  project_value_cents: 250000,
   ...over,
 });
 
@@ -47,8 +50,8 @@ beforeEach(() => {
 });
 
 describe('ProjectPaymentsList', () => {
-  it('exibe projeto sem plano como pendente e materializa o pagamento ao confirmar', async () => {
-    fetchOverview.mockResolvedValue(overview([payment({ id: 'virtual:project-1', virtual: true })]));
+  it('exibe projeto sem plano com ações rápidas e materializa o pagamento ao confirmar', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({ id: 'virtual:project-1', virtual: true, due_date: null })]));
     render(<ProjectPaymentsList isAdmin />);
 
     const button = await screen.findByRole('button', {
@@ -57,24 +60,41 @@ describe('ProjectPaymentsList', () => {
     const row = screen.getByText('Site Braslar').closest('li') as HTMLElement;
     expect(within(row).getByText('Pendente')).toBeInTheDocument();
     expect(within(row).getByText('R$ 2.500,00')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Adicionar data' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Dividir valor — Site Braslar' })).toBeInTheDocument();
 
     fireEvent.click(button);
     await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith('project-1', true));
   });
 
-  it('mostra etapas separadas e permite reabrir uma etapa paga', async () => {
+  it('recolhe as etapas, não permite pagar o total e reabre cada etapa individualmente', async () => {
     fetchOverview.mockResolvedValue(overview([
       payment({ id: 'stage-1', name: 'Entrada', amount_cents: 100000, status: 'paid' }),
       payment({ id: 'stage-2', name: 'Entrega', amount_cents: 150000, position: 1 }),
     ]));
     render(<ProjectPaymentsList isAdmin />);
 
-    expect(await screen.findByText('Etapa 1 de 2 · Entrada · Braslar')).toBeInTheDocument();
-    expect(screen.getByText('Etapa 2 de 2 · Entrega · Braslar')).toBeInTheDocument();
+    const expand = await screen.findByRole('button', { name: 'Ver etapas — Site Braslar' });
+    expect(screen.queryByText('Entrada')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Marcar como pago — Site Braslar' })).not.toBeInTheDocument();
+    fireEvent.click(expand);
+    expect(await screen.findByText('Entrada')).toBeInTheDocument();
+    expect(screen.getByText('Entrega')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', {
       name: 'Reabrir pagamento — Site Braslar — Etapa 1 de 2 · Entrada',
     }));
     await waitFor(() => expect(updatePayment).toHaveBeenCalledWith('stage-1', { status: 'pending' }));
+  });
+
+  it('adiciona uma data sem marcar o pagamento como pago', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({ id: 'virtual:project-1', virtual: true, due_date: null })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar data' }));
+    fireEvent.change(screen.getByLabelText('Data — Pagamento do projeto'), { target: { value: '2026-10-15' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar data — Pagamento do projeto' }));
+
+    await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith('project-1', false, '2026-10-15'));
   });
 });

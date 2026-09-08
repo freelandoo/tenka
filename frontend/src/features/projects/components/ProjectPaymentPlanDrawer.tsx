@@ -9,8 +9,23 @@ import type { BoardProject } from '../services/projectsService';
 interface DraftRow { name: string; description: string; amount: string; dueDate: string }
 const moneyInput = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 
-export function ProjectPaymentPlanDrawer({ project, onBack, onClose, onSaved }: {
-  project: BoardProject; onBack(): void; onClose(): void; onSaved(): void;
+type PaymentPlanProject = Pick<BoardProject, 'id' | 'name' | 'value_cents'>;
+
+const emptyStage = (position: number, name = `Etapa ${position + 1}`): DraftRow => ({
+  name, description: '', amount: '', dueDate: '',
+});
+
+const quickSplit = (valueCents: number, existing?: DraftRow): DraftRow[] => {
+  const firstValue = Math.floor(valueCents / 2);
+  const secondValue = valueCents - firstValue;
+  return [
+    { ...(existing ?? emptyStage(0)), name: 'Entrada', amount: moneyInput(firstValue) },
+    { ...emptyStage(1), amount: moneyInput(secondValue) },
+  ];
+};
+
+export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack, onClose, onSaved }: {
+  project: PaymentPlanProject; appendStage?: boolean; onBack(): void; onClose(): void; onSaved(): void;
 }) {
   const { toast } = useToast();
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -20,16 +35,25 @@ export function ProjectPaymentPlanDrawer({ project, onBack, onClose, onSaved }: 
   useEffect(() => {
     let cancelled = false;
     finance.fetchProjectFinance(project.id).then((detail) => {
-      if (!cancelled) setRows(detail.projectPayments.map((item) => ({
-        name: item.name, description: item.description, amount: moneyInput(item.amount_cents),
-        dueDate: item.due_date ?? '',
-      })));
+      if (!cancelled) {
+        const loaded = detail.projectPayments.map((item) => ({
+          name: item.name, description: item.description, amount: moneyInput(item.amount_cents),
+          dueDate: item.due_date ?? '',
+        }));
+        setRows(appendStage
+          ? loaded.length <= 1
+            ? quickSplit(project.value_cents, loaded[0])
+            : [...loaded, emptyStage(loaded.length)]
+          : loaded);
+      }
     }).catch((error) => toast('error', error instanceof Error ? error.message : 'Falha ao carregar o plano.'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [project.id, toast]);
+  }, [appendStage, project.id, project.value_cents, toast]);
 
   const total = useMemo(() => rows.reduce((sum, row) => sum + (parseCurrencyToCents(row.amount) ?? 0), 0), [rows]);
+  const rowsValid = rows.length > 0 && rows.every((row) =>
+    row.name.trim() !== '' && (parseCurrencyToCents(row.amount) ?? 0) > 0);
   const update = (index: number, patch: Partial<DraftRow>) => setRows((current) =>
     current.map((row, itemIndex) => itemIndex === index ? { ...row, ...patch } : row));
   const save = async (status: 'draft' | 'active') => {
@@ -49,6 +73,8 @@ export function ProjectPaymentPlanDrawer({ project, onBack, onClose, onSaved }: 
       const code = error instanceof Error ? error.message : '';
       toast('error', code === 'soma-diferente-do-valor-do-projeto'
         ? 'A soma das etapas precisa ser igual ao valor total do projeto.'
+        : code === 'soma-ultrapassa-valor-do-projeto'
+          ? 'A soma das etapas não pode ultrapassar o valor total do projeto.'
         : code === 'plano-com-pagamento-realizado'
           ? 'O plano já tem pagamento realizado e não pode ser substituído.'
           : code || 'Falha ao salvar o plano.');
@@ -70,15 +96,17 @@ export function ProjectPaymentPlanDrawer({ project, onBack, onClose, onSaved }: 
           <input className="panel-input" aria-label={`Vencimento da etapa ${index + 1}`} type="date" value={row.dueDate} onChange={(event) => update(index, { dueDate: event.target.value })} />
           <button type="button" className="panel-iconbtn" aria-label={`Remover etapa ${index + 1}`} onClick={() => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button>
         </div>)}
-        <button type="button" className="panel-btn panel-btn--ghost" onClick={() => setRows((current) => [...current, { name: `Etapa ${current.length + 1}`, description: '', amount: '', dueDate: '' }])}><Plus size={14} /> Adicionar etapa</button>
+        <button type="button" className="panel-btn panel-btn--ghost" onClick={() => setRows((current) => [...current, emptyStage(current.length)])}><Plus size={14} /> Adicionar etapa</button>
       </div>
       <div className={`finance-plan__summary ${total !== project.value_cents ? 'finance-plan__summary--mismatch' : ''}`}>
         <span>Total dividido <strong>{formatCurrencyFromCents(total)}</strong></span>
         <span>Valor do projeto <strong>{formatCurrencyFromCents(project.value_cents)}</strong></span>
+        {total < project.value_cents && <span>Falta dividir <strong>{formatCurrencyFromCents(project.value_cents - total)}</strong></span>}
+        {total > project.value_cents && <span>Valor excedido <strong>{formatCurrencyFromCents(total - project.value_cents)}</strong></span>}
       </div>
       <div className="finance-editor__actions">
-        <button type="button" className="panel-btn panel-btn--ghost" disabled={busy || rows.length === 0} onClick={() => void save('draft')}><Save size={14} /> Salvar rascunho</button>
-        <button type="button" className="panel-btn" disabled={busy || rows.length === 0 || total !== project.value_cents} onClick={() => void save('active')}><Check size={14} /> Ativar plano</button>
+        <button type="button" className="panel-btn panel-btn--ghost" disabled={busy || !rowsValid || total > project.value_cents} onClick={() => void save('draft')}><Save size={14} /> Salvar rascunho</button>
+        <button type="button" className="panel-btn" disabled={busy || !rowsValid || total !== project.value_cents} onClick={() => void save('active')}><Check size={14} /> Ativar plano</button>
       </div>
     </>}
   </PanelOverlay>;

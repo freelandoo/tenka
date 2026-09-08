@@ -2973,15 +2973,105 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
    mas sem estado ativo/inativo: o status aqui é somente financeiro. */
 .project-payments__row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) 78px auto auto auto;
+  grid-template-columns: 24px minmax(120px, 1fr) minmax(86px, auto) auto auto auto;
   align-items: center;
   gap: 9px;
   padding: 7px 9px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
   font-size: 13px;
 }
-.project-payments__row.is-paid { opacity: 0.68; }
+.project-payments__groups { gap: 8px; }
+.project-payments__group {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.project-payments__group.is-paid { opacity: 0.72; }
+.project-payments__header { min-height: 47px; }
+.project-payments__stages {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 4px 0 6px;
+  list-style: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(0, 0, 0, 0.09);
+}
+.project-payments__stage {
+  padding-left: 13px;
+  background: rgba(255, 255, 255, 0.018);
+}
+.project-payments__stage.is-paid { opacity: 0.68; }
+.project-payments__expand,
+.project-payments__quick-add,
+.project-payments__date-button {
+  border: 0;
+  background: transparent;
+  color: var(--panel-text-faint);
+  cursor: pointer;
+}
+.project-payments__expand {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+.project-payments__expand:hover { color: var(--panel-text); background: rgba(255, 255, 255, 0.06); }
+.project-payments__expand svg { transition: transform 160ms ease; }
+.project-payments__expand.is-open svg { transform: rotate(180deg); }
+.project-payments__expand-spacer { width: 24px; }
+.project-payments__stage-index {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+  color: var(--panel-text-faint);
+  font-family: var(--panel-mono);
+  font-size: 9px;
+}
+.project-payments__progress,
+.project-payments__individual-hint {
+  color: var(--panel-text-faint);
+  font-family: var(--panel-mono);
+  font-size: 9px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.project-payments__individual-hint { text-align: center; }
+.project-payments__total { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.project-payments__quick-add {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(241, 90, 36, 0.32);
+  border-radius: 999px;
+  color: var(--panel-accent, #f15a24);
+}
+.project-payments__quick-add:hover:not(:disabled) { border-color: var(--panel-accent, #f15a24); background: rgba(241, 90, 36, 0.1); }
+.project-payments__quick-add:disabled { opacity: 0.3; cursor: default; }
+.project-payments__date-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 3px 0;
+  font-family: var(--panel-mono);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.project-payments__date-button:hover:not(:disabled) { color: var(--panel-text); }
+.project-payments__date-button:disabled { cursor: default; }
+.project-payments__date-editor { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; }
+.project-payments__date-editor .panel-input { width: 132px; min-height: 28px; padding: 3px 6px; font-size: 10px; }
+.project-payments__date-editor .panel-iconbtn { width: 26px; height: 26px; }
 .project-payments__status {
   padding: 3px 7px;
   border: 1px solid var(--panel-line-strong);
@@ -3007,8 +3097,13 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
      faixa financeira do Extrato. */
   .fees__row { grid-template-columns: 1fr auto auto auto; }
   .fees__due { display: none; }
-  .project-payments__row { grid-template-columns: minmax(110px, 1fr) auto auto auto; }
-  .project-payments__row .fees__due { display: none; }
+  .project-payments__row { grid-template-columns: 22px minmax(105px, 1fr) auto auto auto; }
+  .project-payments__row > .fees__due,
+  .project-payments__row > .project-payments__date-button,
+  .project-payments__row > .project-payments__date-editor,
+  .project-payments__progress { grid-column: 2 / -1; grid-row: 2; justify-self: start; }
+  .project-payments__individual-hint { display: none; }
+  .project-payments__date-button { justify-content: flex-start; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
   .leads__contact,
   .leads__value,

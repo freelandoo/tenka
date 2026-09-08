@@ -57,12 +57,12 @@ export const savePaymentPlan = (projectId: string, input: PaymentPlanInput) =>
 
 export const updateProjectPayment = (
   paymentId: string,
-  input: { status: ProjectPaymentRow['status']; notes?: string; receiptUrl?: string },
+  input: { status?: ProjectPaymentRow['status']; dueDate?: string | null; notes?: string; receiptUrl?: string },
 ) => apiRequest<{ payment: ProjectPaymentRow }>(`/project-payments/${paymentId}`, {
   method: 'PATCH', body: input,
 });
 
-export const setDefaultProjectPayment = (projectId: string, paid: boolean) =>
+export const setDefaultProjectPayment = (projectId: string, paid: boolean, dueDate?: string | null) =>
   apiRequest<{ payment: ProjectPaymentRow }>(`/projects/${projectId}/project-payment`, {
-    method: 'PUT', body: { paid },
+    method: 'PUT', body: { paid, ...(dueDate !== undefined ? { dueDate } : {}) },
   });
