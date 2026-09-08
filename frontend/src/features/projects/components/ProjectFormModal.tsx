@@ -88,8 +88,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       .catch(() => setClients([]));
   }, []);
 
-  // Ao escolher um cliente existente, os campos abaixo viram espelho dele —
-  // editar o contato é na ficha do cliente, para valer nos projetos todos.
+  // Ao escolher um cliente existente, preenchemos os dados atuais dele. Os
+  // campos continuam editáveis: ao salvar, qualquer mudança é persistida no
+  // cadastro central e o trigger do banco a replica para todos os projetos.
   const selecionado = clients.find((c) => c.id === clientId) ?? null;
   useEffect(() => {
     if (!selecionado) return;
@@ -114,6 +115,18 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           email: values.clientEmail,
         });
         resolvedClientId = created.id;
+      } else if (selecionado && isEdit) {
+        const clientChanged =
+          values.clientName.trim() !== selecionado.name ||
+          values.clientPhone.trim() !== selecionado.phone ||
+          values.clientEmail.trim() !== selecionado.email;
+        if (clientChanged) {
+          await clientsService.updateClient(resolvedClientId, {
+            name: values.clientName.trim(),
+            phone: values.clientPhone.trim(),
+            email: values.clientEmail.trim(),
+          });
+        }
       }
 
       if (!isEdit) {
@@ -245,7 +258,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
             </select>
             <p className="panel-field__hint">
               {selecionado
-                ? `Este projeto entra na ficha de ${selecionado.name}. Para corrigir o contato, use a aba Clientes — vale para os projetos todos.`
+                ? `Este projeto entra na ficha de ${selecionado.name}. Alterações abaixo atualizam o cadastro e todos os projetos desse cliente.`
                 : 'Um cadastro novo será criado com os dados abaixo.'}
             </p>
           </div>
@@ -256,7 +269,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
               id="project-client-name"
               className="panel-input"
               maxLength={120}
-              readOnly={Boolean(selecionado)}
               aria-invalid={Boolean(errors.clientName)}
               {...register('clientName')}
             />
@@ -276,7 +288,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 className="panel-input"
                 inputMode="tel"
                 placeholder="(11) 90000-0000"
-                readOnly={Boolean(selecionado)}
                 aria-invalid={Boolean(errors.clientPhone)}
                 {...register('clientPhone')}
               />
@@ -291,7 +302,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 className="panel-input"
                 inputMode="email"
                 placeholder="cliente@email.com"
-                readOnly={Boolean(selecionado)}
                 aria-invalid={Boolean(errors.clientEmail)}
                 {...register('clientEmail')}
               />

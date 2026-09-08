@@ -195,6 +195,18 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const i = parsed.data;
     try {
       const id = await withActor(req.userId!, async (client) => {
+        // Se um cliente existente foi selecionado, telefone/e-mail editados no
+        // formulário são atualizados na mesma transação da criação. Assim o
+        // projeto não nasce com um contato diferente do cadastro central.
+        if (i.clientId) {
+          const updated = await client.query(
+            `update public.clients
+                set name = $2, phone = $3, email = $4
+              where id = $1 and archived_at is null`,
+            [i.clientId, i.clientName.trim(), i.clientPhone.trim(), i.clientEmail.trim()],
+          );
+          if (updated.rowCount === 0) throw new Error('Cliente inexistente ou arquivado.');
+        }
         const { rows } = await client.query(
           'select public.create_project($1,$2,$3,$4,$5,$6::uuid[]) as id',
           [i.name, i.description, i.valueCents, i.dueDate, i.colorKey, i.assigneeIds],
