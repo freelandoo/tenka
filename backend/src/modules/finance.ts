@@ -31,6 +31,8 @@ const paymentPatchSchema = z.object({
   receiptUrl: z.string().trim().max(1000).optional(),
 });
 
+const defaultPaymentSchema = z.object({ paid: z.boolean() });
+
 async function queueOperation(
   client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
   projectId: string,
@@ -70,9 +72,31 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           order by coalesce(sp.due_date, sp.competence) desc limit 300`,
       ),
       getPool().query(
-        `select pp.*, p.name as project_name
-           from public.project_payments pp join public.projects p on p.id = pp.project_id
-          order by coalesce(pp.due_date, pp.created_at::date) desc limit 300`,
+        `with listed as (
+           select pp.id::text as id, pp.project_id, pp.name, pp.description,
+                  pp.amount_cents, pp.due_date, pp.paid_at, pp.status::text as status,
+                  pp.position, pp.notes, pp.receipt_url, p.name as project_name,
+                  coalesce(c.name, p.client_name) as client_name,
+                  false as virtual, pp.created_at
+             from public.project_payments pp
+             join public.projects p on p.id = pp.project_id
+             left join public.clients c on c.id = p.client_id
+            where p.archived_at is null
+           union all
+           select 'virtual:' || p.id::text, p.id, 'Pagamento do projeto', '',
+                  p.value_cents, p.due_date, null::timestamptz, 'pending',
+                  0, '', '', p.name, coalesce(c.name, p.client_name), true, p.created_at
+             from public.projects p
+             left join public.clients c on c.id = p.client_id
+            where p.archived_at is null and p.value_cents > 0
+              and not exists (select 1 from public.project_payments pp where pp.project_id = p.id)
+         )
+         select id, project_id, name, description, amount_cents, due_date, paid_at,
+                status, position, notes, receipt_url, project_name, client_name, virtual
+           from listed
+          order by case status when 'pending' then 0 when 'draft' then 1 when 'paid' then 2 else 3 end,
+                   coalesce(due_date, created_at::date), lower(project_name)
+          limit 300`,
       ),
     ]);
     return reply.send({
@@ -302,6 +326,50 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
     return reply.send({ payment: rows[0] });
+  });
+
+  // Materializa o pagamento único exibido para projetos que ainda não têm
+  // etapas. Até a primeira confirmação ele é apenas uma projeção no overview.
+  app.put('/projects/:id/project-payment', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = defaultPaymentSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    try {
+      const result = await withActor(req.userId!, async (client) => {
+        const project = await client.query<{ value_cents: number; due_date: string }>(
+          `select value_cents, due_date from public.projects
+            where id = $1 and archived_at is null for update`, [id]);
+        if (!project.rows[0]) return 'missing' as const;
+        const existing = await client.query(
+          'select 1 from public.project_payments where project_id = $1 limit 1', [id]);
+        if (existing.rows[0]) return 'has-plan' as const;
+        const { rows } = await client.query(
+          `insert into public.project_payments
+             (project_id, name, description, amount_cents, due_date, paid_at,
+              status, position, created_by)
+           values ($1,'Pagamento do projeto','',$2,$3,
+                   case when $4 then now() else null end,
+                   case when $4 then 'paid' else 'pending' end,0,$5)
+           returning *`,
+          [id, project.rows[0].value_cents, project.rows[0].due_date, parsed.data.paid, req.userId],
+        );
+        await client.query(
+          `update public.projects set financial_plan_status = 'active' where id = $1;
+           insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            paymentName: 'Pagamento do projeto', from: 'pending',
+            to: parsed.data.paid ? 'paid' : 'pending',
+          })],
+        );
+        return rows[0];
+      });
+      if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
+      if (result === 'has-plan') return reply.code(409).send({ error: 'projeto-ja-possui-plano' });
+      return reply.send({ payment: result });
+    } catch (error) {
+      return sendDbError(error, reply);
+    }
   });
 
   // Webhook público: autenticado pelo token que o próprio Asaas envia.

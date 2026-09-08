@@ -16,6 +16,17 @@ vi.mock('../../clients/clientsService', () => ({
   deleteCost: vi.fn(),
   sumActiveCosts: vi.fn(() => 0),
 }));
+vi.mock('../../finance/financeService', () => ({
+  fetchFinanceOverview: vi.fn().mockResolvedValue({
+    configured: true,
+    environment: 'production',
+    subscriptions: [],
+    subscriptionPayments: [],
+    projectPayments: [],
+  }),
+  setDefaultProjectPayment: vi.fn(),
+  updateProjectPayment: vi.fn(),
+}));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('../../../lib/api/events', () => ({ subscribeRealtime: () => () => {} }));
 
@@ -138,7 +149,7 @@ describe('Extrato da Carteira', () => {
     expect(screen.getByText('Total ativo · 1 de 1')).toBeInTheDocument();
   });
 
-  it('custos e mensalidades ficam lado a lado, no mesmo grid', async () => {
+  it('custos, mensalidades e pagamentos de projetos ficam na mesma faixa', async () => {
     const { container } = render(
       <CarteiraView
         projects={[makeProject({ name: 'Braslar' })]}
@@ -148,14 +159,15 @@ describe('Extrato da Carteira', () => {
       />,
     );
 
-    // Os dois painéis são irmãos dentro de .cart-recorrencias — é o que os
-    // coloca em duas colunas em vez de empilhados.
+    // Os três painéis são irmãos dentro da faixa horizontal: dois ficam
+    // visíveis por vez, e o terceiro é alcançado pelas setas ou pelo scroll.
     const grid = container.querySelector('.cart-recorrencias') as HTMLElement;
     expect(grid).toBeTruthy();
     const paineis = grid.querySelectorAll(':scope > .cart-panel');
-    expect(paineis).toHaveLength(2);
+    expect(paineis).toHaveLength(3);
     expect(paineis[0]).toHaveTextContent('Custo mensal');
     expect(paineis[1]).toHaveTextContent('Mensalidades');
+    expect(paineis[2]).toHaveTextContent('Pagamentos dos projetos');
 
     // Ambas as listas visíveis ao mesmo tempo, sem clique.
     await waitFor(() =>

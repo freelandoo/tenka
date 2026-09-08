@@ -18,7 +18,6 @@ const errorMessage = (error: unknown) =>
 export function AdminBillingView() {
   const { toast } = useToast();
   const [overview, setOverview] = useState<finance.FinanceOverview | null>(null);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try { setOverview(await finance.fetchFinanceOverview()); }
     catch (error) { toast('error', errorMessage(error)); }
@@ -30,12 +29,6 @@ export function AdminBillingView() {
     () => void load(),
   ), [load]);
 
-  const run = async (action: () => Promise<unknown>, success: string) => {
-    setBusy(true);
-    try { await action(); toast('success', success); await load(); }
-    catch (error) { toast('error', errorMessage(error)); }
-    finally { setBusy(false); }
-  };
   const activeTotal = useMemo(() => overview?.subscriptions
     .filter((item) => item.status === 'active')
     .reduce((sum, item) => sum + item.amount_cents, 0) ?? 0, [overview]);
@@ -74,18 +67,6 @@ export function AdminBillingView() {
           <td>{item.project_name}</td><td>{item.competence.slice(0, 7)}</td><td>{item.due_date ? formatDate(item.due_date) : '—'}</td>
           <td>{formatCurrencyFromCents(item.amount_cents)}</td><td><span className={`finance-badge finance-badge--${item.status}`}>{STATUS[item.status] ?? item.status}</span></td>
         </tr>)}{!overview?.subscriptionPayments.length && <tr><td colSpan={5}>Nenhuma mensalidade recebida do Asaas ainda.</td></tr>}</tbody>
-      </table></div>
-    </section>
-
-    <section className="cart-panel">
-      <header className="cart-panel__head"><h2 className="cart-panel__title">Pagamentos dos projetos</h2></header>
-      <p className="cart-panel__hint">Controle interno das etapas. A configuração é feita no drawer do projeto e não gera cobrança no Asaas.</p>
-      <div className="finance-table-wrap"><table className="finance-table">
-        <thead><tr><th>Projeto</th><th>Etapa</th><th>Vencimento</th><th>Valor</th><th>Status</th><th /></tr></thead>
-        <tbody>{overview?.projectPayments.map((item) => <tr key={item.id}>
-          <td>{item.project_name}</td><td>{item.name}</td><td>{item.due_date ? formatDate(item.due_date) : '—'}</td><td>{formatCurrencyFromCents(item.amount_cents)}</td>
-          <td><span className={`finance-badge finance-badge--${item.status}`}>{STATUS[item.status] ?? item.status}</span></td><td>{item.status !== 'draft' && item.status !== 'cancelled' && <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void run(() => finance.updateProjectPayment(item.id, { status: item.status === 'paid' ? 'pending' : 'paid' }), item.status === 'paid' ? 'Pagamento reaberto.' : 'Pagamento confirmado.')}>{item.status === 'paid' ? 'Reabrir' : 'Marcar pago'}</button>}</td>
-        </tr>)}{!overview?.projectPayments.length && <tr><td colSpan={6}>Nenhum plano de pagamento configurado.</td></tr>}</tbody>
       </table></div>
     </section>
   </div>;

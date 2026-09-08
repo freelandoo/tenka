@@ -295,6 +295,9 @@ export interface ProjectPaymentRow {
   notes: string;
   receipt_url: string;
   project_name?: string;
+  client_name?: string;
+  /** Linha projetada para um projeto sem plano; vira registro ao confirmar. */
+  virtual?: boolean;
 }
 
 export interface SubscriptionPaymentRow {

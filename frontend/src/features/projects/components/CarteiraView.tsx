@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Inbox, Repeat, TrendingDown, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, CircleDollarSign, Inbox, Repeat, TrendingDown, Wallet } from 'lucide-react';
 import type { ProfileRow, ProjectStatus } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import { COLUMN_LABELS, COLUMN_ORDER } from '../hooks/useKanban';
@@ -8,6 +8,7 @@ import type { CostRow } from '../../../lib/supabase/database.types';
 import * as clientsService from '../../clients/clientsService';
 import { CostList } from '../../clients/CostList';
 import { SubscriptionList } from './SubscriptionList';
+import { ProjectPaymentsList } from './ProjectPaymentsList';
 import { subscribeRealtime } from '../../../lib/api/events';
 
 interface CarteiraViewProps {
@@ -45,6 +46,13 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  const financeStripRef = useRef<HTMLDivElement>(null);
+
+  const moveFinanceStrip = (direction: -1 | 1) => {
+    const strip = financeStripRef.current;
+    if (!strip) return;
+    strip.scrollBy({ left: direction * Math.max(420, strip.clientWidth * 0.72), behavior: 'smooth' });
+  };
 
   // Anos do select: um intervalo contínuo cobrindo as datas de entrega dos
   // projetos e o ano atual ±1 (garante opções mesmo com dados de um só ano).
@@ -177,12 +185,22 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
         />
       </div>
 
-      {/* O que sai e o que entra todo mês, lado a lado.
-          Empilhadas a página ficava alta demais e sobrava metade da largura sem
-          uso. Em duas colunas a altura é a da lista mais alta, não a soma — e as
-          duas ficam legíveis ao mesmo tempo, sem clique. Abaixo de 1100px o
-          grid vira uma coluna só. */}
-      <div className="cart-recorrencias">
+      {/* Faixa financeira: os painéis mantêm largura confortável e avançam na
+          horizontal. Assim custos, mensalidades e pagamentos de projetos ficam
+          no mesmo nível sem comprimir as linhas. */}
+      <div className="cart-recorrencias-wrap">
+        <div className="cart-recorrencias-nav">
+          <span>Visão de pagamentos</span>
+          <div className="cart-recorrencias-nav__buttons">
+            <button type="button" onClick={() => moveFinanceStrip(-1)} aria-label="Ver painel anterior">
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => moveFinanceStrip(1)} aria-label="Ver próximo painel">
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <div className="cart-recorrencias" ref={financeStripRef}>
         <section className="cart-panel">
           <header className="cart-panel__head">
             <TrendingDown size={17} aria-hidden="true" />
@@ -218,6 +236,18 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
             onChanged={onProjectsChanged}
           />
         </section>
+        <section className="cart-panel">
+          <header className="cart-panel__head">
+            <CircleDollarSign size={17} aria-hidden="true" />
+            <h2 className="cart-panel__title">Pagamentos dos projetos</h2>
+          </header>
+          <p className="cart-panel__hint">
+            Projetos sem etapas aparecem como um pagamento único. Se houver divisão,
+            cada etapa fica visível separadamente para acompanhamento.
+          </p>
+          <ProjectPaymentsList isAdmin={isAdmin} />
+        </section>
+        </div>
       </div>
 
       {/* Extrato */}

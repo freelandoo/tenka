@@ -2834,24 +2834,72 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 
 /* ---------------------------------------------------------------------------
-   Recorrências — o que sai (custos da empresa) e o que entra (mensalidades),
-   lado a lado. Empilhadas, a Carteira pagava a soma das duas alturas e deixava
-   metade da largura vazia; em duas colunas paga só a mais alta.
-   `align-items: start` impede que a coluna curta estique até a altura da outra.
+   Faixa financeira — painéis largos, dois por vez em telas grandes, com o
+   terceiro acessível por rolagem horizontal. O tamanho não é sacrificado para
+   forçar todos os assuntos na mesma largura.
    --------------------------------------------------------------------------- */
+.cart-recorrencias-wrap { min-width: 0; }
+.cart-recorrencias-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: var(--panel-text-faint);
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.cart-recorrencias-nav__buttons { display: flex; gap: 6px; }
+.cart-recorrencias-nav__buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--panel-line);
+  border-radius: 9px;
+  background: var(--panel-bg-raise);
+  color: var(--panel-text-dim);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.cart-recorrencias-nav__buttons button:hover {
+  color: var(--panel-text);
+  border-color: rgba(241, 90, 36, 0.45);
+  background: var(--panel-accent-soft);
+}
+.cart-recorrencias-nav__buttons button:focus-visible {
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
 .cart-recorrencias {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: max(520px, calc((100% - 26px) / 2));
   align-items: start;
   gap: 26px;
   min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 90, 36, 0.45) rgba(255, 255, 255, 0.04);
+  padding: 1px 1px 12px;
 }
-
-/* Duas colunas espremem o formulário de lançamento e a linha da mensalidade
-   antes de o layout mobile entrar; abaixo disso cada painel volta a ocupar a
-   largura toda. */
-@media (max-width: 1180px) {
-  .cart-recorrencias { grid-template-columns: minmax(0, 1fr); }
+.cart-recorrencias::-webkit-scrollbar { height: 8px; }
+.cart-recorrencias::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.cart-recorrencias::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(241, 90, 36, 0.45);
+}
+.cart-recorrencias > .cart-panel {
+  min-width: 0;
+  scroll-snap-align: start;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2921,13 +2969,46 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   font-size: 11px;
 }
 
+/* Pagamentos únicos e etapas usam a mesma gramática visual das mensalidades,
+   mas sem estado ativo/inativo: o status aqui é somente financeiro. */
+.project-payments__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 78px auto auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 13px;
+}
+.project-payments__row.is-paid { opacity: 0.68; }
+.project-payments__status {
+  padding: 3px 7px;
+  border: 1px solid var(--panel-line-strong);
+  border-radius: 999px;
+  color: var(--panel-text-faint);
+  font-family: var(--panel-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.project-payments__status.is-pending { color: #f4bd68; border-color: rgba(244, 189, 104, 0.35); }
+.project-payments__status.is-paid { color: #3fb950; border-color: rgba(63, 185, 80, 0.4); }
+.project-payments__status.is-cancelled { text-decoration: line-through; opacity: 0.65; }
+.project-payments .costs__total small { color: var(--panel-text-faint); }
+
 @media (max-width: 720px) {
+  .cart-recorrencias { grid-auto-columns: min(88vw, 560px); gap: 14px; }
+  .cart-recorrencias-nav__buttons button { width: 34px; height: 34px; }
   .costs__form { grid-template-columns: 1fr 1fr; }
   .costs__row { grid-template-columns: 1fr auto auto; row-gap: 6px; }
   /* Sem espaço para o dia do vencimento ao lado do valor; ele já aparece na
      faixa financeira do Extrato. */
   .fees__row { grid-template-columns: 1fr auto auto auto; }
   .fees__due { display: none; }
+  .project-payments__row { grid-template-columns: minmax(110px, 1fr) auto auto auto; }
+  .project-payments__row .fees__due { display: none; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
   .leads__contact,
   .leads__value,

@@ -61,3 +61,8 @@ export const updateProjectPayment = (
 ) => apiRequest<{ payment: ProjectPaymentRow }>(`/project-payments/${paymentId}`, {
   method: 'PATCH', body: input,
 });
+
+export const setDefaultProjectPayment = (projectId: string, paid: boolean) =>
+  apiRequest<{ payment: ProjectPaymentRow }>(`/projects/${projectId}/project-payment`, {
+    method: 'PUT', body: { paid },
+  });
