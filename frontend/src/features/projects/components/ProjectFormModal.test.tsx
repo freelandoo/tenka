@@ -61,11 +61,13 @@ describe('ProjectFormModal — contato do cliente', () => {
       />,
     );
 
-    await user.selectOptions(await screen.findByLabelText('Cliente'), existingClient.id);
+    await user.selectOptions(await screen.findByLabelText('Cadastro'), existingClient.id);
     const phone = screen.getByLabelText('Telefone');
     const email = screen.getByLabelText('E-mail');
+    const cpfCnpj = screen.getByLabelText('CPF/CNPJ (opcional)');
     expect(phone).not.toHaveAttribute('readonly');
     expect(email).not.toHaveAttribute('readonly');
+    expect(cpfCnpj).not.toHaveAttribute('readonly');
     expect(screen.getByText('Assinatura ativa')).toBeInTheDocument();
     const subscriptionHeading = screen.getByText('Mensalidade do projeto');
     expect(subscriptionHeading.closest('fieldset')).toBeNull();
@@ -75,6 +77,7 @@ describe('ProjectFormModal — contato do cliente', () => {
 
     await user.type(phone, '(11) 99999-8888');
     await user.type(email, 'cliente@exemplo.com');
+    await user.type(cpfCnpj, '123.456.789-00');
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com contato');
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-10-15');
     await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
@@ -85,6 +88,7 @@ describe('ProjectFormModal — contato do cliente', () => {
           clientId: existingClient.id,
           clientPhone: '(11) 99999-8888',
           clientEmail: 'cliente@exemplo.com',
+          clientCpfCnpj: '123.456.789-00',
         }),
       ),
     );

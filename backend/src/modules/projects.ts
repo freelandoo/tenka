@@ -50,6 +50,7 @@ const createSchema = z.object({
   clientName: z.string().default(''),
   clientPhone: z.string().default(''),
   clientEmail: z.string().default(''),
+  clientCpfCnpj: z.string().trim().max(20).optional(),
   company: z.enum(['tenka', 'pjcodeworks']).default('tenka'),
   clientId: z.string().uuid().nullable().default(null),
   dueDay: z.number().int().min(1).max(31).nullable().default(null),
@@ -197,14 +198,20 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const i = parsed.data;
+    let clientCpfCnpj = i.clientCpfCnpj;
+    if (i.clientId && clientCpfCnpj === undefined) {
+      const existingClient = await getPool().query<{ cpf_cnpj: string }>(
+        'select cpf_cnpj from public.clients where id = $1 and archived_at is null',
+        [i.clientId],
+      );
+      clientCpfCnpj = existingClient.rows[0]?.cpf_cnpj ?? '';
+    }
     if (i.subscriptionActive && !hasAsaas) {
       return reply.code(503).send({ error: 'asaas-nao-configurado' });
     }
     if (i.subscriptionActive) {
       if (!i.clientId) return reply.code(409).send({ error: 'cliente-obrigatorio-para-ativacao' });
-      const clientResult = await getPool().query<{ cpf_cnpj: string }>(
-        'select cpf_cnpj from public.clients where id = $1 and archived_at is null', [i.clientId]);
-      if (!clientResult.rows[0]?.cpf_cnpj?.trim()) {
+      if (!clientCpfCnpj?.trim()) {
         return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio-para-ativacao' });
       }
     }
@@ -216,9 +223,9 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         if (i.clientId) {
           const updated = await client.query(
             `update public.clients
-                set name = $2, phone = $3, email = $4
+                set name = $2, phone = $3, email = $4, cpf_cnpj = $5
               where id = $1 and archived_at is null`,
-            [i.clientId, i.clientName.trim(), i.clientPhone.trim(), i.clientEmail.trim()],
+            [i.clientId, i.clientName.trim(), i.clientPhone.trim(), i.clientEmail.trim(), clientCpfCnpj ?? ''],
           );
           if (updated.rowCount === 0) throw new Error('Cliente inexistente ou arquivado.');
         }

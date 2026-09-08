@@ -35,6 +35,7 @@ export const projectFormSchema = z
     .trim()
     .max(160, 'E-mail longo demais.')
     .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'E-mail inválido.'),
+  clientCpfCnpj: z.string().trim().max(20, 'CPF/CNPJ longo demais.'),
   company: z.enum(COMPANY_KEYS, { message: 'Escolha a empresa.' }),
   /** Texto do campo de moeda; convertido para centavos ao salvar. */
   value: z

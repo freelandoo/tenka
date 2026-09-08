@@ -25,6 +25,7 @@ export interface CreateProjectInput {
   clientName: string;
   clientPhone: string;
   clientEmail: string;
+  clientCpfCnpj: string;
   /** Cliente dono do projeto; o formulário cria um antes quando é novo. */
   clientId: string | null;
   company: CompanyKey;

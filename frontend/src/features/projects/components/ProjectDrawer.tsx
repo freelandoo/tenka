@@ -324,6 +324,14 @@ export function ProjectDrawer({
               <dd style={{ wordBreak: 'break-all' }}>{project.client_email}</dd>
             </div>
           )}
+          {isAdmin && finance?.project.cpf_cnpj && (
+            <div>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>
+                CPF/CNPJ
+              </dt>
+              <dd>{finance.project.cpf_cnpj}</dd>
+            </div>
+          )}
           <div>
             <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>
               Entrega
@@ -347,7 +355,7 @@ export function ProjectDrawer({
           </div>
         </dl>
         {isAdmin && finance?.subscription && <div className="project-drawer__subscription">
-          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Rascunho' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status}</span>
+          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Rascunho' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status === 'pending_activation' ? 'Ativação pendente' : finance.subscription.status}</span>
           {finance.subscription.status === 'active'
             ? <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void subscriptionAction('pause')}><CirclePause size={14} /> Desativar</button>
             : <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy || !finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj} onClick={() => void activateSubscription()}><Check size={14} /> {finance.subscription.asaas_subscription_id ? 'Reativar' : 'Ativar no Asaas'}</button>}
@@ -358,7 +366,7 @@ export function ProjectDrawer({
               ? 'A integração com o Asaas ainda não está configurada.'
               : !finance.project.client_id
                 ? 'Vincule um cliente ao projeto antes de ativar.'
-                : 'Cadastre o CPF/CNPJ do cliente antes de ativar no Asaas.'}
+                : 'Falta cadastrar o CPF/CNPJ para funcionar no Asaas.'}
           </p>
         )}
       </section>

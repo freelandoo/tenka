@@ -50,6 +50,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientName: project.client_name,
           clientPhone: project.client_phone,
           clientEmail: project.client_email,
+          clientCpfCnpj: '',
           company: project.company,
           value: project.value_cents > 0 ? formatCurrencyFromCents(project.value_cents) : '',
           monthlyFee: project.monthly_fee_cents > 0 ? formatCurrencyFromCents(project.monthly_fee_cents) : '',
@@ -67,6 +68,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientName: '',
           clientPhone: '',
           clientEmail: '',
+          clientCpfCnpj: '',
           company: 'tenka',
           value: '',
           monthlyFee: '',
@@ -82,12 +84,15 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const mainAssignee = watch('mainAssignee');
   const clientId = watch('clientId');
   const subscriptionActive = watch('subscriptionActive');
+  const clientCpfCnpj = watch('clientCpfCnpj');
 
   useEffect(() => {
     if (!project) return;
     let cancelled = false;
     finance.fetchProjectFinance(project.id).then((detail) => {
-      if (cancelled || !detail.subscription) return;
+      if (cancelled) return;
+      setValue('clientCpfCnpj', detail.project.cpf_cnpj ?? '');
+      if (!detail.subscription) return;
       setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
       setValue('dueDay', String(detail.subscription.due_day));
       setValue('subscriptionActive', detail.subscription.status === 'active');
@@ -115,6 +120,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     setValue('clientName', selecionado.name);
     setValue('clientPhone', selecionado.phone);
     setValue('clientEmail', selecionado.email);
+    setValue('clientCpfCnpj', selecionado.cpf_cnpj ?? '');
   }, [selecionado, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
@@ -134,18 +140,22 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           name: values.clientName,
           phone: values.clientPhone,
           email: values.clientEmail,
+          cpfCnpj: values.clientCpfCnpj,
         });
         resolvedClientId = created.id;
-      } else if (selecionado && isEdit) {
+      } else if (isEdit) {
         const clientChanged =
+          !selecionado ||
           values.clientName.trim() !== selecionado.name ||
           values.clientPhone.trim() !== selecionado.phone ||
-          values.clientEmail.trim() !== selecionado.email;
+          values.clientEmail.trim() !== selecionado.email ||
+          values.clientCpfCnpj.trim() !== (selecionado.cpf_cnpj ?? '');
         if (clientChanged) {
           await clientsService.updateClient(resolvedClientId, {
             name: values.clientName.trim(),
             phone: values.clientPhone.trim(),
             email: values.clientEmail.trim(),
+            cpf_cnpj: values.clientCpfCnpj.trim(),
           });
         }
       }
@@ -161,6 +171,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientName: values.clientName,
           clientPhone: values.clientPhone,
           clientEmail: values.clientEmail,
+          clientCpfCnpj: values.clientCpfCnpj,
           clientId: resolvedClientId,
           company: values.company,
           dueDate: values.dueDate,
@@ -209,7 +220,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       const friendly: Record<string, string> = {
         'asaas-nao-configurado': 'A integração com o Asaas ainda não está configurada.',
         'cliente-obrigatorio-para-ativacao': 'Selecione um cliente antes de ativar a assinatura.',
-        'cpf-cnpj-obrigatorio-para-ativacao': 'Cadastre o CPF/CNPJ do cliente antes de ativar a assinatura.',
+        'cpf-cnpj-obrigatorio-para-ativacao': 'Falta cadastrar o CPF/CNPJ para funcionar no Asaas.',
       };
       toast(
         'error',
@@ -284,7 +295,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </legend>
 
           <div className="panel-field">
-            <label htmlFor="project-client-id">Cliente</label>
+            <label htmlFor="project-client-id">Cadastro</label>
             <select id="project-client-id" className="panel-select" {...register('clientId')}>
               <option value="">+ Novo cliente</option>
               {clients.map((c) => (
@@ -345,6 +356,21 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
               />
               {errors.clientEmail && (
                 <p className="panel-field__error">{errors.clientEmail.message}</p>
+              )}
+            </div>
+            <div className="panel-field">
+              <label htmlFor="project-client-cpf-cnpj">CPF/CNPJ (opcional)</label>
+              <input
+                id="project-client-cpf-cnpj"
+                className="panel-input"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                maxLength={20}
+                aria-invalid={Boolean(errors.clientCpfCnpj)}
+                {...register('clientCpfCnpj')}
+              />
+              {errors.clientCpfCnpj && (
+                <p className="panel-field__error">{errors.clientCpfCnpj.message}</p>
               )}
             </div>
           </div>
@@ -412,8 +438,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           <p className="panel-field__hint">
             Se hoje ainda não passou do dia escolhido, a primeira cobrança vence neste mês; caso contrário, no mês seguinte.
           </p>
-          {subscriptionActive && !selecionado?.cpf_cnpj && (
-            <p className="finance-warning">Para ativar no Asaas, selecione um cliente que já tenha CPF/CNPJ cadastrado.</p>
+          {subscriptionActive && !clientCpfCnpj.trim() && (
+            <p className="finance-warning">Falta cadastrar o CPF/CNPJ para funcionar no Asaas.</p>
           )}
         </section>
 

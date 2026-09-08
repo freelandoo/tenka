@@ -8,6 +8,7 @@ const valid = {
   clientName: 'Acme Ltda',
   clientPhone: '11999998888',
   clientEmail: '',
+  clientCpfCnpj: '',
   company: 'tenka' as const,
   value: '12.500,00',
   monthlyFee: '500,00',
