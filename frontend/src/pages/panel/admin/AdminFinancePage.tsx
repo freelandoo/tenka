@@ -45,7 +45,7 @@ export default function AdminFinancePage() {
 
       {status === 'ready' && (
         <>
-          <AdminBillingView projects={projects} />
+          <AdminBillingView />
           <details className="finance-admin__legacy">
             <summary>Projeções, custos e carteira anterior</summary>
             <CarteiraView

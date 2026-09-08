@@ -29,7 +29,6 @@ const PROJECT_PATCH_COLS = [
   'name',
   'description',
   'value_cents',
-  'monthly_fee_cents',
   'client_name',
   'client_phone',
   'client_email',
@@ -37,8 +36,6 @@ const PROJECT_PATCH_COLS = [
   'due_date',
   'color_key',
   'client_id',
-  // Dia do mês do vencimento (1–31) — cobrança recorrente, não data única.
-  'due_day',
 ] as const;
 
 const createSchema = z.object({
@@ -53,6 +50,8 @@ const createSchema = z.object({
   company: z.enum(['tenka', 'pjcodeworks']).default('tenka'),
   clientId: z.string().uuid().nullable().default(null),
   dueDay: z.number().int().min(1).max(31).nullable().default(null),
+  subscriptionNextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  subscriptionBillingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).default('UNDEFINED'),
   dueDate: z.string(),
   colorKey: z.string(),
   assigneeIds: z.array(z.string().uuid()).default([]),
@@ -233,11 +232,23 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         if (i.monthlyFeeCents > 0) {
           await client.query(
             `insert into public.project_subscriptions
-               (project_id, amount_cents, due_day, next_due_date, status,
+               (project_id, amount_cents, billing_type, due_day, next_due_date, status,
                 external_reference, created_by)
-             values ($1,$2,coalesce($3,extract(day from $4::date)::int),$4,'draft',
-                     'project-subscription:' || $1::text,$5)`,
-            [newId, i.monthlyFeeCents, i.dueDay, i.dueDate, req.userId],
+             values ($1,$2,$3,coalesce($4,extract(day from $5::date)::int),$5,'draft',
+                     'project-subscription:' || $1::text,$6)`,
+            [newId, i.monthlyFeeCents, i.subscriptionBillingType, i.dueDay,
+              i.subscriptionNextDueDate ?? i.dueDate, req.userId],
+          );
+          await client.query(
+            `insert into public.project_activity (project_id, actor_id, action, metadata)
+             values ($1,$2,'assinatura_configurada',$3::jsonb)`,
+            [newId, req.userId, JSON.stringify({
+              initial: true,
+              amountCents: i.monthlyFeeCents,
+              dueDay: i.dueDay,
+              nextDueDate: i.subscriptionNextDueDate ?? i.dueDate,
+              billingType: i.subscriptionBillingType,
+            })],
           );
         }
         return newId;

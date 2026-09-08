@@ -113,19 +113,6 @@ export default function ProjectsPage() {
     [move, toast],
   );
 
-  const toggleSubscription = useCallback(
-    async (projectId: string, active: boolean) => {
-      try {
-        await service.setSubscriptionActive(projectId, active);
-        toast('success', active ? 'Mensalidade ativada.' : 'Mensalidade desativada.');
-        await refresh();
-      } catch (error) {
-        toast('error', error instanceof Error ? error.message : 'Falha ao atualizar mensalidade.');
-      }
-    },
-    [refresh, toast],
-  );
-
   const reopenFromHistory = useCallback(
     async (projectId: string) => {
       try {
@@ -301,7 +288,6 @@ export default function ProjectsPage() {
             projects={history}
             isAdmin={isAdmin}
             onOpenDetails={setDetailsId}
-            onToggleSubscription={toggleSubscription}
             onReopen={reopenFromHistory}
           />
         </>

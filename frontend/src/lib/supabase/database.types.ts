@@ -223,7 +223,9 @@ export type ProjectActivityAction =
   | 'projeto_finalizado'
   | 'projeto_reaberto'
   | 'projeto_arquivado'
-  | 'assinatura_configurada';
+  | 'assinatura_configurada'
+  | 'plano_pagamentos_atualizado'
+  | 'pagamento_projeto_atualizado';
 
 export interface ProjectActivityRow {
   id: string;

@@ -5,12 +5,33 @@ import type {
   ProjectStatus,
 } from '../../../lib/supabase/database.types';
 import * as service from '../services/projectsService';
-import { formatDateTime } from '../../panel/format';
+import { formatCurrencyFromCents, formatDate, formatDateTime } from '../../panel/format';
 import { COLUMN_LABELS } from '../hooks/useKanban';
 
 interface ProjectActivityListProps {
   projectId: string;
   profiles: ProfileRow[];
+  revision?: number;
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+
+function projectChanges(meta: Record<string, unknown>): string {
+  if (!Array.isArray(meta.changes)) return 'os dados do projeto';
+  const labels: Record<string, string> = {
+    name: 'nome', description: 'descrição', value_cents: 'valor total', due_date: 'data de entrega',
+    client_name: 'cliente', company: 'empresa', color_key: 'cor',
+  };
+  return meta.changes.map((raw) => {
+    const item = asRecord(raw);
+    if (!item) return '';
+    const label = labels[String(item.field)] ?? String(item.field);
+    if (item.field === 'value_cents') return `${label} de ${formatCurrencyFromCents(Number(item.from))} para ${formatCurrencyFromCents(Number(item.to))}`;
+    if (item.field === 'due_date') return `${label} de ${formatDate(String(item.from))} para ${formatDate(String(item.to))}`;
+    return `${label} de “${String(item.from ?? '—')}” para “${String(item.to ?? '—')}”`;
+  }).filter(Boolean).join('; ') || 'os dados do projeto';
 }
 
 function statusLabel(value: unknown): string {
@@ -28,7 +49,7 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
     case 'projeto_criado':
       return `${actorName} criou o projeto.`;
     case 'projeto_editado':
-      return `${actorName} editou os dados do projeto.`;
+      return `${actorName} alterou ${projectChanges(meta)}.`;
     case 'responsavel_adicionado':
       return `${actorName} adicionou ${targetName(meta.user_id)} como responsável.`;
     case 'responsavel_removido':
@@ -47,13 +68,28 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
       return `${actorName} reabriu o projeto.`;
     case 'projeto_arquivado':
       return `${actorName} arquivou o projeto.`;
+    case 'assinatura_configurada': {
+      const previous = asRecord(meta.previous);
+      const current = asRecord(meta.current);
+      if (meta.event === 'pause') return `${actorName} solicitou a desativação da mensalidade.`;
+      if (meta.event === 'reactivate') return `${actorName} solicitou a reativação da mensalidade.`;
+      if (!current && meta.initial) return `${actorName} configurou a mensalidade em ${formatCurrencyFromCents(Number(meta.amountCents))}, vencimento no dia ${meta.dueDay}.`;
+      if (!current) return `${actorName} atualizou a mensalidade.`;
+      const before = previous ? `${formatCurrencyFromCents(Number(previous.amountCents))}, dia ${previous.dueDay}` : 'não configurada';
+      const after = `${formatCurrencyFromCents(Number(current.amountCents))}, dia ${current.dueDay}, próximo vencimento ${formatDate(String(current.nextDueDate))}`;
+      return `${actorName} alterou a mensalidade de ${before} para ${after}.`;
+    }
+    case 'plano_pagamentos_atualizado':
+      return `${actorName} ${meta.status === 'active' ? 'ativou' : 'salvou'} o plano de pagamentos com ${Array.isArray(meta.current) ? meta.current.length : 0} etapa(s), total de ${formatCurrencyFromCents(Number(meta.totalCents))}.`;
+    case 'pagamento_projeto_atualizado':
+      return `${actorName} alterou “${String(meta.paymentName ?? 'pagamento')}” de ${String(meta.from ?? '—')} para ${String(meta.to ?? '—')}.`;
     default:
       return `${actorName} atualizou o projeto.`;
   }
 }
 
 /** Trilha de atividades do projeto (carregamento controlado, mais recentes primeiro). */
-export function ProjectActivityList({ projectId, profiles }: ProjectActivityListProps) {
+export function ProjectActivityList({ projectId, profiles, revision = 0 }: ProjectActivityListProps) {
   const [items, setItems] = useState<ProjectActivityRow[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -75,7 +111,7 @@ export function ProjectActivityList({ projectId, profiles }: ProjectActivityList
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, revision]);
 
   if (items === null) {
     return <p style={{ fontSize: 13, color: 'var(--panel-text-faint)' }}>Carregando histórico…</p>;

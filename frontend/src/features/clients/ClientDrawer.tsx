@@ -6,7 +6,6 @@ import type {
   ProfileRow,
 } from '../../lib/supabase/database.types';
 import type { BoardProject } from '../projects/services/projectsService';
-import * as projectsService from '../projects/services/projectsService';
 import { COLUMN_LABELS } from '../projects/hooks/useKanban';
 import { COMPANY_LABELS } from '../projects/companies';
 import { PanelOverlay } from '../panel/PanelOverlay';
@@ -115,8 +114,6 @@ export function ClientDrawer({
                 key={project.id}
                 project={project}
                 profiles={profiles}
-                isAdmin={isAdmin}
-                onChanged={onChanged}
               />
             ))}
           </div>
@@ -136,18 +133,11 @@ export function ClientDrawer({
 function ProjectSection({
   project,
   profiles,
-  isAdmin,
-  onChanged,
 }: {
   project: BoardProject;
   profiles: ProfileRow[];
-  isAdmin: boolean;
-  onChanged(): void;
 }) {
-  const { toast } = useToast();
   const [costs, setCosts] = useState<CostRow[]>([]);
-  const [dueDay, setDueDay] = useState<string>(project.due_day?.toString() ?? '');
-  const [busy, setBusy] = useState(false);
 
   const autor = profiles.find((p) => p.id === project.created_by)?.name ?? 'Usuário removido';
 
@@ -165,30 +155,6 @@ function ProjectSection({
 
   // Outro admin lançando custo aparece aqui sem recarregar a página.
   useEffect(() => subscribeRealtime(['costs'], () => void loadCosts()), [loadCosts]);
-
-  const patch = async (body: Record<string, unknown>) => {
-    setBusy(true);
-    try {
-      await projectsService.updateProject(project.id, body);
-      onChanged();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao salvar.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveDueDay = async () => {
-    const raw = dueDay.trim();
-    const value = raw === '' ? null : Number(raw);
-    if (value !== null && (!Number.isInteger(value) || value < 1 || value > 31)) {
-      toast('error', 'O vencimento é um dia do mês, de 1 a 31.');
-      setDueDay(project.due_day?.toString() ?? '');
-      return;
-    }
-    if (value === project.due_day) return;
-    await patch({ due_day: value });
-  };
 
   const temMensalidade = project.monthly_fee_cents > 0;
 
@@ -235,22 +201,7 @@ function ProjectSection({
             <CalendarClock size={11} aria-hidden="true" /> Vencimento
           </dt>
           <dd>
-            {isAdmin ? (
-              <input
-                className="panel-input client-project__day"
-                type="number"
-                min={1}
-                max={31}
-                placeholder="dia"
-                value={dueDay}
-                disabled={busy}
-                onChange={(e) => setDueDay(e.target.value)}
-                onBlur={() => void saveDueDay()}
-                aria-label={`Dia de vencimento de ${project.name}`}
-              />
-            ) : (
-              <span>{project.due_day ? `dia ${project.due_day}` : '—'}</span>
-            )}
+            <span>{project.due_day ? `dia ${project.due_day}` : '—'}</span>
           </dd>
         </div>
         <div>

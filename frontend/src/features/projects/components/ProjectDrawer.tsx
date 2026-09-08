@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CalendarDays, CheckCircle2, Pencil, RotateCcw, UserPlus, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { CalendarDays, Check, CheckCircle2, CirclePause, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
 import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
@@ -12,6 +12,10 @@ import { POSTIT_COLOR_LABELS } from '../colors';
 import { COMPANY_LABELS } from '../companies';
 import { ProjectNotesSection } from './ProjectNotes';
 import { ProjectActivityList } from './ProjectActivity';
+import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
+import * as financeService from '../../finance/financeService';
+import type { ProjectFinance } from '../../finance/financeService';
+import { subscribeRealtime } from '../../../lib/api/events';
 
 interface ProjectDrawerProps {
   project: BoardProject;
@@ -38,6 +42,20 @@ export function ProjectDrawer({
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [addingUser, setAddingUser] = useState('');
+  const [finance, setFinance] = useState<ProjectFinance | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [activityRevision, setActivityRevision] = useState(0);
+
+  const loadFinance = useCallback(async () => {
+    if (!isAdmin) return;
+    try { setFinance(await financeService.fetchProjectFinance(project.id)); }
+    catch { setFinance(null); }
+  }, [isAdmin, project.id]);
+  useEffect(() => { void loadFinance(); }, [loadFinance]);
+  useEffect(() => subscribeRealtime(
+    ['project_subscriptions', 'project_payments', 'subscription_payments'],
+    () => { void loadFinance(); setActivityRevision((value) => value + 1); },
+  ), [loadFinance]);
 
   const creatorName =
     profiles.find((p) => p.id === project.created_by)?.name ?? 'Desconhecido';
@@ -115,6 +133,48 @@ export function ProjectDrawer({
       setBusy(false);
     }
   };
+
+  const subscriptionAction = async (action: 'pause' | 'reactivate') => {
+    setBusy(true);
+    try {
+      await financeService.subscriptionAction(project.id, action);
+      toast('success', action === 'pause' ? 'Desativação enviada ao Asaas.' : 'Reativação enviada ao Asaas.');
+      await loadFinance();
+      setActivityRevision((value) => value + 1);
+      onChanged();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao atualizar a assinatura.');
+    } finally { setBusy(false); }
+  };
+
+  const activateSubscription = async () => {
+    if (!finance?.subscription) return;
+    if (finance.subscription.asaas_subscription_id) {
+      await subscriptionAction('reactivate');
+      return;
+    }
+    setBusy(true);
+    try {
+      await financeService.saveSubscription(project.id, {
+        amountCents: finance.subscription.amount_cents,
+        dueDay: finance.subscription.due_day,
+        nextDueDate: finance.subscription.next_due_date,
+        billingType: finance.subscription.billing_type,
+        activate: true,
+      });
+      toast('success', 'Ativação enviada ao Asaas.');
+      await loadFinance();
+      setActivityRevision((value) => value + 1);
+      onChanged();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao ativar a assinatura.');
+    } finally { setBusy(false); }
+  };
+
+  if (planOpen) {
+    return <ProjectPaymentPlanDrawer project={project} onBack={() => setPlanOpen(false)} onClose={onClose}
+      onSaved={() => { void loadFinance(); setActivityRevision((value) => value + 1); onChanged(); }} />;
+  }
 
   return (
     <PanelOverlay variant="drawer" labelledBy="project-drawer-title" onClose={onClose}>
@@ -221,7 +281,22 @@ export function ProjectDrawer({
               <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>
                 Valor
               </dt>
-              <dd style={{ fontWeight: 700 }}>{formatCurrencyFromCents(project.value_cents)}</dd>
+              <dd className="project-drawer__value">
+                <strong>{formatCurrencyFromCents(project.value_cents)}</strong>
+                <button type="button" className="project-drawer__split" aria-label="Dividir valor em etapas" title="Dividir valor em etapas" onClick={() => setPlanOpen(true)}><Plus size={14} /></button>
+              </dd>
+            </div>
+          )}
+          {isAdmin && (
+            <div>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Mensalidade</dt>
+              <dd><strong>{finance?.subscription ? formatCurrencyFromCents(finance.subscription.amount_cents) : 'Não configurada'}</strong></dd>
+            </div>
+          )}
+          {isAdmin && finance?.subscription && (
+            <div>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Vencimento mensal</dt>
+              <dd>Dia {finance.subscription.due_day} · próximo {formatDate(finance.subscription.next_due_date)}</dd>
             </div>
           )}
           <div>
@@ -268,6 +343,21 @@ export function ProjectDrawer({
             <dd>{formatDateTime(project.created_at)}</dd>
           </div>
         </dl>
+        {isAdmin && finance?.subscription && <div className="project-drawer__subscription">
+          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Rascunho' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status}</span>
+          {finance.subscription.status === 'active'
+            ? <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void subscriptionAction('pause')}><CirclePause size={14} /> Desativar</button>
+            : <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy || !finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj} onClick={() => void activateSubscription()}><Check size={14} /> {finance.subscription.asaas_subscription_id ? 'Reativar' : 'Ativar no Asaas'}</button>}
+        </div>}
+        {isAdmin && finance?.subscription && (!finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj) && (
+          <p className="finance-warning">
+            {!finance.configured
+              ? 'A integração com o Asaas ainda não está configurada.'
+              : !finance.project.client_id
+                ? 'Vincule um cliente ao projeto antes de ativar.'
+                : 'Cadastre o CPF/CNPJ do cliente antes de ativar no Asaas.'}
+          </p>
+        )}
       </section>
 
       <section className="panel-drawer__section" aria-labelledby="drawer-assignees">
@@ -343,7 +433,7 @@ export function ProjectDrawer({
         <h3 id="drawer-activity" className="panel-eyebrow">
           Histórico de atividades
         </h3>
-        <ProjectActivityList projectId={project.id} profiles={profiles} />
+        <ProjectActivityList projectId={project.id} profiles={profiles} revision={activityRevision} />
       </section>
     </PanelOverlay>
   );

@@ -21,6 +21,9 @@ export interface CreateProjectInput {
   valueCents: number;
   monthlyFeeCents: number;
   subscriptionActive: boolean;
+  dueDay: number | null;
+  subscriptionNextDueDate: string | null;
+  subscriptionBillingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
   clientName: string;
   clientPhone: string;
   clientEmail: string;
@@ -36,14 +39,10 @@ export interface UpdateProjectInput {
   name?: string;
   description?: string;
   value_cents?: number;
-  monthly_fee_cents?: number;
-  subscription_active?: boolean;
   client_name?: string;
   client_phone?: string;
   client_email?: string;
   client_id?: string | null;
-  /** Dia do mês do vencimento (1–31); `null` limpa. */
-  due_day?: number | null;
   company?: CompanyKey;
   due_date?: string;
   color_key?: PostItColorKey;
@@ -101,14 +100,6 @@ export async function finalizeProject(projectId: string): Promise<void> {
 /** Reabre um projeto do histórico: volta ao board na coluna Em andamento. */
 export async function reopenProject(projectId: string): Promise<void> {
   await apiRequest(`/projects/${projectId}/reopen`, { method: 'POST' });
-}
-
-/** Liga/desliga a mensalidade recorrente (conta na carteira enquanto ativa). */
-export async function setSubscriptionActive(
-  projectId: string,
-  active: boolean,
-): Promise<void> {
-  await updateProject(projectId, { subscription_active: active });
 }
 
 /** Projetos cuja mensalidade foi confirmada na competência `YYYY-MM`. */

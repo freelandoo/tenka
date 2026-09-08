@@ -126,6 +126,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const locked = await client.query<{ id: string }>(
           'select id from public.projects where id = $1 for update', [id]);
         if (!locked.rows[0]) return null;
+        const previousResult = await client.query<{
+          amount_cents: number; due_day: number; next_due_date: string;
+          billing_type: string; status: string; asaas_subscription_id: string | null;
+        }>('select * from public.project_subscriptions where project_id = $1 for update', [id]);
+        const previous = previousResult.rows[0] ?? null;
         const { rows } = await client.query<{ id: string; asaas_subscription_id: string | null }>(
           `insert into public.project_subscriptions
              (project_id, amount_cents, billing_type, due_day, next_due_date,
@@ -149,13 +154,26 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           [id, parsed.data.amountCents, parsed.data.dueDay],
         );
         if (parsed.data.activate) {
-          await queueOperation(client, id, subscription.id,
-            subscription.asaas_subscription_id ? 'reactivate_subscription' : 'activate_subscription');
+          const kind = previous?.status === 'active' ? 'sync_subscription'
+            : subscription.asaas_subscription_id ? 'reactivate_subscription' : 'activate_subscription';
+          await queueOperation(client, id, subscription.id, kind);
         }
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)
-           values ($1,$2,'assinatura_configurada',jsonb_build_object('activate',$3))`,
-          [id, req.userId, parsed.data.activate],
+           values ($1,$2,'assinatura_configurada',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            activate: parsed.data.activate,
+            previous: previous ? {
+              amountCents: previous.amount_cents, dueDay: previous.due_day,
+              nextDueDate: previous.next_due_date, billingType: previous.billing_type,
+              status: previous.status,
+            } : null,
+            current: {
+              amountCents: parsed.data.amountCents, dueDay: parsed.data.dueDay,
+              nextDueDate: parsed.data.nextDueDate, billingType: parsed.data.billingType,
+              status: parsed.data.activate ? 'pending_activation' : (previous?.status ?? 'draft'),
+            },
+          })],
         );
         return subscription;
       });
@@ -174,14 +192,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const kind = action === 'pause' ? 'pause_subscription'
         : action === 'reactivate' ? 'reactivate_subscription' : 'sync_subscription';
       const result = await withActor(req.userId!, async (client) => {
-        const { rows } = await client.query<{ id: string }>(
-          'select id from public.project_subscriptions where project_id = $1 for update', [id]);
+        const { rows } = await client.query<{ id: string; status: string }>(
+          'select id, status from public.project_subscriptions where project_id = $1 for update', [id]);
         if (!rows[0]) return null;
         await queueOperation(client, id, rows[0].id, kind);
         await client.query(
           `update public.project_subscriptions
               set status = coalesce($2, status), sync_error = null where id = $1`,
           [rows[0].id, action === 'pause' ? null : 'pending_activation'],
+        );
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'assinatura_configurada',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({ event: action, from: rows[0].status })],
         );
         return rows[0];
       });
@@ -203,6 +226,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const paid = await client.query(
           `select 1 from public.project_payments where project_id = $1 and status = 'paid' limit 1`, [id]);
         if (paid.rows[0]) return 'has-paid';
+        const previousPlan = await client.query(
+          `select name, description, amount_cents, due_date, status, position
+             from public.project_payments where project_id = $1 order by position`, [id]);
         const total = parsed.data.payments.reduce((sum, item) => sum + item.amountCents, 0);
         if (parsed.data.status === 'active' && total !== rows[0].value_cents) return 'sum-mismatch';
         await client.query('delete from public.project_payments where project_id = $1', [id]);
@@ -217,6 +243,16 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         }
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
           [id, parsed.data.status]);
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'plano_pagamentos_atualizado',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            previous: previousPlan.rows,
+            current: parsed.data.payments,
+            status: parsed.data.status,
+            totalCents: total,
+          })],
+        );
         return 'ok';
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
@@ -232,14 +268,29 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = paymentPatchSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-    const { rows } = await withActor(req.userId!, (client) => client.query(
-      `update public.project_payments
+    const rows = await withActor(req.userId!, async (client) => {
+      const previous = await client.query<{ project_id: string; status: string; name: string }>(
+        'select project_id, status, name from public.project_payments where id = $1 for update', [id]);
+      if (!previous.rows[0]) return [];
+      const updated = await client.query(
+        `update public.project_payments
           set status = $2,
               paid_at = case when $2 = 'paid' then coalesce(paid_at, now()) else null end,
               notes = coalesce($3, notes), receipt_url = coalesce($4, receipt_url)
         where id = $1 returning *`,
-      [id, parsed.data.status, parsed.data.notes ?? null, parsed.data.receiptUrl ?? null],
-    ));
+        [id, parsed.data.status, parsed.data.notes ?? null, parsed.data.receiptUrl ?? null],
+      );
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
+        [previous.rows[0].project_id, req.userId, JSON.stringify({
+          paymentName: previous.rows[0].name,
+          from: previous.rows[0].status,
+          to: parsed.data.status,
+        })],
+      );
+      return updated.rows;
+    });
     if (!rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
     return reply.send({ payment: rows[0] });
   });

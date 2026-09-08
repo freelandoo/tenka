@@ -1,8 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { LeadsView } from './LeadsView';
 import * as service from './clientsService';
-import * as projectsService from '../projects/services/projectsService';
 import type { ClientWithTotals, ProfileRow } from '../../lib/supabase/database.types';
 import type { BoardProject } from '../projects/services/projectsService';
 
@@ -16,16 +15,10 @@ vi.mock('./clientsService', () => ({
   sumActiveCosts: vi.fn(() => 0),
 }));
 
-vi.mock('../projects/services/projectsService', async (original) => ({
-  ...(await original<typeof projectsService>()),
-  setSubscriptionActive: vi.fn(),
-}));
-
 vi.mock('../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('../../lib/api/events', () => ({ subscribeRealtime: () => () => {} }));
 
 const mocked = vi.mocked(service);
-const mockedProjects = vi.mocked(projectsService);
 
 function makeClient(over: Partial<ClientWithTotals> = {}): ClientWithTotals {
   return {
@@ -112,7 +105,7 @@ describe('LeadsView', () => {
     expect(screen.getByText('dia 10')).toBeInTheDocument();
   });
 
-  it('com UM projeto com mensalidade, o botão Ativa alterna direto', async () => {
+  it('com UM projeto com mensalidade, mostra o status sem editar fora do drawer do projeto', async () => {
     mocked.fetchClients.mockResolvedValue([makeClient({ fee_count: 1, active_fee_count: 1 })]);
     const onChanged = vi.fn();
     render(
@@ -124,11 +117,8 @@ describe('LeadsView', () => {
       />,
     );
 
-    const botao = await screen.findByRole('button', { name: 'Ativa' });
-    fireEvent.click(botao);
-    await waitFor(() =>
-      expect(mockedProjects.setSubscriptionActive).toHaveBeenCalledWith('p1', false),
-    );
+    expect((await screen.findAllByText('Ativa')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Ativa' })).toBeNull();
   });
 
   it('com VÁRIOS projetos com mensalidade, mostra o placar em vez de alternar', async () => {

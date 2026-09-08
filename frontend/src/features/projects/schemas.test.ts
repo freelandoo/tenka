@@ -12,6 +12,9 @@ const valid = {
   value: '12.500,00',
   monthlyFee: '500,00',
   subscriptionActive: true,
+  dueDay: '10',
+  subscriptionNextDueDate: '2026-10-10',
+  billingType: 'UNDEFINED' as const,
   dueDate: '2026-09-30',
   colorKey: 'azul',
   mainAssignee: 'user-1',
@@ -36,6 +39,12 @@ describe('projectFormSchema', () => {
   it('rejeita valor negativo ou inválido', () => {
     expect(projectFormSchema.safeParse({ ...valid, value: '-100' }).success).toBe(false);
     expect(projectFormSchema.safeParse({ ...valid, value: 'muito caro' }).success).toBe(false);
+  });
+
+  it('exige vencimento quando existe mensalidade', () => {
+    expect(projectFormSchema.safeParse({ ...valid, dueDay: '' }).success).toBe(false);
+    expect(projectFormSchema.safeParse({ ...valid, subscriptionNextDueDate: '' }).success).toBe(false);
+    expect(projectFormSchema.safeParse({ ...valid, dueDay: '32' }).success).toBe(false);
   });
 
   it('rejeita cor fora da paleta', () => {

@@ -7,20 +7,18 @@ interface HistoryListProps {
   projects: BoardProject[];
   isAdmin: boolean;
   onOpenDetails(projectId: string): void;
-  onToggleSubscription(projectId: string, active: boolean): Promise<void>;
   onReopen(projectId: string): Promise<void>;
 }
 
 /**
  * Histórico de projetos finalizados — a "lista embaixo do Kanban". Cada linha
- * traz a coluna Mensalidade e, para o admin, os botões Ativar/Desativar (liga
- * a cobrança recorrente que soma na carteira) e Reabrir (volta ao board).
+ * traz a coluna Mensalidade e, para o admin, Reabrir (volta ao board).
+ * A configuração financeira pertence ao drawer do projeto.
  */
 export function HistoryList({
   projects,
   isAdmin,
   onOpenDetails,
-  onToggleSubscription,
   onReopen,
 }: HistoryListProps) {
   const [pending, setPending] = useState<string | null>(null);
@@ -102,20 +100,6 @@ export function HistoryList({
                 <span className="history__actions" role="cell">
                   {isAdmin && (
                     <>
-                      {hasFee && (
-                        <button
-                          type="button"
-                          className={`panel-btn panel-btn--sm${
-                            p.subscription_active ? ' panel-btn--danger' : ''
-                          }`}
-                          disabled={busy}
-                          onClick={() =>
-                            void run(p.id, () => onToggleSubscription(p.id, !p.subscription_active))
-                          }
-                        >
-                          {p.subscription_active ? 'Desativar' : 'Ativar'}
-                        </button>
-                      )}
                       <button
                         type="button"
                         className="panel-btn panel-btn--sm panel-btn--ghost"

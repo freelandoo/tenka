@@ -47,11 +47,21 @@ export const projectFormSchema = z
   monthlyFee: z
     .string()
     .trim()
-    .refine((raw) => raw === '' || parseCurrencyToCents(raw) !== null, {
-      message: 'Informe uma mensalidade válida (ex.: 500,00).',
+    .refine((raw) => raw === '' || (parseCurrencyToCents(raw) ?? 0) > 0, {
+      message: 'Informe uma mensalidade maior que zero (ex.: 500,00).',
     }),
   /** Cobrança recorrente ligada — soma na carteira enquanto marcada. */
   subscriptionActive: z.boolean(),
+  dueDay: z
+    .string()
+    .trim()
+    .refine((raw) => raw === '' || (/^\d+$/.test(raw) && Number(raw) >= 1 && Number(raw) <= 31), {
+      message: 'Informe um dia entre 1 e 31.',
+    }),
+  subscriptionNextDueDate: z
+    .string()
+    .refine((raw) => raw === '' || isValidDateString(raw), 'Data inválida.'),
+  billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']),
   dueDate: z
     .string()
     .min(1, 'A data de entrega é obrigatória.')
@@ -65,6 +75,14 @@ export const projectFormSchema = z
   .refine((v) => v.clientPhone.trim() !== '' || v.clientEmail.trim() !== '', {
     message: 'Informe pelo menos telefone ou e-mail do cliente.',
     path: ['clientPhone'],
+  })
+  .refine((v) => v.monthlyFee === '' || v.dueDay !== '', {
+    message: 'Informe o dia de vencimento da mensalidade.',
+    path: ['dueDay'],
+  })
+  .refine((v) => v.monthlyFee === '' || v.subscriptionNextDueDate !== '', {
+    message: 'Informe o primeiro vencimento da mensalidade.',
+    path: ['subscriptionNextDueDate'],
   });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;

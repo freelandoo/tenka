@@ -14,6 +14,7 @@ import { PostItColorPicker } from './PostItColorPicker';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { useToast } from '../../panel/ToastContext';
 import { useAuth } from '../../auth/AuthContext';
+import * as finance from '../../finance/financeService';
 
 interface ProjectFormModalProps {
   /** null → criação; projeto → edição (somente admin). */
@@ -50,8 +51,11 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientEmail: project.client_email,
           company: project.company,
           value: project.value_cents > 0 ? formatCurrencyFromCents(project.value_cents) : '',
-          monthlyFee: '',
-          subscriptionActive: false,
+          monthlyFee: project.monthly_fee_cents > 0 ? formatCurrencyFromCents(project.monthly_fee_cents) : '',
+          subscriptionActive: project.subscription_active,
+          dueDay: project.due_day?.toString() ?? '',
+          subscriptionNextDueDate: '',
+          billingType: 'UNDEFINED',
           dueDate: project.due_date,
           colorKey: project.color_key,
           mainAssignee: project.assignees[0]?.user_id ?? '',
@@ -68,6 +72,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           value: '',
           monthlyFee: '',
           subscriptionActive: false,
+          dueDay: '',
+          subscriptionNextDueDate: '',
+          billingType: 'UNDEFINED',
           dueDate: '',
           colorKey: 'amarelo',
           mainAssignee: '',
@@ -77,6 +84,20 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
 
   const mainAssignee = watch('mainAssignee');
   const clientId = watch('clientId');
+
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    finance.fetchProjectFinance(project.id).then((detail) => {
+      if (cancelled || !detail.subscription) return;
+      setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
+      setValue('dueDay', String(detail.subscription.due_day));
+      setValue('subscriptionNextDueDate', detail.subscription.next_due_date);
+      setValue('billingType', detail.subscription.billing_type);
+      setValue('subscriptionActive', detail.subscription.status === 'active');
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [project, setValue]);
 
   // Clientes já cadastrados: escolher um evita criar contato duplicado, que é
   // exatamente o que a aba Clientes passou a corrigir.
@@ -102,6 +123,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
     const valueCents = values.value.trim() === '' ? 0 : parseCurrencyToCents(values.value) ?? 0;
+    const monthlyFeeCents = values.monthlyFee.trim() === ''
+      ? 0
+      : parseCurrencyToCents(values.monthlyFee) ?? 0;
     const assigneeIds = collectAssigneeIds(values);
 
     try {
@@ -134,8 +158,11 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           name: values.name,
           description: values.description,
           valueCents,
-          monthlyFeeCents: 0,
+          monthlyFeeCents,
           subscriptionActive: false,
+          dueDay: values.dueDay ? Number(values.dueDay) : null,
+          subscriptionNextDueDate: values.subscriptionNextDueDate || null,
+          subscriptionBillingType: values.billingType,
           clientName: values.clientName,
           clientPhone: values.clientPhone,
           clientEmail: values.clientEmail,
@@ -159,6 +186,15 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           due_date: values.dueDate,
           color_key: values.colorKey as PostItColorKey,
         });
+        if (monthlyFeeCents > 0) {
+          await finance.saveSubscription(project.id, {
+            amountCents: monthlyFeeCents,
+            dueDay: Number(values.dueDay),
+            nextDueDate: values.subscriptionNextDueDate,
+            billingType: values.billingType,
+            activate: values.subscriptionActive,
+          });
+        }
         // Sincroniza responsáveis: adiciona novos, remove ausentes.
         const current = new Set(project.assignees.map((a) => a.user_id));
         const next = new Set(assigneeIds);
@@ -348,10 +384,44 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </div>
         </div>
 
-        <p className="cart-panel__hint" style={{ marginTop: -4 }}>
-          O plano de pagamento e a mensalidade são configurados depois, de forma centralizada em
-          <strong> Administração → Financeiro</strong>.
-        </p>
+        <fieldset className="project-form__finance">
+          <legend>
+            <span className="panel-eyebrow">Mensalidade do projeto</span>
+            <small>A assinatura permanece ligada exclusivamente a este projeto.</small>
+          </legend>
+          <div className="project-form__finance-grid">
+            <div className="panel-field">
+              <label htmlFor="project-monthly-fee">Valor mensal (R$)</label>
+              <input id="project-monthly-fee" className="panel-input" inputMode="decimal"
+                placeholder="0,00" aria-invalid={Boolean(errors.monthlyFee)} {...register('monthlyFee')} />
+              {errors.monthlyFee && <p className="panel-field__error">{errors.monthlyFee.message}</p>}
+            </div>
+            <div className="panel-field">
+              <label htmlFor="project-due-day">Dia do vencimento</label>
+              <input id="project-due-day" className="panel-input" type="number" min={1} max={31}
+                placeholder="10" aria-invalid={Boolean(errors.dueDay)} {...register('dueDay')} />
+              {errors.dueDay && <p className="panel-field__error">{errors.dueDay.message}</p>}
+            </div>
+            <div className="panel-field">
+              <label htmlFor="project-subscription-date">Primeiro/próximo vencimento</label>
+              <input id="project-subscription-date" className="panel-input" type="date"
+                aria-invalid={Boolean(errors.subscriptionNextDueDate)} {...register('subscriptionNextDueDate')} />
+              {errors.subscriptionNextDueDate && <p className="panel-field__error">{errors.subscriptionNextDueDate.message}</p>}
+            </div>
+            <div className="panel-field">
+              <label htmlFor="project-billing-type">Forma de pagamento</label>
+              <select id="project-billing-type" className="panel-select" {...register('billingType')}>
+                <option value="UNDEFINED">Cliente escolhe</option>
+                <option value="PIX">Pix</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CREDIT_CARD">Cartão</option>
+              </select>
+            </div>
+          </div>
+          <p className="panel-field__hint">
+            Ao criar, a mensalidade fica em rascunho. A ativação no Asaas é feita no drawer do projeto.
+          </p>
+        </fieldset>
 
         <div className="panel-field">
           <label id="project-color-label">Cor do post-it *</label>

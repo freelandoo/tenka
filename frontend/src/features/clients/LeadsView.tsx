@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Mail, Phone, UserRound } from 'lucide-react';
 import type { ClientWithTotals, ProfileRow } from '../../lib/supabase/database.types';
 import type { BoardProject } from '../projects/services/projectsService';
-import * as projectsService from '../projects/services/projectsService';
 import { formatCurrencyFromCents } from '../panel/format';
-import { useToast } from '../panel/ToastContext';
 import { subscribeRealtime } from '../../lib/api/events';
 import * as service from './clientsService';
 import { ClientDrawer } from './ClientDrawer';
@@ -26,12 +24,10 @@ interface LeadsViewProps {
  * ficha, onde cada projeto é uma seção com o financeiro e os custos dele.
  */
 export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: LeadsViewProps) {
-  const { toast } = useToast();
   const [busca, setBusca] = useState('');
   const [clients, setClients] = useState<ClientWithTotals[] | null>(null);
   const [erro, setErro] = useState(false);
   const [abertoId, setAbertoId] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -59,26 +55,6 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
   }, [clients, busca]);
 
   const aberto = clients?.find((c) => c.id === abertoId) ?? null;
-
-  /**
-   * Liga/desliga a mensalidade. Só aparece como botão quando o cliente tem
-   * exatamente UM projeto com mensalidade — com dois, "ativar" seria ambíguo e
-   * o controle certo é o de dentro de cada seção da ficha.
-   */
-  const toggleFee = async (client: ClientWithTotals) => {
-    const alvo = projects.find((p) => p.client_id === client.id && p.monthly_fee_cents > 0);
-    if (!alvo) return;
-    setBusyId(client.id);
-    try {
-      await projectsService.setSubscriptionActive(alvo.id, !alvo.subscription_active);
-      onProjectsChanged();
-      await load();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao alterar a mensalidade.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <section className="leads" aria-labelledby="leads-title">
@@ -138,7 +114,6 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
 
           {filtrados.map((c) => {
             // Um único projeto com mensalidade → o botão da linha é claro.
-            const toggleDireto = isAdmin && c.fee_count === 1;
             return (
               <div key={c.id} className="leads__row" role="row">
                 <button
@@ -195,29 +170,12 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
                 <span className="leads__ativa-cell" role="cell">
                   {c.fee_count === 0 ? (
                     <span className="history__muted">—</span>
-                  ) : toggleDireto ? (
-                    <button
-                      type="button"
-                      className={`leads__ativa leads__ativa--btn${
-                        c.active_fee_count > 0 ? ' leads__ativa--on' : ''
-                      }`}
-                      disabled={busyId === c.id}
-                      aria-pressed={c.active_fee_count > 0}
-                      onClick={() => void toggleFee(c)}
-                    >
-                      {c.active_fee_count > 0 ? 'Ativa' : 'Inativa'}
-                    </button>
                   ) : (
-                    // Vários projetos com mensalidade: mostra o placar e manda
-                    // para a ficha, onde cada um tem o próprio botão.
-                    <button
-                      type="button"
-                      className={`leads__ativa${c.active_fee_count > 0 ? ' leads__ativa--on' : ''}`}
-                      onClick={() => setAbertoId(c.id)}
-                      title="Abrir a ficha para ativar cada projeto"
-                    >
-                      {c.active_fee_count}/{c.fee_count} ativas
-                    </button>
+                    <span className={`leads__ativa${c.active_fee_count > 0 ? ' leads__ativa--on' : ''}`}>
+                      {c.fee_count === 1
+                        ? (c.active_fee_count > 0 ? 'Ativa' : 'Inativa')
+                        : `${c.active_fee_count}/${c.fee_count} ativas`}
+                    </span>
                   )}
                 </span>
               </div>
