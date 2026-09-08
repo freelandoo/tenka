@@ -5,12 +5,13 @@ import { getPool, withActor } from '../db/pool';
 import { env, hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
+import { nextMonthlyDueDate } from '../finance/dueDate';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
   dueDay: z.number().int().min(1).max(31),
-  nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).default('UNDEFINED'),
+  nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).optional(),
   activate: z.boolean().default(false),
 });
 
@@ -131,6 +132,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           billing_type: string; status: string; asaas_subscription_id: string | null;
         }>('select * from public.project_subscriptions where project_id = $1 for update', [id]);
         const previous = previousResult.rows[0] ?? null;
+        const isStartingCycle = parsed.data.activate && previous?.status !== 'active';
+        const nextDueDate = isStartingCycle
+          ? nextMonthlyDueDate(parsed.data.dueDay)
+          : parsed.data.nextDueDate ?? previous?.next_due_date ?? nextMonthlyDueDate(parsed.data.dueDay);
+        const billingType = parsed.data.billingType ?? previous?.billing_type ?? 'UNDEFINED';
         const { rows } = await client.query<{ id: string; asaas_subscription_id: string | null }>(
           `insert into public.project_subscriptions
              (project_id, amount_cents, billing_type, due_day, next_due_date,
@@ -144,8 +150,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
              status = case when $6 = 'pending_activation' then $6 else project_subscriptions.status end,
              sync_error = null
            returning id, asaas_subscription_id`,
-          [id, parsed.data.amountCents, parsed.data.billingType, parsed.data.dueDay,
-            parsed.data.nextDueDate, parsed.data.activate ? 'pending_activation' : 'draft', req.userId],
+          [id, parsed.data.amountCents, billingType, parsed.data.dueDay,
+            nextDueDate, parsed.data.activate ? 'pending_activation' : 'draft', req.userId],
         );
         const subscription = rows[0];
         if (!subscription) throw new Error('Falha ao salvar a assinatura.');
@@ -170,7 +176,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             } : null,
             current: {
               amountCents: parsed.data.amountCents, dueDay: parsed.data.dueDay,
-              nextDueDate: parsed.data.nextDueDate, billingType: parsed.data.billingType,
+              nextDueDate, billingType,
               status: parsed.data.activate ? 'pending_activation' : (previous?.status ?? 'draft'),
             },
           })],
@@ -192,14 +198,17 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const kind = action === 'pause' ? 'pause_subscription'
         : action === 'reactivate' ? 'reactivate_subscription' : 'sync_subscription';
       const result = await withActor(req.userId!, async (client) => {
-        const { rows } = await client.query<{ id: string; status: string }>(
-          'select id, status from public.project_subscriptions where project_id = $1 for update', [id]);
+        const { rows } = await client.query<{ id: string; status: string; due_day: number }>(
+          'select id, status, due_day from public.project_subscriptions where project_id = $1 for update', [id]);
         if (!rows[0]) return null;
         await queueOperation(client, id, rows[0].id, kind);
         await client.query(
           `update public.project_subscriptions
-              set status = coalesce($2, status), sync_error = null where id = $1`,
-          [rows[0].id, action === 'pause' ? null : 'pending_activation'],
+              set status = coalesce($2, status),
+                  next_due_date = case when $3::date is null then next_due_date else $3::date end,
+                  sync_error = null where id = $1`,
+          [rows[0].id, action === 'pause' ? null : 'pending_activation',
+            action === 'reactivate' ? nextMonthlyDueDate(rows[0].due_day) : null],
         );
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)

@@ -11,6 +11,9 @@ import {
   type ProjectForSend,
 } from '../whatsapp/outbound';
 import { contactStatusForProject } from '../whatsapp/repo';
+import { hasAsaas } from '../env';
+import { financeWorker } from '../finance/worker';
+import { nextMonthlyDueDate } from '../finance/dueDate';
 
 /**
  * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
@@ -50,11 +53,13 @@ const createSchema = z.object({
   company: z.enum(['tenka', 'pjcodeworks']).default('tenka'),
   clientId: z.string().uuid().nullable().default(null),
   dueDay: z.number().int().min(1).max(31).nullable().default(null),
-  subscriptionNextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
-  subscriptionBillingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).default('UNDEFINED'),
   dueDate: z.string(),
   colorKey: z.string(),
   assigneeIds: z.array(z.string().uuid()).default([]),
+}).refine((value) => value.monthlyFeeCents === 0 || value.dueDay !== null, {
+  message: 'due-day-required-for-subscription',
+}).refine((value) => !value.subscriptionActive || value.monthlyFeeCents > 0, {
+  message: 'monthly-fee-required-for-activation',
 });
 
 const moveSchema = z.object({
@@ -192,6 +197,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const i = parsed.data;
+    if (i.subscriptionActive && !hasAsaas) {
+      return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    }
+    if (i.subscriptionActive) {
+      if (!i.clientId) return reply.code(409).send({ error: 'cliente-obrigatorio-para-ativacao' });
+      const clientResult = await getPool().query<{ cpf_cnpj: string }>(
+        'select cpf_cnpj from public.clients where id = $1 and archived_at is null', [i.clientId]);
+      if (!clientResult.rows[0]?.cpf_cnpj?.trim()) {
+        return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio-para-ativacao' });
+      }
+    }
     try {
       const id = await withActor(req.userId!, async (client) => {
         // Se um cliente existente foi selecionado, telefone/e-mail editados no
@@ -230,15 +246,27 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           ],
         );
         if (i.monthlyFeeCents > 0) {
-          await client.query(
+          const nextDueDate = nextMonthlyDueDate(i.dueDay ?? 10);
+          const subscriptionResult = await client.query<{ id: string }>(
             `insert into public.project_subscriptions
                (project_id, amount_cents, billing_type, due_day, next_due_date, status,
                 external_reference, created_by)
-             values ($1,$2,$3,coalesce($4,extract(day from $5::date)::int),$5,'draft',
-                     'project-subscription:' || $1::text,$6)`,
-            [newId, i.monthlyFeeCents, i.subscriptionBillingType, i.dueDay,
-              i.subscriptionNextDueDate ?? i.dueDate, req.userId],
+             values ($1,$2,'UNDEFINED',$3,$4,$5,
+                     'project-subscription:' || $1::text,$6)
+             returning id`,
+            [newId, i.monthlyFeeCents, i.dueDay ?? 10, nextDueDate,
+              i.subscriptionActive ? 'pending_activation' : 'draft', req.userId],
           );
+          const subscription = subscriptionResult.rows[0];
+          if (!subscription) throw new Error('Falha ao criar a assinatura do projeto.');
+          if (i.subscriptionActive) {
+            await client.query(
+              `insert into public.asaas_operations
+                 (operation_key, project_id, subscription_id, kind)
+               values ('activate_subscription:' || gen_random_uuid()::text,$1,$2,'activate_subscription')`,
+              [newId, subscription.id],
+            );
+          }
           await client.query(
             `insert into public.project_activity (project_id, actor_id, action, metadata)
              values ($1,$2,'assinatura_configurada',$3::jsonb)`,
@@ -246,13 +274,14 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
               initial: true,
               amountCents: i.monthlyFeeCents,
               dueDay: i.dueDay,
-              nextDueDate: i.subscriptionNextDueDate ?? i.dueDate,
-              billingType: i.subscriptionBillingType,
+              nextDueDate,
+              activate: i.subscriptionActive,
             })],
           );
         }
         return newId;
       });
+      if (i.subscriptionActive) financeWorker.kick();
       return reply.code(201).send({ id });
     } catch (err) {
       return sendDbError(err, reply);

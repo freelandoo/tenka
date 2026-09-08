@@ -61,7 +61,7 @@ export function AdminBillingView() {
         <thead><tr><th>Projeto</th><th>Cliente</th><th>Valor</th><th>Próximo vencimento</th><th>Status</th></tr></thead>
         <tbody>{overview?.subscriptions.map((item) => <tr key={item.id}>
           <td>{item.project_name}</td><td>{item.client_name || '—'}</td><td>{formatCurrencyFromCents(item.amount_cents)}</td>
-          <td>{formatDate(item.next_due_date)}</td><td><span className={`finance-badge finance-badge--${item.status}`}>{STATUS[item.status] ?? item.status}</span>{(item.sync_error || item.operation_error) && <small>{item.sync_error || item.operation_error}</small>}</td>
+          <td>{item.status === 'active' || item.status === 'pending_activation' ? formatDate(item.next_due_date) : 'Calculado ao ativar'}</td><td><span className={`finance-badge finance-badge--${item.status}`}>{STATUS[item.status] ?? item.status}</span>{(item.sync_error || item.operation_error) && <small>{item.sync_error || item.operation_error}</small>}</td>
         </tr>)}{!overview?.subscriptions.length && <tr><td colSpan={5}>Nenhuma assinatura configurada.</td></tr>}</tbody>
       </table></div>
     </section>

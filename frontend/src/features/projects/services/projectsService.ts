@@ -22,8 +22,6 @@ export interface CreateProjectInput {
   monthlyFeeCents: number;
   subscriptionActive: boolean;
   dueDay: number | null;
-  subscriptionNextDueDate: string | null;
-  subscriptionBillingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
   clientName: string;
   clientPhone: string;
   clientEmail: string;

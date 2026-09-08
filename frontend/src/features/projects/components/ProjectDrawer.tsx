@@ -158,8 +158,6 @@ export function ProjectDrawer({
       await financeService.saveSubscription(project.id, {
         amountCents: finance.subscription.amount_cents,
         dueDay: finance.subscription.due_day,
-        nextDueDate: finance.subscription.next_due_date,
-        billingType: finance.subscription.billing_type,
         activate: true,
       });
       toast('success', 'Ativação enviada ao Asaas.');
@@ -296,7 +294,12 @@ export function ProjectDrawer({
           {isAdmin && finance?.subscription && (
             <div>
               <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Vencimento mensal</dt>
-              <dd>Dia {finance.subscription.due_day} · próximo {formatDate(finance.subscription.next_due_date)}</dd>
+              <dd>
+                Dia {finance.subscription.due_day}
+                {(finance.subscription.status === 'active' || finance.subscription.status === 'pending_activation')
+                  ? ` · próximo ${formatDate(finance.subscription.next_due_date)}`
+                  : ''}
+              </dd>
             </div>
           )}
           <div>

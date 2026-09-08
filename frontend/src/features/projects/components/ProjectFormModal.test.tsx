@@ -66,6 +66,9 @@ describe('ProjectFormModal — contato do cliente', () => {
     const email = screen.getByLabelText('E-mail');
     expect(phone).not.toHaveAttribute('readonly');
     expect(email).not.toHaveAttribute('readonly');
+    expect(screen.getByText('Assinatura ativa')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Primeiro/próximo vencimento')).toBeNull();
+    expect(screen.queryByLabelText('Forma de pagamento')).toBeNull();
 
     await user.type(phone, '(11) 99999-8888');
     await user.type(email, 'cliente@exemplo.com');

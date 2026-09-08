@@ -58,10 +58,6 @@ export const projectFormSchema = z
     .refine((raw) => raw === '' || (/^\d+$/.test(raw) && Number(raw) >= 1 && Number(raw) <= 31), {
       message: 'Informe um dia entre 1 e 31.',
     }),
-  subscriptionNextDueDate: z
-    .string()
-    .refine((raw) => raw === '' || isValidDateString(raw), 'Data inválida.'),
-  billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']),
   dueDate: z
     .string()
     .min(1, 'A data de entrega é obrigatória.')
@@ -80,9 +76,9 @@ export const projectFormSchema = z
     message: 'Informe o dia de vencimento da mensalidade.',
     path: ['dueDay'],
   })
-  .refine((v) => v.monthlyFee === '' || v.subscriptionNextDueDate !== '', {
-    message: 'Informe o primeiro vencimento da mensalidade.',
-    path: ['subscriptionNextDueDate'],
+  .refine((v) => !v.subscriptionActive || v.monthlyFee !== '', {
+    message: 'Informe o valor mensal antes de ativar a assinatura.',
+    path: ['monthlyFee'],
   });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;

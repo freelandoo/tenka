@@ -32,8 +32,8 @@ export const fetchProjectFinance = (projectId: string) =>
 export interface SubscriptionInput {
   amountCents: number;
   dueDay: number;
-  nextDueDate: string;
-  billingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+  nextDueDate?: string;
+  billingType?: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
   activate: boolean;
 }
 

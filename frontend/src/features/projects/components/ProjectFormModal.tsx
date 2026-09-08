@@ -29,6 +29,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const { profile: me } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const isEdit = project !== null;
+  const [subscriptionWasActive, setSubscriptionWasActive] = useState(project?.subscription_active ?? false);
 
   const activeProfiles = useMemo(() => profiles.filter((p) => p.active), [profiles]);
 
@@ -54,8 +55,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           monthlyFee: project.monthly_fee_cents > 0 ? formatCurrencyFromCents(project.monthly_fee_cents) : '',
           subscriptionActive: project.subscription_active,
           dueDay: project.due_day?.toString() ?? '',
-          subscriptionNextDueDate: '',
-          billingType: 'UNDEFINED',
           dueDate: project.due_date,
           colorKey: project.color_key,
           mainAssignee: project.assignees[0]?.user_id ?? '',
@@ -73,8 +72,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           monthlyFee: '',
           subscriptionActive: false,
           dueDay: '',
-          subscriptionNextDueDate: '',
-          billingType: 'UNDEFINED',
           dueDate: '',
           colorKey: 'amarelo',
           mainAssignee: '',
@@ -84,6 +81,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
 
   const mainAssignee = watch('mainAssignee');
   const clientId = watch('clientId');
+  const subscriptionActive = watch('subscriptionActive');
 
   useEffect(() => {
     if (!project) return;
@@ -92,9 +90,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       if (cancelled || !detail.subscription) return;
       setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
       setValue('dueDay', String(detail.subscription.due_day));
-      setValue('subscriptionNextDueDate', detail.subscription.next_due_date);
-      setValue('billingType', detail.subscription.billing_type);
       setValue('subscriptionActive', detail.subscription.status === 'active');
+      setSubscriptionWasActive(detail.subscription.status === 'active');
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [project, setValue]);
@@ -159,10 +156,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           description: values.description,
           valueCents,
           monthlyFeeCents,
-          subscriptionActive: false,
+          subscriptionActive: values.subscriptionActive,
           dueDay: values.dueDay ? Number(values.dueDay) : null,
-          subscriptionNextDueDate: values.subscriptionNextDueDate || null,
-          subscriptionBillingType: values.billingType,
           clientName: values.clientName,
           clientPhone: values.clientPhone,
           clientEmail: values.clientEmail,
@@ -190,10 +185,11 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           await finance.saveSubscription(project.id, {
             amountCents: monthlyFeeCents,
             dueDay: Number(values.dueDay),
-            nextDueDate: values.subscriptionNextDueDate,
-            billingType: values.billingType,
             activate: values.subscriptionActive,
           });
+          if (subscriptionWasActive && !values.subscriptionActive) {
+            await finance.subscriptionAction(project.id, 'pause');
+          }
         }
         // Sincroniza responsáveis: adiciona novos, remove ausentes.
         const current = new Set(project.assignees.map((a) => a.user_id));
@@ -209,9 +205,15 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       onSaved();
       onClose();
     } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const friendly: Record<string, string> = {
+        'asaas-nao-configurado': 'A integração com o Asaas ainda não está configurada.',
+        'cliente-obrigatorio-para-ativacao': 'Selecione um cliente antes de ativar a assinatura.',
+        'cpf-cnpj-obrigatorio-para-ativacao': 'Cadastre o CPF/CNPJ do cliente antes de ativar a assinatura.',
+      };
       toast(
         'error',
-        error instanceof Error ? error.message : 'Falha ao salvar o projeto. Tente novamente.',
+        friendly[code] ?? (code || 'Falha ao salvar o projeto. Tente novamente.'),
       );
     } finally {
       setSubmitting(false);
@@ -402,25 +404,17 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 placeholder="10" aria-invalid={Boolean(errors.dueDay)} {...register('dueDay')} />
               {errors.dueDay && <p className="panel-field__error">{errors.dueDay.message}</p>}
             </div>
-            <div className="panel-field">
-              <label htmlFor="project-subscription-date">Primeiro/próximo vencimento</label>
-              <input id="project-subscription-date" className="panel-input" type="date"
-                aria-invalid={Boolean(errors.subscriptionNextDueDate)} {...register('subscriptionNextDueDate')} />
-              {errors.subscriptionNextDueDate && <p className="panel-field__error">{errors.subscriptionNextDueDate.message}</p>}
-            </div>
-            <div className="panel-field">
-              <label htmlFor="project-billing-type">Forma de pagamento</label>
-              <select id="project-billing-type" className="panel-select" {...register('billingType')}>
-                <option value="UNDEFINED">Cliente escolhe</option>
-                <option value="PIX">Pix</option>
-                <option value="BOLETO">Boleto</option>
-                <option value="CREDIT_CARD">Cartão</option>
-              </select>
-            </div>
+            <label className="project-form__subscription-toggle">
+              <input type="checkbox" {...register('subscriptionActive')} />
+              <span><strong>Assinatura ativa</strong><small>Ao ativar, o próximo vencimento será calculado automaticamente.</small></span>
+            </label>
           </div>
           <p className="panel-field__hint">
-            Ao criar, a mensalidade fica em rascunho. A ativação no Asaas é feita no drawer do projeto.
+            Se hoje ainda não passou do dia escolhido, a primeira cobrança vence neste mês; caso contrário, no mês seguinte.
           </p>
+          {subscriptionActive && !selecionado?.cpf_cnpj && (
+            <p className="finance-warning">Para ativar no Asaas, selecione um cliente que já tenha CPF/CNPJ cadastrado.</p>
+          )}
         </fieldset>
 
         <div className="panel-field">
