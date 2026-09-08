@@ -30,7 +30,6 @@ const PROJECT_PATCH_COLS = [
   'description',
   'value_cents',
   'monthly_fee_cents',
-  'subscription_active',
   'client_name',
   'client_phone',
   'client_email',
@@ -135,6 +134,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
          from public.subscription_payments sp
          join public.projects p on p.id = sp.project_id
         where sp.competence = ($1 || '-01')::date
+          and sp.status in ('confirmed', 'received', 'legacy_paid')
           and p.archived_at is null
           and ($3 or exists (select 1 from public.project_assignees a
                               where a.project_id = p.id and a.user_id = $2))`,
@@ -156,12 +156,16 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           const { rows } = await withActor(req.userId!, (client) =>
             client.query(
               `insert into public.subscription_payments
-                 (project_id, competence, paid_by)
-               select id, ($2 || '-01')::date, $3
+                 (project_id, competence, paid_at, received_at, status,
+                  amount_cents, source, paid_by)
+               select id, ($2 || '-01')::date, now(), now(), 'legacy_paid',
+                      monthly_fee_cents, 'manual', $3
                  from public.projects
                 where id = $1 and monthly_fee_cents > 0
                on conflict (project_id, competence) do update
-                 set paid_at = now(), paid_by = excluded.paid_by
+                 set paid_at = now(), received_at = now(), status = 'legacy_paid',
+                     amount_cents = (select monthly_fee_cents from public.projects where id = $1),
+                     source = 'manual', paid_by = excluded.paid_by
                returning project_id`,
               [id, parsed.data.competence, req.userId],
             ),
@@ -205,7 +209,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           [
             newId,
             i.monthlyFeeCents,
-            i.subscriptionActive,
+            false,
             i.clientName,
             i.clientPhone,
             i.clientEmail,
@@ -214,6 +218,16 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             i.dueDay,
           ],
         );
+        if (i.monthlyFeeCents > 0) {
+          await client.query(
+            `insert into public.project_subscriptions
+               (project_id, amount_cents, due_day, next_due_date, status,
+                external_reference, created_by)
+             values ($1,$2,coalesce($3,extract(day from $4::date)::int),$4,'draft',
+                     'project-subscription:' || $1::text,$5)`,
+            [newId, i.monthlyFeeCents, i.dueDay, i.dueDate, req.userId],
+          );
+        }
         return newId;
       });
       return reply.code(201).send({ id });

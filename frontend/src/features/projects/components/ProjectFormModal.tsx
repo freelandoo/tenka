@@ -50,9 +50,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           clientEmail: project.client_email,
           company: project.company,
           value: project.value_cents > 0 ? formatCurrencyFromCents(project.value_cents) : '',
-          monthlyFee:
-            project.monthly_fee_cents > 0 ? formatCurrencyFromCents(project.monthly_fee_cents) : '',
-          subscriptionActive: project.subscription_active,
+          monthlyFee: '',
+          subscriptionActive: false,
           dueDate: project.due_date,
           colorKey: project.color_key,
           mainAssignee: project.assignees[0]?.user_id ?? '',
@@ -102,8 +101,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
     const valueCents = values.value.trim() === '' ? 0 : parseCurrencyToCents(values.value) ?? 0;
-    const monthlyFeeCents =
-      values.monthlyFee.trim() === '' ? 0 : parseCurrencyToCents(values.monthlyFee) ?? 0;
     const assigneeIds = collectAssigneeIds(values);
 
     try {
@@ -124,8 +121,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           name: values.name,
           description: values.description,
           valueCents,
-          monthlyFeeCents,
-          subscriptionActive: values.subscriptionActive,
+          monthlyFeeCents: 0,
+          subscriptionActive: false,
           clientName: values.clientName,
           clientPhone: values.clientPhone,
           clientEmail: values.clientEmail,
@@ -141,8 +138,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           name: values.name,
           description: values.description,
           value_cents: valueCents,
-          monthly_fee_cents: monthlyFeeCents,
-          subscription_active: values.subscriptionActive,
           client_name: values.clientName,
           client_phone: values.clientPhone,
           client_email: values.clientEmail,
@@ -331,21 +326,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </div>
 
           <div className="panel-field">
-            <label htmlFor="project-monthly">Mensalidade (R$/mês)</label>
-            <input
-              id="project-monthly"
-              className="panel-input"
-              inputMode="decimal"
-              placeholder="0,00"
-              aria-invalid={Boolean(errors.monthlyFee)}
-              {...register('monthlyFee')}
-            />
-            {errors.monthlyFee && (
-              <p className="panel-field__error">{errors.monthlyFee.message}</p>
-            )}
-          </div>
-
-          <div className="panel-field">
             <label htmlFor="project-due">Data de entrega *</label>
             <input
               id="project-due"
@@ -358,10 +338,10 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </div>
         </div>
 
-        <label className="panel-checkbox" style={{ marginTop: -4 }}>
-          <input type="checkbox" {...register('subscriptionActive')} />
-          Mensalidade ativa — soma na carteira enquanto marcada
-        </label>
+        <p className="cart-panel__hint" style={{ marginTop: -4 }}>
+          O plano de pagamento e a mensalidade são configurados depois, de forma centralizada em
+          <strong> Administração → Financeiro</strong>.
+        </p>
 
         <div className="panel-field">
           <label id="project-color-label">Cor do post-it *</label>

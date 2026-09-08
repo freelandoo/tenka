@@ -17,13 +17,14 @@ import { staffOnly, adminOnly } from '../auth/middleware';
 import { buildPatch } from './patch';
 import { sendDbError } from './dbError';
 
-const CLIENT_PATCH_COLS = ['name', 'phone', 'email', 'notes'] as const;
+const CLIENT_PATCH_COLS = ['name', 'phone', 'email', 'notes', 'cpf_cnpj'] as const;
 
 const createSchema = z.object({
   name: z.string().trim().min(1),
   phone: z.string().trim().default(''),
   email: z.string().trim().default(''),
   notes: z.string().trim().default(''),
+  cpfCnpj: z.string().trim().max(20).default(''),
 });
 
 function isAdmin(req: FastifyRequest): boolean {
@@ -71,13 +72,13 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
   app.post('/clients', adminOnly, async (req, reply) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-    const { name, phone, email, notes } = parsed.data;
+    const { name, phone, email, notes, cpfCnpj } = parsed.data;
     try {
       const client = await withActor(req.userId!, async (db) => {
         const { rows } = await db.query(
-          `insert into public.clients (name, phone, email, notes, created_by)
-           values ($1, $2, $3, $4, $5) returning *`,
-          [name, phone, email, notes, req.userId],
+          `insert into public.clients (name, phone, email, notes, cpf_cnpj, created_by)
+           values ($1, $2, $3, $4, $5, $6) returning *`,
+          [name, phone, email, notes, cpfCnpj, req.userId],
         );
         return rows[0];
       });

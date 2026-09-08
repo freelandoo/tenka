@@ -1,6 +1,7 @@
 import { RefreshCw } from 'lucide-react';
 import { CarteiraView } from '../../../features/projects/components/CarteiraView';
 import { useAdminBoardData } from '../../../features/admin/useAdminBoardData';
+import { AdminBillingView } from '../../../features/finance/AdminBillingView';
 
 /**
  * Financeiro — a Carteira como seção da Administração.
@@ -43,12 +44,18 @@ export default function AdminFinancePage() {
       )}
 
       {status === 'ready' && (
-        <CarteiraView
-          projects={projects}
-          profiles={profiles}
-          isAdmin
-          onProjectsChanged={() => void refresh()}
-        />
+        <>
+          <AdminBillingView projects={projects} />
+          <details className="finance-admin__legacy">
+            <summary>Projeções, custos e carteira anterior</summary>
+            <CarteiraView
+              projects={projects}
+              profiles={profiles}
+              isAdmin
+              onProjectsChanged={() => void refresh()}
+            />
+          </details>
+        </>
       )}
     </>
   );

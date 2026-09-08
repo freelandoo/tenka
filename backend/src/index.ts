@@ -16,6 +16,8 @@ import { eventRoutes } from './modules/events';
 import { whatsappRoutes } from './modules/whatsapp';
 import { webhookRoutes } from './modules/webhooks';
 import { meetingRoutes } from './modules/meetings';
+import { financeRoutes } from './modules/finance';
+import { financeWorker } from './finance/worker';
 import { realtimeBus } from './realtime/bus';
 
 const app = Fastify({
@@ -42,6 +44,7 @@ async function main(): Promise<void> {
   await app.register(eventRoutes);
   await app.register(whatsappRoutes);
   await app.register(meetingRoutes);
+  await app.register(financeRoutes);
   // Webhook da Evolution: não passa por auth de painel (valida x-webhook-secret).
   await app.register(webhookRoutes);
 
@@ -63,11 +66,15 @@ async function main(): Promise<void> {
   await app.listen({ host: '0.0.0.0', port: env.port });
 
   if (hasDatabase && env.runMigrationsOnBoot) {
-    runMigrations().catch((err) => {
-      app.log.error({ err }, 'Falha ao aplicar migrations no boot');
-    });
+    runMigrations()
+      .then(() => financeWorker.start())
+      .catch((err) => {
+        app.log.error({ err }, 'Falha ao aplicar migrations no boot');
+      });
   } else if (!hasDatabase) {
     app.log.warn('DATABASE_URL ausente — servidor no ar, mas sem banco.');
+  } else {
+    financeWorker.start();
   }
 
   // Realtime (SSE): conexão dedicada em LISTEN. Independe das migrations —
@@ -84,6 +91,7 @@ for (const sig of ['SIGTERM', 'SIGINT'] as const) {
   process.on(sig, async () => {
     app.log.info(`${sig} recebido — encerrando.`);
     await realtimeBus.stop().catch(() => {});
+    financeWorker.stop();
     await app.close().catch(() => {});
     await closeDb().catch(() => {});
     process.exit(0);

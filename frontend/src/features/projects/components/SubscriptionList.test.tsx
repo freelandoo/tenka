@@ -3,19 +3,16 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { SubscriptionList } from './SubscriptionList';
 import {
   fetchSubscriptionPayments,
-  setSubscriptionActive,
   setSubscriptionPaid,
 } from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
 
 vi.mock('../services/projectsService', () => ({
   fetchSubscriptionPayments: vi.fn(),
-  setSubscriptionActive: vi.fn(),
   setSubscriptionPaid: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-const mockedToggle = vi.mocked(setSubscriptionActive);
 const mockedFetchPayments = vi.mocked(fetchSubscriptionPayments);
 const mockedSetPaid = vi.mocked(setSubscriptionPaid);
 
@@ -134,16 +131,13 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('R$ 359,80/mês')).toBeInTheDocument();
   });
 
-  it('liga e desliga a recorrência', async () => {
-    mockedToggle.mockResolvedValue(undefined);
-    const onChanged = vi.fn();
+  it('não oferece atalho de ativação fora do financeiro administrativo', () => {
     render(
-      <SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a' })]} isAdmin onChanged={onChanged} />,
+      <SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a' })]} isAdmin onChanged={vi.fn()} />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ativa' }));
-    await waitFor(() => expect(mockedToggle).toHaveBeenCalledWith('a', false));
-    expect(onChanged).toHaveBeenCalled();
+    expect(screen.getByText('Ativa')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ativa' })).toBeNull();
   });
 
   it('colaborador vê os valores mas não altera a recorrência', () => {
@@ -156,7 +150,8 @@ describe('SubscriptionList', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Ativa' })).toBeDisabled();
+    expect(screen.getByText('Ativa')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ativa' })).toBeNull();
   });
 
   it('mostra o dia do vencimento e o cliente de cada mensalidade', () => {

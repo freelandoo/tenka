@@ -23,7 +23,10 @@ export interface ChangeEvent {
     | 'wa_conversations'
     | 'wa_messages'
     | 'clients'
-    | 'costs';
+    | 'costs'
+    | 'project_subscriptions'
+    | 'project_payments'
+    | 'subscription_payments';
   /** Dono da notificação (só em eventos de `notifications`). */
   u?: string;
   /** Conversa afetada (só em eventos de `wa_messages`) — a thread aberta filtra por ela. */

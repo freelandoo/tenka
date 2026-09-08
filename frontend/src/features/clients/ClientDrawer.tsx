@@ -263,17 +263,11 @@ function ProjectSection({
         </div>
       </dl>
 
-      {temMensalidade && isAdmin && (
-        <button
-          type="button"
-          className={`client-project__ativa${project.subscription_active ? ' is-on' : ''}`}
-          disabled={busy}
-          aria-pressed={project.subscription_active}
-          onClick={() => void patch({ subscription_active: !project.subscription_active })}
-        >
+      {temMensalidade && (
+        <span className={`client-project__ativa${project.subscription_active ? ' is-on' : ''}`}>
           <span className="cart-status__dot" aria-hidden="true" />
           Mensalidade {project.subscription_active ? 'ativa' : 'inativa'}
-        </button>
+        </span>
       )}
 
       <div className="client-project__costs">
@@ -299,13 +293,15 @@ function ClientForm({
   const [phone, setPhone] = useState(client.phone);
   const [email, setEmail] = useState(client.email);
   const [notes, setNotes] = useState(client.notes);
+  const [cpfCnpj, setCpfCnpj] = useState(client.cpf_cnpj ?? '');
   const [saving, setSaving] = useState(false);
 
   const dirty =
     name !== client.name ||
     phone !== client.phone ||
     email !== client.email ||
-    notes !== client.notes;
+    notes !== client.notes ||
+    cpfCnpj !== (client.cpf_cnpj ?? '');
 
   const save = async () => {
     if (!name.trim()) {
@@ -314,7 +310,7 @@ function ClientForm({
     }
     setSaving(true);
     try {
-      await service.updateClient(client.id, { name: name.trim(), phone, email, notes });
+      await service.updateClient(client.id, { name: name.trim(), phone, email, notes, cpf_cnpj: cpfCnpj });
       toast('success', 'Cliente atualizado nos projetos dele.');
       onChanged();
     } catch (error) {
@@ -326,6 +322,18 @@ function ClientForm({
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      <div className="panel-field">
+        <label htmlFor={`cli-document-${client.id}`}>CPF/CNPJ</label>
+        <input
+          id={`cli-document-${client.id}`}
+          className="panel-input"
+          value={cpfCnpj}
+          disabled={!isAdmin}
+          inputMode="numeric"
+          placeholder="Necessário para cobrar pelo Asaas"
+          onChange={(e) => setCpfCnpj(e.target.value)}
+        />
+      </div>
       <div className="panel-field">
         <label htmlFor={`cli-name-${client.id}`}>Nome</label>
         <input

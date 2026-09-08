@@ -66,9 +66,19 @@ export const env = {
   meetingTimezone: (process.env.MEETING_TIMEZONE ?? 'America/Sao_Paulo').trim(),
   /** Para onde devolver o navegador ao fim do consentimento do Google. */
   panelUrl: (process.env.PANEL_URL ?? '').trim(),
+
+  // --- Asaas (financeiro administrativo) -----------------------------------
+  // A ausência da chave deixa o cadastro financeiro disponível em modo local,
+  // mas impede ativar/sincronizar cobranças externas.
+  asaasEnvironment: process.env.ASAAS_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+  asaasApiKey: (process.env.ASAAS_API_KEY ?? '').trim(),
+  /** Token definido no webhook do Asaas e recebido em `asaas-access-token`. */
+  asaasWebhookToken: (process.env.ASAAS_WEBHOOK_TOKEN ?? '').trim(),
+  asaasTimeoutMs: Math.max(1_000, Number(process.env.ASAAS_TIMEOUT_MS ?? 15_000)),
 } as const;
 
 export const hasDatabase = env.databaseUrl.length > 0;
+export const hasAsaas = env.asaasApiKey.length > 0;
 
 /** Em produção o segredo de JWT não pode ser o default de desenvolvimento. */
 export function assertAuthEnv(): void {

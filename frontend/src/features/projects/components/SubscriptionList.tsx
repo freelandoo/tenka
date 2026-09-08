@@ -3,7 +3,6 @@ import type { BoardProject } from '../services/projectsService';
 import { cents, formatCurrencyFromCents } from '../../panel/format';
 import {
   fetchSubscriptionPayments,
-  setSubscriptionActive,
   setSubscriptionPaid,
 } from '../services/projectsService';
 import { useToast } from '../../panel/ToastContext';
@@ -39,10 +38,8 @@ export function SubscriptionList({
   isAdmin,
   competence,
   competenceLabel,
-  onChanged,
 }: SubscriptionListProps) {
   const { toast } = useToast();
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
   const [paymentsLoading, setPaymentsLoading] = useState(true);
@@ -103,18 +100,6 @@ export function SubscriptionList({
     }
     return { total, ativas, parada };
   }, [linhas]);
-
-  const toggle = async (project: BoardProject) => {
-    setBusyId(project.id);
-    try {
-      await setSubscriptionActive(project.id, !project.subscription_active);
-      onChanged();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao alterar a mensalidade.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const togglePaid = async (project: BoardProject) => {
     const targetCompetence = competence;
@@ -197,22 +182,11 @@ export function SubscriptionList({
               >
                 Pago
               </button>
-              <button
-                type="button"
+              <span
                 className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}
-                disabled={busyId === p.id || !isAdmin}
-                aria-pressed={p.subscription_active}
-                title={
-                  isAdmin
-                    ? p.subscription_active
-                      ? 'Desativar a recorrência (sai da soma)'
-                      : 'Reativar a recorrência'
-                    : 'Somente administradores alteram a recorrência'
-                }
-                onClick={() => void toggle(p)}
               >
                 {p.subscription_active ? 'Ativa' : 'Inativa'}
-              </button>
+              </span>
             </li>
           );
         })}

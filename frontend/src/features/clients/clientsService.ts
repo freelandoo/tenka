@@ -17,6 +17,7 @@ export interface ClientInput {
   phone?: string;
   email?: string;
   notes?: string;
+  cpfCnpj?: string;
 }
 
 export async function createClient(input: ClientInput): Promise<ClientWithTotals> {
@@ -33,7 +34,7 @@ export async function createClient(input: ClientInput): Promise<ClientWithTotals
  */
 export async function updateClient(
   id: string,
-  patch: Partial<Pick<ClientWithTotals, 'name' | 'phone' | 'email' | 'notes'>>,
+  patch: Partial<Pick<ClientWithTotals, 'name' | 'phone' | 'email' | 'notes' | 'cpf_cnpj'>>,
 ): Promise<void> {
   await apiRequest(`/clients/${id}`, { method: 'PATCH', body: patch });
 }

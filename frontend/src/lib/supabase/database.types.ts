@@ -54,6 +54,8 @@ export interface ProjectRow {
   monthly_fee_cents: number;
   /** Cobrança recorrente ligada — a mensalidade só conta quando true. */
   subscription_active: boolean;
+  /** Estado do fluxo A do valor do projeto: cria primeiro, configura depois. */
+  financial_plan_status?: 'legacy' | 'draft' | 'active';
   /**
    * Cliente dono do projeto (migration 0014). `null` só em projeto sem contato
    * nenhum — o backfill não inventa cliente.
@@ -220,7 +222,8 @@ export type ProjectActivityAction =
   | 'observacao_editada'
   | 'projeto_finalizado'
   | 'projeto_reaberto'
-  | 'projeto_arquivado';
+  | 'projeto_arquivado'
+  | 'assinatura_configurada';
 
 export interface ProjectActivityRow {
   id: string;
@@ -241,10 +244,68 @@ export interface ClientRow {
   phone: string;
   email: string;
   notes: string;
+  /** Documento usado somente pela administração para cadastrar no Asaas. */
+  cpf_cnpj?: string;
+  asaas_customer_id?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Financeiro administrativo + Asaas (migration 0018)
+// ---------------------------------------------------------------------------
+
+export type ProjectSubscriptionStatus =
+  | 'draft' | 'pending_activation' | 'active' | 'inactive' | 'cancelled' | 'error';
+
+export interface ProjectSubscriptionRow {
+  id: string;
+  project_id: string;
+  amount_cents: number;
+  billing_type: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+  due_day: number;
+  next_due_date: string;
+  status: ProjectSubscriptionStatus;
+  asaas_subscription_id: string | null;
+  external_reference: string;
+  sync_error: string | null;
+  operation_status?: string | null;
+  operation_error?: string | null;
+  project_name?: string;
+  client_name?: string;
+  cpf_cnpj?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectPaymentRow {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  amount_cents: number;
+  due_date: string | null;
+  paid_at: string | null;
+  status: 'draft' | 'pending' | 'paid' | 'cancelled';
+  position: number;
+  notes: string;
+  receipt_url: string;
+  project_name?: string;
+}
+
+export interface SubscriptionPaymentRow {
+  project_id: string;
+  competence: string;
+  amount_cents: number;
+  due_date: string | null;
+  status: 'pending' | 'confirmed' | 'received' | 'overdue' | 'cancelled' | 'refunded' | 'chargeback' | 'failed' | 'legacy_paid';
+  payment_url: string | null;
+  provider_status: string | null;
+  paid_at: string | null;
+  project_name?: string;
+  client_name?: string;
 }
 
 /** Cliente + os agregados que a aba Leads mostra na linha (vêm do SQL). */

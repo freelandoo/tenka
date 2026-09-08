@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { CarteiraView } from './CarteiraView';
-import { setSubscriptionActive } from '../services/projectsService';
 import * as clientsService from '../../clients/clientsService';
 import type { ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 
-vi.mock('../services/projectsService', () => ({ setSubscriptionActive: vi.fn() }));
+vi.mock('../services/projectsService', () => ({
+  fetchSubscriptionPayments: vi.fn().mockResolvedValue([]),
+  setSubscriptionPaid: vi.fn(),
+}));
 vi.mock('../../clients/clientsService', () => ({
   fetchCosts: vi.fn(),
   createCost: vi.fn(),
@@ -16,8 +18,6 @@ vi.mock('../../clients/clientsService', () => ({
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('../../../lib/api/events', () => ({ subscribeRealtime: () => () => {} }));
-
-const mockedToggle = vi.mocked(setSubscriptionActive);
 
 /** O extrato só mostra projetos entregues no mês selecionado (hoje, por padrão). */
 const hoje = new Date();
@@ -84,24 +84,22 @@ describe('Extrato da Carteira', () => {
     expect(within(linha).getByText('R$ 2.500,00')).toBeInTheDocument();
   });
 
-  it('o botão alterna a recorrência da mensalidade', async () => {
-    const onChanged = vi.fn();
+  it('mostra a recorrência sem atalho de ativação fora do financeiro administrativo', async () => {
     const { container } = render(
       <CarteiraView
         projects={[makeProject()]}
         profiles={profiles}
         isAdmin
-        onProjectsChanged={onChanged}
+        onProjectsChanged={vi.fn()}
       />,
     );
 
     await waitFor(() => expect(extratoRow(container)).toBeTruthy());
-    fireEvent.click(within(extratoRow(container)).getByRole('button', { name: /Ativa/ }));
-    await waitFor(() => expect(mockedToggle).toHaveBeenCalledWith('p1', false));
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(within(extratoRow(container)).getByText('Ativa')).toBeInTheDocument();
+    expect(within(extratoRow(container)).queryByRole('button', { name: /Ativa/ })).toBeNull();
   });
 
-  it('colaborador vê o estado mas não altera', async () => {
+  it('colaborador vê o mesmo estado somente para leitura', async () => {
     const { container } = render(
       <CarteiraView
         projects={[makeProject()]}
@@ -112,9 +110,8 @@ describe('Extrato da Carteira', () => {
     );
 
     await waitFor(() => expect(extratoRow(container)).toBeTruthy());
-    expect(
-      within(extratoRow(container)).getByRole('button', { name: /Ativa/ }),
-    ).toBeDisabled();
+    expect(within(extratoRow(container)).getByText('Ativa')).toBeInTheDocument();
+    expect(within(extratoRow(container)).queryByRole('button', { name: /Ativa/ })).toBeNull();
   });
 
   it('a seção Mensalidades mostra recorrência de projeto ENTREGUE em outro mês', async () => {
