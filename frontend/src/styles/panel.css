@@ -3426,9 +3426,8 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 .finance-admin__legacy > summary { margin-bottom: 18px; color: var(--panel-text-dim); cursor: pointer; font-size: 13px; }
 
 .finance-admin__overview-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--panel-text-dim); font-size: 13px; }
-.project-form__finance { border: 1px solid var(--panel-border); border-radius: 14px; padding: 16px; margin: 0; display: grid; gap: 16px; background: color-mix(in srgb, var(--panel-surface) 72%, transparent); }
-.project-form__finance legend { padding: 0 8px; }
-.project-form__finance legend small { display: block; margin-top: 5px; color: var(--panel-text-faint); font-size: 12px; }
+.project-form__finance { margin: 0; display: grid; gap: 14px; }
+.project-form__finance-heading small { display: block; margin-top: 5px; color: var(--panel-text-faint); font-size: 12px; }
 .project-form__finance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: end; }
 .project-form__subscription-toggle { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--panel-border); border-radius: 10px; cursor: pointer; }
 .project-form__subscription-toggle input { width: 17px; height: 17px; accent-color: var(--panel-accent); }

@@ -161,11 +161,13 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           ? nextMonthlyDueDate(parsed.data.dueDay)
           : parsed.data.nextDueDate ?? previous?.next_due_date ?? nextMonthlyDueDate(parsed.data.dueDay);
         const billingType = parsed.data.billingType ?? previous?.billing_type ?? 'UNDEFINED';
+        // A referência externa é um parâmetro separado do project_id para o
+        // Postgres não tentar inferir o mesmo placeholder como UUID e texto.
         const { rows } = await client.query<{ id: string; asaas_subscription_id: string | null }>(
           `insert into public.project_subscriptions
              (project_id, amount_cents, billing_type, due_day, next_due_date,
               status, external_reference, created_by)
-           values ($1,$2,$3,$4,$5,$6,'project-subscription:' || $1::text,$7)
+           values ($1::uuid,$2,$3,$4,$5,$6,$7,$8)
            on conflict (project_id) do update set
              amount_cents = excluded.amount_cents,
              billing_type = excluded.billing_type,
@@ -175,7 +177,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
              sync_error = null
            returning id, asaas_subscription_id`,
           [id, parsed.data.amountCents, billingType, parsed.data.dueDay,
-            nextDueDate, parsed.data.activate ? 'pending_activation' : 'draft', req.userId],
+            nextDueDate, parsed.data.activate ? 'pending_activation' : 'draft',
+            `project-subscription:${id}`, req.userId],
         );
         const subscription = rows[0];
         if (!subscription) throw new Error('Falha ao salvar a assinatura.');

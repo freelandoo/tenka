@@ -247,15 +247,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         );
         if (i.monthlyFeeCents > 0) {
           const nextDueDate = nextMonthlyDueDate(i.dueDay ?? 10);
+          // A referência é enviada como parâmetro próprio: reutilizar o UUID
+          // como texto na mesma query faz o Postgres inferir dois tipos para $1.
           const subscriptionResult = await client.query<{ id: string }>(
             `insert into public.project_subscriptions
                (project_id, amount_cents, billing_type, due_day, next_due_date, status,
                 external_reference, created_by)
-             values ($1,$2,'UNDEFINED',$3,$4,$5,
-                     'project-subscription:' || $1::text,$6)
+             values ($1::uuid,$2,'UNDEFINED',$3,$4,$5,$6,$7)
              returning id`,
             [newId, i.monthlyFeeCents, i.dueDay ?? 10, nextDueDate,
-              i.subscriptionActive ? 'pending_activation' : 'draft', req.userId],
+              i.subscriptionActive ? 'pending_activation' : 'draft',
+              `project-subscription:${newId}`, req.userId],
           );
           const subscription = subscriptionResult.rows[0];
           if (!subscription) throw new Error('Falha ao criar a assinatura do projeto.');

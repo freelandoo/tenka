@@ -386,11 +386,11 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </div>
         </div>
 
-        <fieldset className="project-form__finance">
-          <legend>
-            <span className="panel-eyebrow">Mensalidade do projeto</span>
+        <section className="project-form__finance" aria-labelledby="project-subscription-title">
+          <div className="project-form__finance-heading">
+            <span id="project-subscription-title" className="panel-eyebrow">Mensalidade do projeto</span>
             <small>A assinatura permanece ligada exclusivamente a este projeto.</small>
-          </legend>
+          </div>
           <div className="project-form__finance-grid">
             <div className="panel-field">
               <label htmlFor="project-monthly-fee">Valor mensal (R$)</label>
@@ -415,7 +415,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           {subscriptionActive && !selecionado?.cpf_cnpj && (
             <p className="finance-warning">Para ativar no Asaas, selecione um cliente que já tenha CPF/CNPJ cadastrado.</p>
           )}
-        </fieldset>
+        </section>
 
         <div className="panel-field">
           <label id="project-color-label">Cor do post-it *</label>

@@ -67,6 +67,9 @@ describe('ProjectFormModal — contato do cliente', () => {
     expect(phone).not.toHaveAttribute('readonly');
     expect(email).not.toHaveAttribute('readonly');
     expect(screen.getByText('Assinatura ativa')).toBeInTheDocument();
+    const subscriptionHeading = screen.getByText('Mensalidade do projeto');
+    expect(subscriptionHeading.closest('fieldset')).toBeNull();
+    expect(subscriptionHeading.closest('section')).toHaveClass('project-form__finance');
     expect(screen.queryByLabelText('Primeiro/próximo vencimento')).toBeNull();
     expect(screen.queryByLabelText('Forma de pagamento')).toBeNull();
 
