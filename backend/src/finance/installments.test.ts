@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_INSTALLMENTS, splitInstallments } from './installments';
+import { MAX_INSTALLMENTS, splitInstallments, validateInstallmentGroups } from './installments';
 
 /** Desempacota o caso feliz — os testes de erro checam `error` diretamente. */
 function parcels(...args: Parameters<typeof splitInstallments>) {
@@ -111,5 +111,35 @@ describe('recusas', () => {
     expect(splitInstallments(100_000, 2, '20/10/2026').error).toBe('data-invalida');
     expect(splitInstallments(100_000, 2, '2026-02-30').error).toBe('data-invalida');
     expect(splitInstallments(100_000, 2, '2026-13-01').error).toBe('data-invalida');
+  });
+});
+
+describe('forma dos grupos no plano', () => {
+  const installment = (number: number, count = 3, group = 'grupo-1') => ({
+    kind: 'installment' as const,
+    installmentGroupId: group,
+    installmentNumber: number,
+    installmentCount: count,
+  });
+
+  it('aceita etapas sem metadados e um grupo completo', () => {
+    expect(validateInstallmentGroups([
+      { kind: 'stage', installmentGroupId: null, installmentNumber: null, installmentCount: null },
+      installment(1), installment(2), installment(3),
+    ])).toBeNull();
+  });
+
+  it('recusa grupo incompleto, numero repetido e total divergente', () => {
+    expect(validateInstallmentGroups([installment(1), installment(2)])).toBe('grupo-incompleto');
+    expect(validateInstallmentGroups([installment(1), installment(1), installment(3)]))
+      .toBe('metadados-de-parcela-invalidos');
+    expect(validateInstallmentGroups([installment(1), installment(2, 4), installment(3)]))
+      .toBe('metadados-de-parcela-invalidos');
+  });
+
+  it('recusa metadados de parcela numa etapa', () => {
+    expect(validateInstallmentGroups([{
+      kind: 'stage', installmentGroupId: 'grupo', installmentNumber: null, installmentCount: null,
+    }])).toBe('metadados-de-etapa-invalidos');
   });
 });

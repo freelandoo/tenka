@@ -53,6 +53,11 @@ export interface PaymentPlanInput {
     /** Ausente numa linha nova; presente, preserva a linha e o vínculo com o Asaas. */
     id?: string;
     name: string; description: string; amountCents: number; dueDate: string | null;
+    kind: 'stage' | 'installment';
+    installmentGroupId: string | null;
+    installmentNumber: number | null;
+    installmentCount: number | null;
+    groupLabel: string;
   }>;
 }
 

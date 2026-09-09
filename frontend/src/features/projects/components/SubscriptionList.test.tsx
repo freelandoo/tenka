@@ -52,6 +52,7 @@ function makeProject(over: Partial<BoardProject> = {}): BoardProject {
 
 function makePayment(over: Partial<SubscriptionPaymentRow> = {}): SubscriptionPaymentRow {
   return {
+    id: 'subscription-payment-1',
     project_id: 'a',
     competence: '2026-08-01',
     amount_cents: 29990,
@@ -63,6 +64,14 @@ function makePayment(over: Partial<SubscriptionPaymentRow> = {}): SubscriptionPa
     provider_status: 'PENDING',
     paid_at: null,
     source: 'asaas',
+    payment_date: null,
+    credit_date: null,
+    client_payment_date: null,
+    provider_event_at: null,
+    net_amount_cents: null,
+    original_due_date: null,
+    bank_slip_url: '',
+    pix_payload: '',
     ...over,
   };
 }

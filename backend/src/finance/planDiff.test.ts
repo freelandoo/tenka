@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { planDiff, type PlanRowCurrent, type PlanRowInput } from './planDiff';
+import {
+  planDiff,
+  protectedPlanChangeError,
+  type PlanRowCurrent,
+  type PlanRowInput,
+  type ProtectedPlanRow,
+} from './planDiff';
 
 const current: PlanRowCurrent[] = [
   { id: '11111111-1111-4111-8111-111111111111', position: 0 },
@@ -90,5 +96,38 @@ describe('diferença do plano de pagamentos', () => {
     const result = planDiff(current, [row({ id: ENTRADA }), row({ id: ENTRADA })]);
 
     expect(result.error).toBe('linha-repetida');
+  });
+});
+
+describe('protecao de linhas financeiras', () => {
+  const protectedRow = (over: Partial<ProtectedPlanRow> = {}): ProtectedPlanRow => ({
+    id: ENTRADA!, position: 0, name: 'Entrada', description: '', amountCents: 200_000,
+    dueDate: null, kind: 'stage', installmentGroupId: null, installmentNumber: null,
+    installmentCount: null, groupLabel: '', status: 'pending', syncStatus: 'local', ...over,
+  });
+
+  it('permite editar ou remover linha local ainda nao paga', () => {
+    expect(protectedPlanChangeError([protectedRow()], [
+      row({ id: ENTRADA, name: 'Entrada ajustada', amountCents: 150_000 }),
+    ])).toBeNull();
+    expect(protectedPlanChangeError([protectedRow()], [])).toBeNull();
+  });
+
+  it('recusa alterar ou remover linha paga', () => {
+    const paid = protectedRow({ status: 'paid' });
+    expect(protectedPlanChangeError([paid], [])).toBe('linha-paga-imutavel');
+    expect(protectedPlanChangeError([paid], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 199_999 }),
+    ])).toBe('linha-paga-imutavel');
+  });
+
+  it('recusa alterar linha sincronizada, mas aceita apenas reordena-la', () => {
+    const synced = protectedRow({ syncStatus: 'synced' });
+    expect(protectedPlanChangeError([synced], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 200_000 }),
+    ])).toBeNull();
+    expect(protectedPlanChangeError([synced], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 200_000, dueDate: '2026-10-20' }),
+    ])).toBe('linha-sincronizada-imutavel');
   });
 });

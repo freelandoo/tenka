@@ -7,7 +7,8 @@ import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
 import { nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
-import { planDiff } from '../finance/planDiff';
+import { planDiff, protectedPlanChangeError } from '../finance/planDiff';
+import { validateInstallmentGroups } from '../finance/installments';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -27,6 +28,11 @@ const planSchema = z.object({
     description: z.string().trim().max(1000).default(''),
     amountCents: z.number().int().positive(),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+    kind: z.enum(['stage', 'installment']).default('stage'),
+    installmentGroupId: z.string().uuid().nullable().default(null),
+    installmentNumber: z.number().int().min(1).max(60).nullable().default(null),
+    installmentCount: z.number().int().min(1).max(60).nullable().default(null),
+    groupLabel: z.string().trim().max(120).default(''),
   })).max(60),
 });
 
@@ -275,6 +281,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = planSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const groupError = validateInstallmentGroups(parsed.data.payments);
+    if (groupError) return reply.code(400).send({ error: groupError });
     try {
       const result = await withActor(req.userId!, async (client) => {
         const { rows } = await client.query<{ value_cents: number }>(
@@ -282,11 +290,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         if (!rows[0]) return 'missing';
         const previousPlan = await client.query<{
           id: string; name: string; description: string; amount_cents: number;
-          due_date: string | null; status: string; position: number;
+          due_date: string | null; status: string; position: number; kind: 'stage' | 'installment';
+          installment_group_id: string | null; installment_number: number | null;
+          installment_count: number | null; group_label: string; sync_status: string;
         }>(
-          `select id, name, description, amount_cents, due_date, status, position
+          `select id, name, description, amount_cents, due_date, status, position, kind,
+                  installment_group_id, installment_number, installment_count, group_label,
+                  sync_status
              from public.project_payments where project_id = $1 order by position`, [id]);
-        if (previousPlan.rows.some((row) => row.status === 'paid')) return 'has-paid';
         const total = parsed.data.payments.reduce((sum, item) => sum + item.amountCents, 0);
         const totalError = projectPlanTotalError(parsed.data.status, total, rows[0].value_cents);
         if (totalError) return totalError;
@@ -295,6 +306,17 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         // o seu id, e com ele o vínculo com a cobrança correspondente.
         const diff = planDiff(previousPlan.rows, parsed.data.payments);
         if (diff.error) return diff.error;
+        const protectionError = protectedPlanChangeError(
+          previousPlan.rows.map((row) => ({
+            id: row.id, position: row.position, name: row.name, description: row.description,
+            amountCents: row.amount_cents, dueDate: row.due_date, kind: row.kind,
+            installmentGroupId: row.installment_group_id,
+            installmentNumber: row.installment_number, installmentCount: row.installment_count,
+            groupLabel: row.group_label, status: row.status, syncStatus: row.sync_status,
+          })),
+          parsed.data.payments,
+        );
+        if (protectionError) return protectionError;
         const rowStatus = parsed.data.status === 'active' ? 'pending' : 'draft';
 
         if (diff.remove.length > 0) {
@@ -315,19 +337,27 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           await client.query(
             `update public.project_payments
                 set name = $2, description = $3, amount_cents = $4, due_date = $5,
-                    status = $6, position = $7
+                    status = case when status = 'paid' then status else $6 end,
+                    position = $7, kind = $8,
+                    installment_group_id = $9, installment_number = $10,
+                    installment_count = $11, group_label = $12
               where id = $1`,
             [item.id, item.row.name, item.row.description, item.row.amountCents,
-              item.row.dueDate, rowStatus, item.position],
+              item.row.dueDate, rowStatus, item.position, item.row.kind ?? 'stage',
+              item.row.installmentGroupId ?? null, item.row.installmentNumber ?? null,
+              item.row.installmentCount ?? null, item.row.groupLabel ?? ''],
           );
         }
         for (const item of diff.create) {
           await client.query(
             `insert into public.project_payments
-               (project_id,name,description,amount_cents,due_date,status,position,created_by)
-             values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+               (project_id,name,description,amount_cents,due_date,status,position,created_by,
+                kind,installment_group_id,installment_number,installment_count,group_label)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
             [id, item.row.name, item.row.description, item.row.amountCents, item.row.dueDate,
-              rowStatus, item.position, req.userId],
+              rowStatus, item.position, req.userId, item.row.kind ?? 'stage',
+              item.row.installmentGroupId ?? null, item.row.installmentNumber ?? null,
+              item.row.installmentCount ?? null, item.row.groupLabel ?? ''],
           );
         }
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
@@ -350,12 +380,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         return { payments: saved.rows };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
-      if (result === 'has-paid') return reply.code(409).send({ error: 'plano-com-pagamento-realizado' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
       if (result === 'sum-mismatch') return reply.code(409).send({ error: 'soma-diferente-do-valor-do-projeto' });
       // O painel está com uma versão antiga do plano em tela; recarregar resolve.
       if (result === 'linha-desconhecida' || result === 'linha-repetida') {
         return reply.code(409).send({ error: 'plano-desatualizado' });
+      }
+      if (result === 'linha-paga-imutavel' || result === 'linha-sincronizada-imutavel') {
+        return reply.code(409).send({ error: result });
       }
       return reply.send({ ok: true, ...result });
     } catch (error) {

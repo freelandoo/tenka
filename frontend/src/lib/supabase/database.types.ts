@@ -294,6 +294,22 @@ export interface ProjectPaymentRow {
   position: number;
   notes: string;
   receipt_url: string;
+  kind: 'stage' | 'installment';
+  installment_group_id: string | null;
+  installment_number: number | null;
+  installment_count: number | null;
+  group_label: string;
+  asaas_payment_id: string | null;
+  external_reference: string | null;
+  payment_url: string;
+  bank_slip_url: string;
+  pix_payload: string;
+  billing_type: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+  provider_status: string | null;
+  sync_status: 'local' | 'queued' | 'synced' | 'failed';
+  sync_error: string | null;
+  payment_date: string | null;
+  provider_event_at: string | null;
   project_name?: string;
   client_name?: string;
   project_value_cents?: number;
@@ -302,17 +318,26 @@ export interface ProjectPaymentRow {
 }
 
 export interface SubscriptionPaymentRow {
+  id: string;
   project_id: string;
   competence: string;
   amount_cents: number;
   due_date: string | null;
-  status: 'pending' | 'confirmed' | 'received' | 'overdue' | 'cancelled' | 'refunded' | 'chargeback' | 'failed' | 'legacy_paid';
+  status: 'pending' | 'confirmed' | 'received' | 'overdue' | 'cancelled' | 'refunded' | 'chargeback' | 'failed' | 'legacy_paid' | 'refund_requested' | 'dunning' | 'awaiting_risk_analysis';
   asaas_payment_id: string | null;
   payment_url: string | null;
   billing_type: string | null;
   provider_status: string | null;
   paid_at: string | null;
   source: 'asaas' | 'manual';
+  payment_date: string | null;
+  credit_date: string | null;
+  client_payment_date: string | null;
+  provider_event_at: string | null;
+  net_amount_cents: number | null;
+  original_due_date: string | null;
+  bank_slip_url: string;
+  pix_payload: string;
   project_name?: string;
   client_name?: string;
 }

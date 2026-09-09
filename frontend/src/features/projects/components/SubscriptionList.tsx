@@ -31,6 +31,9 @@ const PAYMENT_STATUS: Record<SubscriptionPaymentRow['status'], string> = {
   chargeback: 'Chargeback',
   failed: 'Falha',
   legacy_paid: 'Pago (legado)',
+  refund_requested: 'Estorno solicitado',
+  dunning: 'Em recuperação',
+  awaiting_risk_analysis: 'Em análise de risco',
 };
 
 function localIsoDate(): string {

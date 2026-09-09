@@ -30,6 +30,18 @@ export interface Installment {
   dueDate: string;
 }
 
+export interface InstallmentGroupRow {
+  kind: 'stage' | 'installment';
+  installmentGroupId: string | null;
+  installmentNumber: number | null;
+  installmentCount: number | null;
+}
+
+export type InstallmentGroupsError =
+  | 'metadados-de-etapa-invalidos'
+  | 'metadados-de-parcela-invalidos'
+  | 'grupo-incompleto';
+
 export type InstallmentPlan =
   | { error: InstallmentError }
   | { error: null; installments: Installment[] };
@@ -113,4 +125,43 @@ export function splitInstallments(
       };
     }),
   };
+}
+
+/**
+ * Confere a forma dos grupos recebidos pelo editor. O banco valida cada linha;
+ * esta funcao valida o conjunto: um grupo 1/3, 2/3 precisa conter tambem 3/3,
+ * sem numeros repetidos e com o mesmo total declarado.
+ */
+export function validateInstallmentGroups(
+  rows: InstallmentGroupRow[],
+): InstallmentGroupsError | null {
+  const groups = new Map<string, { count: number; numbers: Set<number> }>();
+
+  for (const row of rows) {
+    if (row.kind === 'stage') {
+      if (
+        row.installmentGroupId !== null ||
+        row.installmentNumber !== null ||
+        row.installmentCount !== null
+      ) return 'metadados-de-etapa-invalidos';
+      continue;
+    }
+
+    const { installmentGroupId: groupId, installmentNumber: number, installmentCount: count } = row;
+    if (!groupId || number === null || count === null || number < 1 || count < 1 || number > count) {
+      return 'metadados-de-parcela-invalidos';
+    }
+    const group = groups.get(groupId) ?? { count, numbers: new Set<number>() };
+    if (group.count !== count || group.numbers.has(number)) return 'metadados-de-parcela-invalidos';
+    group.numbers.add(number);
+    groups.set(groupId, group);
+  }
+
+  for (const group of groups.values()) {
+    if (group.numbers.size !== group.count) return 'grupo-incompleto';
+    for (let number = 1; number <= group.count; number += 1) {
+      if (!group.numbers.has(number)) return 'grupo-incompleto';
+    }
+  }
+  return null;
 }

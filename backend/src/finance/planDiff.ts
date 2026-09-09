@@ -18,12 +18,33 @@ export interface PlanRowInput {
   description: string;
   amountCents: number;
   dueDate: string | null;
+  kind?: 'stage' | 'installment';
+  installmentGroupId?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
+  groupLabel?: string;
 }
 
 export interface PlanRowCurrent {
   id: string;
   position: number;
 }
+
+export interface ProtectedPlanRow extends PlanRowCurrent {
+  name: string;
+  description: string;
+  amountCents: number;
+  dueDate: string | null;
+  kind: 'stage' | 'installment';
+  installmentGroupId: string | null;
+  installmentNumber: number | null;
+  installmentCount: number | null;
+  groupLabel: string;
+  status: string;
+  syncStatus: string;
+}
+
+export type ProtectedPlanChangeError = 'linha-paga-imutavel' | 'linha-sincronizada-imutavel';
 
 export interface PlanCreate {
   position: number;
@@ -71,4 +92,35 @@ export function planDiff(current: PlanRowCurrent[], desired: PlanRowInput[]): Pl
     update,
     remove: current.filter((row) => !seen.has(row.id)).map((row) => row.id),
   };
+}
+
+function sameFinancialRow(current: ProtectedPlanRow, desired: PlanRowInput): boolean {
+  return current.name === desired.name
+    && current.description === desired.description
+    && current.amountCents === desired.amountCents
+    && current.dueDate === desired.dueDate
+    && current.kind === (desired.kind ?? 'stage')
+    && current.installmentGroupId === (desired.installmentGroupId ?? null)
+    && current.installmentNumber === (desired.installmentNumber ?? null)
+    && current.installmentCount === (desired.installmentCount ?? null)
+    && current.groupLabel === (desired.groupLabel ?? '');
+}
+
+/** Linhas pagas ou ja enviadas ao Asaas podem ser reordenadas, mas nao reescritas/removidas. */
+export function protectedPlanChangeError(
+  current: ProtectedPlanRow[],
+  desired: PlanRowInput[],
+): ProtectedPlanChangeError | null {
+  const desiredById = new Map(
+    desired.filter((row): row is PlanRowInput & { id: string } => row.id !== undefined)
+      .map((row) => [row.id, row]),
+  );
+  for (const row of current) {
+    const incoming = desiredById.get(row.id);
+    const changedOrRemoved = !incoming || !sameFinancialRow(row, incoming);
+    if (!changedOrRemoved) continue;
+    if (row.status === 'paid') return 'linha-paga-imutavel';
+    if (row.syncStatus !== 'local') return 'linha-sincronizada-imutavel';
+  }
+  return null;
 }
