@@ -2943,7 +2943,9 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 .fees__billing { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .fees__billing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
-.fees__billing .panel-btn { min-height: 26px; padding: 3px 6px; font-size: 10px; }
+a.fees__billing-icon { text-decoration: none; }
+.fees__billing-icon { width: 28px; height: 28px; border-radius: 7px; }
+.fees__billing-icon:disabled { opacity: 0.5; cursor: wait; }
 
 .fees__paid {
   min-width: 52px;

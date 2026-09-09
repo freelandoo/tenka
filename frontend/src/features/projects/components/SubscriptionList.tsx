@@ -198,24 +198,31 @@ export function SubscriptionList({
                       ? PAYMENT_STATUS[payment.status]
                       : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
                 </span>
-                {payment?.payment_url && (
+                {(payment?.payment_url || (canRegisterOutside && payment)) && (
                   <span className="fees__billing-actions">
-                    <a className="panel-btn panel-btn--ghost panel-btn--sm" href={payment.payment_url}
-                      target="_blank" rel="noreferrer">
-                      <ExternalLink size={13} /> Abrir cobrança
-                    </a>
-                    <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm"
-                      onClick={() => void copyLink(payment.payment_url!)}>
-                      <Copy size={13} /> Copiar link
-                    </button>
+                    {payment?.payment_url && (
+                      <>
+                        <a className="panel-iconbtn fees__billing-icon" href={payment.payment_url}
+                          target="_blank" rel="noreferrer" aria-label="Abrir cobrança"
+                          title="Abrir cobrança">
+                          <ExternalLink size={14} />
+                        </a>
+                        <button type="button" className="panel-iconbtn fees__billing-icon"
+                          aria-label="Copiar link" title="Copiar link"
+                          onClick={() => void copyLink(payment.payment_url!)}>
+                          <Copy size={14} />
+                        </button>
+                      </>
+                    )}
+                    {canRegisterOutside && payment && (
+                      <button type="button" className="panel-iconbtn fees__billing-icon"
+                        aria-label="Registrar pagamento por fora" title="Registrar pagamento por fora"
+                        disabled={busyPaymentId === p.id}
+                        onClick={() => void registerOutside(p, payment)}>
+                        <Banknote size={14} />
+                      </button>
+                    )}
                   </span>
-                )}
-                {canRegisterOutside && payment && (
-                  <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm"
-                    disabled={busyPaymentId === p.id}
-                    onClick={() => void registerOutside(p, payment)}>
-                    <Banknote size={13} /> Registrar pagamento por fora
-                  </button>
                 )}
               </span>
               <span
