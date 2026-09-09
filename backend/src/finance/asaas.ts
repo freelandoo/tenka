@@ -72,6 +72,14 @@ export interface AsaasPayment {
   value: number;
   dueDate: string;
   invoiceUrl?: string;
+  bankSlipUrl?: string;
+  externalReference?: string;
+}
+
+export interface AsaasPixQrCode {
+  encodedImage: string;
+  payload: string;
+  expirationDate: string;
 }
 
 interface Page<T> {
@@ -107,6 +115,31 @@ export const asaas = {
       method: 'PUT',
       body: JSON.stringify(input),
     });
+  },
+  async findPayment(externalReference: string): Promise<AsaasPayment | null> {
+    const page = await request<Page<AsaasPayment>>(
+      `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
+    );
+    return page.data[0] ?? null;
+  },
+  getPayment(id: string) {
+    return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`);
+  },
+  createPayment(input: Record<string, unknown>) {
+    return request<AsaasPayment>('/payments', { method: 'POST', body: JSON.stringify(input) });
+  },
+  updatePayment(id: string, input: Record<string, unknown>) {
+    return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`, {
+      method: 'PUT', body: JSON.stringify(input),
+    });
+  },
+  deletePayment(id: string) {
+    return request<{ deleted: boolean; id: string }>(`/payments/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+  getPixQrCode(id: string) {
+    return request<AsaasPixQrCode>(`/payments/${encodeURIComponent(id)}/pixQrCode`);
   },
   receivePaymentInCash(
     id: string,

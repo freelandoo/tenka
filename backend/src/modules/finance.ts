@@ -10,6 +10,8 @@ import { projectPlanTotalError } from '../finance/projectPlan';
 import { planDiff, protectedPlanChangeError } from '../finance/planDiff';
 import { validateInstallmentGroups } from '../finance/installments';
 import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
+import { asaas, AsaasError } from '../finance/asaas';
+import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -52,6 +54,10 @@ const defaultPaymentSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
+const projectExternalPaymentSchema = z.object({
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
 async function queueOperation(
   client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
   projectId: string,
@@ -72,6 +78,27 @@ async function queueOperation(
       )`,
     [kind, projectId, subscriptionId],
   );
+}
+
+async function queueProjectPaymentOperation(
+  client: { query: (sql: string, values?: unknown[]) => Promise<{ rowCount?: number | null }> },
+  projectId: string,
+  projectPaymentId: string,
+  kind: 'create_project_charge' | 'cancel_project_charge',
+): Promise<boolean> {
+  const result = await client.query(
+    `insert into public.asaas_operations
+       (operation_key, project_id, project_payment_id, kind)
+     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1
+      where not exists (
+        select 1 from public.asaas_operations
+         where project_payment_id = $3 and kind = $1
+           and (status in ('pending', 'processing', 'uncertain')
+             or (status = 'failed' and attempts < 5))
+      )`,
+    [kind, projectId, projectPaymentId],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function financeRoutes(app: FastifyInstance): Promise<void> {
@@ -104,7 +131,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                   pp.amount_cents, pp.due_date, pp.paid_at, pp.status::text as status,
                   pp.position, pp.notes, pp.receipt_url, p.name as project_name,
                   coalesce(c.name, p.client_name) as client_name,
-                  p.value_cents as project_value_cents, false as virtual, pp.created_at
+                  p.value_cents as project_value_cents, false as virtual, pp.created_at,
+                  pp.kind, pp.installment_group_id, pp.installment_number,
+                  pp.installment_count, pp.group_label, pp.asaas_payment_id,
+                  pp.external_reference, pp.payment_url, pp.bank_slip_url,
+                  pp.pix_payload, pp.billing_type, pp.provider_status,
+                  pp.sync_status, pp.sync_error, pp.payment_date, pp.provider_event_at
              from public.project_payments pp
              join public.projects p on p.id = pp.project_id
              left join public.clients c on c.id = p.client_id
@@ -113,7 +145,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
            select 'virtual:' || p.id::text, p.id, 'Pagamento do projeto', '',
                   p.value_cents, null::date, null::timestamptz, 'pending',
                   0, '', '', p.name, coalesce(c.name, p.client_name),
-                  p.value_cents, true, p.created_at
+                  p.value_cents, true, p.created_at,
+                  'stage', null::uuid, null::integer, null::integer, '', null::text,
+                  null::text, '', '', '', 'UNDEFINED', null::text, 'local', null::text,
+                  null::date, null::timestamptz
              from public.projects p
              left join public.clients c on c.id = p.client_id
             where p.archived_at is null and p.value_cents > 0
@@ -121,7 +156,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
          )
          select id, project_id, name, description, amount_cents, due_date, paid_at,
                 status, position, notes, receipt_url, project_name, client_name,
-                project_value_cents, virtual
+                project_value_cents, virtual, kind, installment_group_id,
+                installment_number, installment_count, group_label, asaas_payment_id,
+                external_reference, payment_url, bank_slip_url, pix_payload,
+                billing_type, provider_status, sync_status, sync_error,
+                payment_date, provider_event_at
            from listed
           order by case status when 'pending' then 0 when 'draft' then 1 when 'paid' then 2 else 3 end,
                    coalesce(due_date, created_at::date), lower(project_name)
@@ -383,6 +422,29 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         }
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
           [id, parsed.data.status]);
+        let queuedCount = 0;
+        if (parsed.data.status === 'active' && hasAsaas) {
+          const eligible = await client.query<{ id: string }>(
+            `select pp.id
+               from public.project_payments pp
+               join public.projects p on p.id = pp.project_id
+               join public.clients c on c.id = p.client_id and c.archived_at is null
+              where pp.project_id = $1 and p.financial_plan_status = 'active'
+                and nullif(regexp_replace(coalesce(c.cpf_cnpj,''), '\\D', '', 'g'), '') is not null
+                and pp.amount_cents > 0 and pp.due_date is not null
+                and pp.status = 'pending' and pp.sync_status = 'local'`,
+            [id],
+          );
+          for (const payment of eligible.rows) {
+            if (await queueProjectPaymentOperation(client, id, payment.id, 'create_project_charge')) {
+              queuedCount += 1;
+              await client.query(
+                "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
+                [payment.id],
+              );
+            }
+          }
+        }
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)
            values ($1,$2,'plano_pagamentos_atualizado',$3::jsonb)`,
@@ -398,7 +460,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         );
         const saved = await client.query(
           'select * from public.project_payments where project_id = $1 order by position', [id]);
-        return { payments: saved.rows };
+        return { payments: saved.rows, queuedCount };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
@@ -410,6 +472,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (result === 'linha-paga-imutavel' || result === 'linha-sincronizada-imutavel') {
         return reply.code(409).send({ error: result });
       }
+      if (result.queuedCount > 0) financeWorker.kick();
       return reply.send({ ok: true, ...result });
     } catch (error) {
       return sendDbError(error, reply);
@@ -421,9 +484,16 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = paymentPatchSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const rows = await withActor(req.userId!, async (client) => {
-      const previous = await client.query<{ project_id: string; status: string; name: string; due_date: string | null }>(
-        'select project_id, status, name, due_date from public.project_payments where id = $1 for update', [id]);
+      const previous = await client.query<{ project_id: string; status: string; name: string; due_date: string | null; sync_status: string }>(
+        'select project_id, status, name, due_date, sync_status from public.project_payments where id = $1 for update', [id]);
       if (!previous.rows[0]) return [];
+      if (blocksDirectIntegratedPaymentChange({
+        status: previous.rows[0].status,
+        dueDate: previous.rows[0].due_date,
+        syncStatus: previous.rows[0].sync_status,
+      }, parsed.data)) {
+        return 'integrated-payment' as const;
+      }
       const updated = await client.query(
         `update public.project_payments
           set status = coalesce($2, status),
@@ -452,8 +522,104 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       );
       return updated.rows;
     });
+    if (rows === 'integrated-payment') {
+      return reply.code(409).send({ error: 'pagamento-sincronizado-deve-ser-registrado-no-asaas' });
+    }
     if (!rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
     return reply.send({ payment: rows[0] });
+  });
+
+  app.post('/project-payments/:id/charge', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, async (client) => {
+      const payment = await client.query<{
+        project_id: string; due_date: string | null; status: string; sync_status: string;
+        financial_plan_status: string; client_id: string | null; cpf_cnpj: string | null;
+      }>(
+        `select pp.project_id, pp.due_date, pp.status, pp.sync_status,
+                p.financial_plan_status, p.client_id, c.cpf_cnpj
+           from public.project_payments pp
+           join public.projects p on p.id = pp.project_id
+           left join public.clients c on c.id = p.client_id and c.archived_at is null
+          where pp.id = $1 for update of pp`,
+        [id],
+      );
+      const row = payment.rows[0];
+      if (!row) return 'missing' as const;
+      if (!row.client_id) return 'client' as const;
+      if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
+      if (!row.due_date) return 'due-date' as const;
+      if (row.financial_plan_status !== 'active' || row.status !== 'pending') return 'not-pending' as const;
+      if (!['local', 'failed'].includes(row.sync_status)) return 'already-synced' as const;
+      const queued = await queueProjectPaymentOperation(client, row.project_id, id, 'create_project_charge');
+      if (queued) await client.query(
+        "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
+      return queued ? 'queued' as const : 'already-synced' as const;
+    });
+    const errors: Record<string, [number, string]> = {
+      missing: [404, 'pagamento-inexistente'], client: [409, 'cliente-obrigatorio'],
+      document: [409, 'cpf-cnpj-obrigatorio'], 'due-date': [409, 'vencimento-obrigatorio'],
+      'not-pending': [409, 'pagamento-nao-esta-pendente'],
+      'already-synced': [409, 'cobranca-ja-sincronizada-ou-em-processamento'],
+    };
+    if (result !== 'queued') {
+      const [status, error] = errors[result] ?? [409, 'cobranca-nao-pode-ser-gerada'];
+      return reply.code(status).send({ error });
+    }
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true });
+  });
+
+  app.post('/project-payments/:id/cancel-charge', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, async (client) => {
+      const payment = await client.query<{ project_id: string; status: string; asaas_payment_id: string | null }>(
+        'select project_id, status, asaas_payment_id from public.project_payments where id = $1 for update', [id]);
+      const row = payment.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.status === 'paid') return 'paid' as const;
+      if (!row.asaas_payment_id) return 'local' as const;
+      const queued = await queueProjectPaymentOperation(client, row.project_id, id, 'cancel_project_charge');
+      if (queued) await client.query(
+        "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
+      return queued ? 'queued' as const : 'duplicate' as const;
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (result === 'paid') return reply.code(409).send({ error: 'pagamento-ja-realizado' });
+    if (result === 'local') return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    if (result === 'duplicate') return reply.code(409).send({ error: 'cancelamento-ja-em-processamento' });
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true });
+  });
+
+  app.post('/project-payments/:id/receive-in-cash', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const parsed = projectExternalPaymentSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const { rows } = await getPool().query<{
+      asaas_payment_id: string | null; status: string; sync_status: string;
+    }>('select asaas_payment_id, status, sync_status from public.project_payments where id = $1', [id]);
+    const local = rows[0];
+    if (!local) return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (!local.asaas_payment_id || local.sync_status !== 'synced') {
+      return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    }
+    if (local.status !== 'pending') return reply.code(409).send({ error: 'cobranca-nao-esta-em-aberto' });
+    try {
+      const current = await asaas.getPayment(local.asaas_payment_id);
+      await asaas.receivePaymentInCash(local.asaas_payment_id, {
+        paymentDate: parsed.data.paymentDate,
+        value: current.value,
+        notifyCustomer: true,
+      });
+      return reply.code(202).send({ submitted: true, awaitingWebhook: true });
+    } catch (error) {
+      if (error instanceof AsaasError) return reply.code(502).send({ error: error.message });
+      return sendDbError(error, reply);
+    }
   });
 
   // Materializa o pagamento único exibido para projetos que ainda não têm

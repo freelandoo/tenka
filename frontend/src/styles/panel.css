@@ -3119,7 +3119,20 @@ a.fees__billing-icon { text-decoration: none; }
 .project-payments__status.is-pending { color: #f4bd68; border-color: rgba(244, 189, 104, 0.35); }
 .project-payments__status.is-paid { color: #3fb950; border-color: rgba(63, 185, 80, 0.4); }
 .project-payments__status.is-cancelled { text-decoration: line-through; opacity: 0.65; }
+.project-payments__actions { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 3px; }
 .project-payments .costs__total small { color: var(--panel-text-faint); }
+
+/* O painel mantém a navegação lateral em telas de notebook. Nesse intervalo,
+   a coluna útil do financeiro já é estreita mesmo antes do breakpoint mobile. */
+@media (max-width: 1100px) {
+  .project-payments__row { grid-template-columns: 22px minmax(105px, 1fr) auto auto auto; }
+  .project-payments__row > .fees__due,
+  .project-payments__row > .project-payments__date-button,
+  .project-payments__row > .project-payments__date-editor,
+  .project-payments__progress { grid-column: 2 / -1; grid-row: 2; justify-self: start; }
+  .project-payments__individual-hint { display: none; }
+  .project-payments__date-button { justify-content: flex-start; }
+}
 
 @media (max-width: 720px) {
   .cart-recorrencias { grid-auto-columns: min(88vw, 560px); gap: 14px; }
@@ -3130,13 +3143,8 @@ a.fees__billing-icon { text-decoration: none; }
      faixa financeira do Extrato. */
   .fees__row { grid-template-columns: 1fr auto auto auto; }
   .fees__due { display: none; }
-  .project-payments__row { grid-template-columns: 22px minmax(105px, 1fr) auto auto auto; }
-  .project-payments__row > .fees__due,
-  .project-payments__row > .project-payments__date-button,
-  .project-payments__row > .project-payments__date-editor,
-  .project-payments__progress { grid-column: 2 / -1; grid-row: 2; justify-self: start; }
-  .project-payments__individual-hint { display: none; }
-  .project-payments__date-button { justify-content: flex-start; }
+  .project-payments__row { grid-template-columns: 22px minmax(90px, 1fr) auto auto; }
+  .project-payments__actions { grid-column: 2 / -1; justify-self: end; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
   .leads__contact,
   .leads__value,

@@ -3,11 +3,13 @@ import { hasAsaas } from '../env';
 import { asaas } from './asaas';
 import { competenceFromDueDate, paymentStatus } from './status';
 
-interface Operation {
+export interface Operation {
   id: string;
   project_id: string;
   subscription_id: string | null;
-  kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription';
+  project_payment_id: string | null;
+  kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription'
+    | 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge';
   attempts: number;
 }
 
@@ -27,12 +29,34 @@ interface SubscriptionContext {
   asaas_customer_id: string | null;
 }
 
+interface ProjectPaymentContext {
+  id: string;
+  project_id: string;
+  project_name: string;
+  name: string;
+  description: string;
+  amount_cents: number;
+  due_date: string | null;
+  status: string;
+  billing_type: string;
+  sync_status: string;
+  external_reference: string | null;
+  asaas_payment_id: string | null;
+  financial_plan_status: string;
+  client_id: string | null;
+  client_name: string;
+  client_email: string;
+  client_phone: string;
+  cpf_cnpj: string | null;
+  asaas_customer_id: string | null;
+}
+
 async function claimOperation(): Promise<Operation | null> {
   const client = await getPool().connect();
   try {
     await client.query('begin');
     const { rows } = await client.query<Operation>(
-      `select id, project_id, subscription_id, kind, attempts
+      `select id, project_id, subscription_id, project_payment_id, kind, attempts
          from public.asaas_operations
         where (status in ('pending', 'failed') or
                (status = 'processing' and updated_at < now() - interval '5 minutes'))
@@ -80,7 +104,7 @@ async function subscriptionContext(operation: Operation): Promise<SubscriptionCo
   return rows[0];
 }
 
-async function ensureCustomer(ctx: SubscriptionContext): Promise<string> {
+async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext): Promise<string> {
   if (!ctx.client_id) throw new Error('Vincule um cliente ao projeto antes de ativar a assinatura.');
   const cpfCnpj = (ctx.cpf_cnpj ?? '').replace(/\D/g, '');
   if (!cpfCnpj) throw new Error('Informe o CPF/CNPJ do cliente antes de ativar a assinatura.');
@@ -105,7 +129,78 @@ async function ensureCustomer(ctx: SubscriptionContext): Promise<string> {
   return customer.id;
 }
 
-async function executeOperation(operation: Operation): Promise<string | null> {
+async function projectPaymentContext(operation: Operation): Promise<ProjectPaymentContext> {
+  const { rows } = await getPool().query<ProjectPaymentContext>(
+    `select pp.id, pp.project_id, p.name as project_name, pp.name, pp.description,
+            pp.amount_cents, pp.due_date, pp.status, pp.billing_type, pp.sync_status,
+            pp.external_reference, pp.asaas_payment_id, p.financial_plan_status,
+            p.client_id, coalesce(c.name, p.client_name) as client_name,
+            coalesce(c.email, p.client_email) as client_email,
+            coalesce(c.phone, p.client_phone) as client_phone,
+            c.cpf_cnpj, c.asaas_customer_id
+       from public.project_payments pp
+       join public.projects p on p.id = pp.project_id
+       left join public.clients c on c.id = p.client_id
+      where pp.id = $1 and pp.project_id = $2`,
+    [operation.project_payment_id, operation.project_id],
+  );
+  if (!rows[0]) throw new Error('Pagamento de projeto não encontrado.');
+  return rows[0];
+}
+
+async function executeProjectPaymentOperation(operation: Operation): Promise<string | null> {
+  const ctx = await projectPaymentContext(operation);
+  if (operation.kind === 'cancel_project_charge') {
+    if (!ctx.asaas_payment_id) throw new Error('Cobrança do projeto ainda não existe no Asaas.');
+    await asaas.deletePayment(ctx.asaas_payment_id);
+    await getPool().query(
+      `update public.project_payments
+          set status = 'cancelled', sync_status = 'synced', provider_status = 'DELETED',
+              sync_error = null
+        where id = $1`,
+      [ctx.id],
+    );
+    return ctx.asaas_payment_id;
+  }
+
+  if (operation.kind !== 'create_project_charge') {
+    throw new Error('Operação de pagamento de projeto ainda não suportada.');
+  }
+  if (ctx.financial_plan_status !== 'active' || ctx.status !== 'pending') {
+    throw new Error('O plano e o pagamento precisam estar ativos e pendentes.');
+  }
+  if (!ctx.due_date) throw new Error('Defina o vencimento antes de gerar a cobrança.');
+  const customerId = await ensureCustomer(ctx);
+  const externalReference = ctx.external_reference ?? `project-payment:${ctx.id}`;
+  const input = {
+    customer: customerId,
+    billingType: ctx.billing_type || 'UNDEFINED',
+    value: ctx.amount_cents / 100,
+    dueDate: ctx.due_date,
+    externalReference,
+    description: `${ctx.project_name} — ${ctx.name}`.slice(0, 500),
+  };
+  const existing = ctx.asaas_payment_id
+    ? await asaas.getPayment(ctx.asaas_payment_id)
+    : await asaas.findPayment(externalReference);
+  const payment = existing ?? await asaas.createPayment(input);
+  const pix = payment.billingType === 'PIX'
+    ? await asaas.getPixQrCode(payment.id)
+    : null;
+  await getPool().query(
+    `update public.project_payments
+        set asaas_payment_id = $2, external_reference = $3, payment_url = $4,
+            bank_slip_url = $5, pix_payload = $6, billing_type = $7,
+            provider_status = $8, sync_status = 'synced', sync_error = null
+      where id = $1`,
+    [ctx.id, payment.id, externalReference, payment.invoiceUrl ?? '', payment.bankSlipUrl ?? '',
+      pix?.payload ?? '', payment.billingType || ctx.billing_type, payment.status],
+  );
+  return payment.id;
+}
+
+export async function executeOperation(operation: Operation): Promise<string | null> {
+  if (operation.project_payment_id) return executeProjectPaymentOperation(operation);
   const ctx = await subscriptionContext(operation);
   if (operation.kind === 'pause_subscription') {
     if (!ctx.asaas_subscription_id) throw new Error('Assinatura ainda não existe no Asaas.');
@@ -204,10 +299,14 @@ async function finishOperation(operation: Operation): Promise<void> {
         [operation.id, message, retryMinutes],
       );
       await client.query(
-        `update public.project_subscriptions
-            set status = 'error', sync_error = $2
-          where id = $1`,
-        [operation.subscription_id, message],
+        operation.project_payment_id
+          ? `update public.project_payments
+                set sync_status = 'failed', sync_error = $2
+              where id = $1`
+          : `update public.project_subscriptions
+                set status = 'error', sync_error = $2
+              where id = $1`,
+        [operation.project_payment_id ?? operation.subscription_id, message],
       );
     });
   }
@@ -259,7 +358,7 @@ async function processProjectPaymentWebhook(
   const mappedStatus = paymentStatus(providerStatus);
   const localStatus = mappedStatus === 'received' || mappedStatus === 'confirmed'
     ? 'paid'
-    : mappedStatus === 'cancelled' ? 'cancelled' : 'pending';
+    : ['cancelled', 'refunded', 'chargeback'].includes(mappedStatus) ? 'cancelled' : 'pending';
   await getPool().query(
     `update public.project_payments
         set amount_cents = round(($2::numeric) * 100)::bigint,

@@ -72,6 +72,18 @@ export const updateProjectPayment = (
   method: 'PATCH', body: input,
 });
 
+export const createProjectCharge = (paymentId: string) =>
+  apiRequest<{ queued: true }>(`/project-payments/${paymentId}/charge`, { method: 'POST' });
+
+export const cancelProjectCharge = (paymentId: string) =>
+  apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, { method: 'POST' });
+
+export const registerProjectPaymentOutside = (paymentId: string, paymentDate: string) =>
+  apiRequest<{ submitted: true; awaitingWebhook: true }>(
+    `/project-payments/${paymentId}/receive-in-cash`,
+    { method: 'POST', body: { paymentDate } },
+  );
+
 export const setDefaultProjectPayment = (projectId: string, paid: boolean, dueDate?: string | null) =>
   apiRequest<{ payment: ProjectPaymentRow }>(`/projects/${projectId}/project-payment`, {
     method: 'PUT', body: { paid, ...(dueDate !== undefined ? { dueDate } : {}) },

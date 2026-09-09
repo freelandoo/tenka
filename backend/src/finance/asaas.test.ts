@@ -39,4 +39,34 @@ describe('cliente Asaas', () => {
       }),
     );
   });
+
+  it('cria cobrança avulsa com referência externa', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'pay_1', status: 'PENDING', billingType: 'PIX', value: 100, dueDate: '2026-10-10',
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    await asaas.createPayment({
+      customer: 'cus_1', billingType: 'PIX', value: 100, dueDate: '2026-10-10',
+      externalReference: 'project-payment:77777777-7777-4777-8777-777777777777',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api-sandbox.asaas.com/v3/payments', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('project-payment:77777777-7777-4777-8777-777777777777'),
+    }));
+  });
+
+  it('consulta por referência e remove cobrança pelo id', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ deleted: true, id: 'pay_1' }), { status: 200 }));
+
+    await expect(asaas.findPayment('project-payment:abc')).resolves.toBeNull();
+    await asaas.deletePayment('pay_1');
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://api-sandbox.asaas.com/v3/payments/pay_1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
 });

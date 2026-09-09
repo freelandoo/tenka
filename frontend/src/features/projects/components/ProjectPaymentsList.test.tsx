@@ -10,12 +10,17 @@ vi.mock('../../finance/financeService', () => ({
   savePaymentPlan: vi.fn(),
   setDefaultProjectPayment: vi.fn(),
   updateProjectPayment: vi.fn(),
+  createProjectCharge: vi.fn(),
+  cancelProjectCharge: vi.fn(),
+  registerProjectPaymentOutside: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const fetchOverview = vi.mocked(finance.fetchFinanceOverview);
 const setDefaultPayment = vi.mocked(finance.setDefaultProjectPayment);
 const updatePayment = vi.mocked(finance.updateProjectPayment);
+const createCharge = vi.mocked(finance.createProjectCharge);
+const registerOutside = vi.mocked(finance.registerProjectPaymentOutside);
 
 const payment = (over: Partial<ProjectPaymentRow> = {}): ProjectPaymentRow => ({
   id: 'payment-1',
@@ -63,6 +68,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   setDefaultPayment.mockResolvedValue({ payment: payment({ virtual: false, status: 'paid' }) });
   updatePayment.mockResolvedValue({ payment: payment({ status: 'paid' }) });
+  createCharge.mockResolvedValue({ queued: true });
+  registerOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
 });
 
 describe('ProjectPaymentsList', () => {
@@ -112,5 +119,36 @@ describe('ProjectPaymentsList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar data — Pagamento do projeto' }));
 
     await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith('project-1', false, '2026-10-15'));
+  });
+
+  it('gera cobrança para pagamento local pendente com vencimento', async () => {
+    fetchOverview.mockResolvedValue(overview([payment()]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' }));
+
+    await waitFor(() => expect(createCharge).toHaveBeenCalledWith('payment-1'));
+    expect(updatePayment).not.toHaveBeenCalled();
+  });
+
+  it('não permite baixa direta em cobrança sincronizada e aguarda o webhook do Asaas', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fetchOverview.mockResolvedValue(overview([payment({
+      sync_status: 'synced',
+      asaas_payment_id: 'pay_asaas_1',
+      payment_url: 'https://sandbox.asaas.com/i/pay_asaas_1',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    expect(await screen.findByRole('link', { name: 'Abrir cobrança — Site Braslar' })).toHaveAttribute(
+      'href', 'https://sandbox.asaas.com/i/pay_asaas_1',
+    );
+    expect(screen.queryByRole('button', { name: 'Marcar como pago — Site Braslar' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento por fora — Site Braslar' }));
+
+    await waitFor(() => expect(registerOutside).toHaveBeenCalledWith(
+      'payment-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    ));
+    expect(updatePayment).not.toHaveBeenCalled();
   });
 });

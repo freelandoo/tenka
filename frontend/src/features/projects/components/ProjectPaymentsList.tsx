@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarPlus, Check, ChevronDown, Plus, X } from 'lucide-react';
+import { Banknote, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, Plus, ReceiptText, Trash2, X } from 'lucide-react';
 import { subscribeRealtime } from '../../../lib/api/events';
 import type { ProjectPaymentRow } from '../../../lib/supabase/database.types';
 import * as finance from '../../finance/financeService';
@@ -27,6 +27,12 @@ const STATUS_LABEL: Record<ProjectPaymentRow['status'], string> = {
   paid: 'Pago',
   cancelled: 'Cancelado',
 };
+
+function localIsoDate(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 
 export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const { toast } = useToast();
@@ -130,6 +136,101 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     }
   };
 
+  const generateCharge = async (item: ProjectPaymentRow) => {
+    setBusyId(item.id);
+    try {
+      await finance.createProjectCharge(item.id);
+      toast('success', 'Cobrança enviada para criação no Asaas.');
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar a cobrança.');
+    } finally { setBusyId(null); }
+  };
+
+  const registerOutside = async (item: ProjectPaymentRow) => {
+    const accepted = window.confirm(
+      `Registrar no Asaas o pagamento de ${formatCurrencyFromCents(item.amount_cents)}? ` +
+      'A Tenka só mostrará como pago depois do webhook.',
+    );
+    if (!accepted) return;
+    setBusyId(item.id);
+    try {
+      await finance.registerProjectPaymentOutside(item.id, localIsoDate());
+      toast('success', 'Pagamento registrado no Asaas. Aguardando confirmação pelo webhook.');
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível registrar o pagamento.');
+    } finally { setBusyId(null); }
+  };
+
+  const cancelCharge = async (item: ProjectPaymentRow) => {
+    if (!window.confirm(`Cancelar a cobrança "${item.name}" no Asaas? O histórico será preservado.`)) return;
+    setBusyId(item.id);
+    try {
+      await finance.cancelProjectCharge(item.id);
+      toast('success', 'Cancelamento enviado ao Asaas.');
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível cancelar a cobrança.');
+    } finally { setBusyId(null); }
+  };
+
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('success', 'Link da cobrança copiado.');
+    } catch {
+      toast('error', 'Não foi possível copiar o link da cobrança.');
+    }
+  };
+
+  const renderPaymentActions = (item: ProjectPaymentRow, label: string) => {
+    const busy = busyId === item.id;
+    const integrated = item.sync_status !== 'local';
+    if (!integrated) {
+      return <span className="project-payments__actions">
+        {item.status === 'pending' && item.due_date && !item.virtual && (
+          <button type="button" className="panel-iconbtn fees__billing-icon"
+            aria-label={`Gerar cobrança — ${label}`} title="Gerar cobrança"
+            disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}>
+            <ReceiptText size={14} />
+          </button>
+        )}
+        <button type="button" className={`fees__paid${item.status === 'paid' ? ' is-paid' : ''}`}
+          disabled={!isAdmin || !['pending', 'paid'].includes(item.status) || busy}
+          aria-pressed={item.status === 'paid'}
+          aria-label={`${item.status === 'paid' ? 'Reabrir pagamento' : 'Marcar como pago'} — ${label}`}
+          onClick={() => void togglePaid(item)}>Pago</button>
+      </span>;
+    }
+    return <span className="project-payments__actions">
+      {item.payment_url && <>
+        <a className="panel-iconbtn fees__billing-icon" href={item.payment_url}
+          target="_blank" rel="noreferrer" aria-label={`Abrir cobrança — ${label}`} title="Abrir cobrança">
+          <ExternalLink size={14} />
+        </a>
+        <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Copiar link — ${label}`} title="Copiar link"
+          onClick={() => void copyLink(item.payment_url)}><Copy size={14} /></button>
+      </>}
+      {item.sync_status === 'failed' && !item.asaas_payment_id && (
+        <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Tentar gerar cobrança novamente — ${label}`} title="Tentar novamente"
+          disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}><ReceiptText size={14} /></button>
+      )}
+      {item.sync_status === 'synced' && item.status === 'pending' && item.asaas_payment_id && <>
+        <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Registrar pagamento por fora — ${label}`} title="Registrar pagamento por fora"
+          disabled={!isAdmin || busy} onClick={() => void registerOutside(item)}><Banknote size={14} /></button>
+        <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Cancelar cobrança — ${label}`} title="Cancelar cobrança"
+          disabled={!isAdmin || busy} onClick={() => void cancelCharge(item)}><Trash2 size={14} /></button>
+      </>}
+      {item.sync_status === 'queued' && <small className="finance-warning">Sincronizando</small>}
+      {item.sync_status === 'failed' && <small className="finance-warning" title={item.sync_error ?? ''}>Falha</small>}
+    </span>;
+  };
+
   const saveDate = async (item: ProjectPaymentRow) => {
     if (!dateValue) return;
     setBusyId(item.id);
@@ -205,7 +306,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                   {group.hasStages ? (
                     <span className="project-payments__individual-hint">Individual</span>
                   ) : (
-                    <button type="button" className={`fees__paid${onlyPayment.status === 'paid' ? ' is-paid' : ''}`} disabled={!isAdmin || !['pending', 'paid'].includes(onlyPayment.status) || busyId === onlyPayment.id} aria-pressed={onlyPayment.status === 'paid'} aria-label={`${onlyPayment.status === 'paid' ? 'Reabrir pagamento' : 'Marcar como pago'} — ${group.projectName}`} onClick={() => void togglePaid(onlyPayment)}>Pago</button>
+                    renderPaymentActions(onlyPayment, group.projectName)
                   )}
                 </div>
 
@@ -224,7 +325,9 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                           {renderDate(item)}
                           <span className="costs__amount">{formatCurrencyFromCents(item.amount_cents)}</span>
                           <span className={`project-payments__status is-${item.status}`}>{STATUS_LABEL[item.status]}</span>
-                          <button type="button" className={`fees__paid${paid ? ' is-paid' : ''}`} disabled={!isAdmin || !editable || busyId === item.id} aria-pressed={paid} aria-label={`${paid ? 'Reabrir pagamento' : 'Marcar como pago'} — ${group.projectName} — Etapa ${index + 1} de ${group.items.length} · ${item.name}`} title={!editable ? 'Ative o plano no drawer do projeto para confirmar esta etapa' : paid ? 'Reabrir pagamento' : 'Marcar esta etapa como paga'} onClick={() => void togglePaid(item)}>Pago</button>
+                          {editable || item.sync_status !== 'local'
+                            ? renderPaymentActions(item, `${group.projectName} — Etapa ${index + 1} de ${group.items.length} · ${item.name}`)
+                            : <span className="project-payments__individual-hint">Ative o plano</span>}
                         </li>
                       );
                     })}
