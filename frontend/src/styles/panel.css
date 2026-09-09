@@ -3517,8 +3517,17 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 .finance-badge--active, .finance-badge--received, .finance-badge--paid, .finance-badge--confirmed, .finance-badge--legacy_paid { color: #7bd7a0; border-color: color-mix(in srgb, #7bd7a0 35%, transparent); }
 .finance-badge--error, .finance-badge--overdue, .finance-badge--chargeback { color: #ef8f8f; border-color: color-mix(in srgb, #ef8f8f 35%, transparent); }
 .finance-badge--pending_activation, .finance-badge--pending { color: #f4bd68; }
-.finance-admin__legacy { margin-top: 22px; }
-.finance-admin__legacy > summary { margin-bottom: 18px; color: var(--panel-text-dim); cursor: pointer; font-size: 13px; }
+.finance-admin__details { margin-top: 22px; }
+.finance-admin__details > summary {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  color: var(--panel-text-dim);
+  background: var(--panel-surface);
+  cursor: pointer;
+  font-size: 13px;
+}
 
 .finance-admin__overview-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--panel-text-dim); font-size: 13px; }
 .project-form__finance { margin: 0; display: grid; gap: 14px; }

@@ -45,15 +45,15 @@ export default function AdminFinancePage() {
 
       {status === 'ready' && (
         <>
-          <AdminBillingView />
-          <details className="finance-admin__legacy">
-            <summary>Projeções, custos e carteira anterior</summary>
-            <CarteiraView
-              projects={projects}
-              profiles={profiles}
-              isAdmin
-              onProjectsChanged={() => void refresh()}
-            />
+          <CarteiraView
+            projects={projects}
+            profiles={profiles}
+            isAdmin
+            onProjectsChanged={() => void refresh()}
+          />
+          <details className="finance-admin__details">
+            <summary>Integração, assinaturas e últimas mensalidades</summary>
+            <AdminBillingView />
           </details>
         </>
       )}
