@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Check, CheckCircle2, CirclePause, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
+import { Ban, CalendarDays, Check, CheckCircle2, CirclePause, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
 import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
@@ -144,6 +144,37 @@ export function ProjectDrawer({
       onChanged();
     } catch (error) {
       toast('error', error instanceof Error ? error.message : 'Falha ao atualizar a assinatura.');
+    } finally { setBusy(false); }
+  };
+
+  /**
+   * Cancelar é diferente de desativar: desativar pausa a recorrência no Asaas e
+   * permite religar; cancelar apaga a assinatura lá e não tem volta — só resta
+   * criar outra. Por isso pede o nome do projeto digitado, como as exclusões.
+   * As cobranças já emitidas continuam no histórico nos dois casos.
+   */
+  const cancelSubscription = async () => {
+    const typed = window.prompt(
+      `Cancelar DEFINITIVAMENTE a assinatura no Asaas? A recorrência é apagada e não pode ser religada — `
+      + `as cobranças já emitidas permanecem no histórico. Para confirmar, digite o nome do projeto:`,
+    );
+    if (typed === null) return;
+    setBusy(true);
+    try {
+      await financeService.cancelSubscription(project.id, typed.trim());
+      toast('success', 'Cancelamento enviado ao Asaas.');
+      await loadFinance();
+      setActivityRevision((value) => value + 1);
+      onChanged();
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const friendly: Record<string, string> = {
+        'confirmacao-incorreta': 'O nome digitado não confere com o do projeto. Nada foi cancelado.',
+        'assinatura-nao-sincronizada': 'Esta assinatura ainda não existe no Asaas.',
+        'assinatura-ja-cancelada': 'Esta assinatura já está cancelada.',
+        'asaas-nao-configurado': 'A integração com o Asaas ainda não está configurada.',
+      };
+      toast('error', friendly[code] ?? (code || 'Falha ao cancelar a assinatura.'));
     } finally { setBusy(false); }
   };
 
@@ -365,11 +396,20 @@ export function ProjectDrawer({
           </div>
         </dl>
         {isAdmin && finance?.subscription && <div className="project-drawer__subscription">
-          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Rascunho' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status === 'pending_activation' ? 'Ativação pendente' : finance.subscription.status}</span>
+          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Rascunho' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status === 'pending_activation' ? 'Ativação pendente' : finance.subscription.status === 'cancelled' ? 'Cancelada' : finance.subscription.status}</span>
           {finance.subscription.status === 'active'
             ? <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void subscriptionAction('pause')}><CirclePause size={14} /> Desativar</button>
-            : <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy || !finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj} onClick={() => void activateSubscription()}><Check size={14} /> {finance.subscription.asaas_subscription_id ? 'Reativar' : 'Ativar no Asaas'}</button>}
+            : finance.subscription.status !== 'cancelled' && <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy || !finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj} onClick={() => void activateSubscription()}><Check size={14} /> {finance.subscription.asaas_subscription_id ? 'Reativar' : 'Ativar no Asaas'}</button>}
+          {finance.subscription.asaas_subscription_id && finance.subscription.status !== 'cancelled' && (
+            <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm panel-btn--danger" disabled={busy} onClick={() => void cancelSubscription()}><Ban size={14} /> Cancelar</button>
+          )}
         </div>}
+        {isAdmin && finance?.subscription?.status === 'cancelled' && (
+          <p className="panel-field__hint">
+            Assinatura cancelada no Asaas. O histórico de cobranças continua disponível; para voltar a cobrar,
+            informe o valor no formulário do projeto e ative de novo — uma nova assinatura será criada.
+          </p>
+        )}
         {isAdmin && finance?.subscription && (!finance.configured || !finance.project.client_id || !finance.project.cpf_cnpj) && (
           <p className="finance-warning">
             {!finance.configured

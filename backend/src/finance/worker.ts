@@ -10,6 +10,7 @@ export interface Operation {
   subscription_id: string | null;
   project_payment_id: string | null;
   kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription'
+    | 'cancel_subscription'
     | 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge';
   attempts: number;
   request_payload: Record<string, unknown>;
@@ -249,6 +250,35 @@ export async function executeOperation(operation: Operation): Promise<string | n
     return ctx.asaas_subscription_id;
   }
 
+  if (operation.kind === 'cancel_subscription') {
+    if (!ctx.asaas_subscription_id) throw new Error('Assinatura ainda não existe no Asaas.');
+    await asaas.deleteSubscription(ctx.asaas_subscription_id);
+    await withActor(null, async (client) => {
+      // O id sai da linha porque a recorrência não existe mais no Asaas: mantê-lo
+      // faria uma reativação futura escrever numa assinatura apagada. Ele fica
+      // registrado no histórico do projeto para auditoria.
+      await client.query(
+        `update public.project_subscriptions
+            set status = 'cancelled', cancelled_at = now(), paused_at = null,
+                asaas_subscription_id = null, last_synced_at = now(), sync_error = null
+          where id = $1`,
+        [ctx.id],
+      );
+      await client.query(
+        'update public.projects set subscription_active = false where id = $1',
+        [ctx.project_id],
+      );
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1, null, 'assinatura_configurada', $2::jsonb)`,
+        [ctx.project_id, JSON.stringify({
+          event: 'cancelled', asaasSubscriptionId: ctx.asaas_subscription_id,
+        })],
+      );
+    });
+    return ctx.asaas_subscription_id;
+  }
+
   const customerId = await ensureCustomer(ctx);
   const input = {
     customer: customerId,
@@ -289,6 +319,22 @@ export async function executeOperation(operation: Operation): Promise<string | n
       ...input,
       ...(operation.kind === 'reactivate_subscription' ? { status: 'ACTIVE' } : {}),
     });
+    const currentPaymentId = typeof operation.request_payload?.currentPaymentId === 'string'
+      ? operation.request_payload.currentPaymentId
+      : null;
+    if (currentPaymentId) {
+      const currentAmountCents = Number(operation.request_payload.currentAmountCents);
+      const currentDueDate = String(operation.request_payload.currentDueDate ?? '');
+      if (!Number.isInteger(currentAmountCents) || currentAmountCents <= 0 || !currentDueDate) {
+        throw new Error('Impacto da cobrança atual inválido.');
+      }
+      await asaas.updatePayment(currentPaymentId, {
+        billingType: ctx.billing_type,
+        value: currentAmountCents / 100,
+        dueDate: currentDueDate,
+        description: 'Mensalidade TENKA',
+      });
+    }
     const localStatus = subscription.status === 'INACTIVE' ? 'inactive' : 'active';
     await withActor(null, async (client) => {
       await client.query(

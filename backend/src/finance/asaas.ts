@@ -63,6 +63,7 @@ export interface AsaasSubscription {
   value: number;
   billingType: string;
   externalReference?: string;
+  deleted?: boolean;
 }
 
 export interface AsaasPayment {
@@ -106,9 +107,12 @@ export const asaas = {
   },
   async findSubscription(externalReference: string): Promise<AsaasSubscription | null> {
     const page = await request<AsaasPage<AsaasSubscription>>(
-      `/subscriptions?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
+      `/subscriptions?externalReference=${encodeURIComponent(externalReference)}&limit=10`,
     );
-    return page.data[0] ?? null;
+    // Uma assinatura cancelada continua listada pelo Asaas. Reaproveitá-la
+    // faria a reativação escrever numa recorrência morta, então ela é ignorada
+    // e o worker cria uma nova.
+    return page.data.find((subscription) => !subscription.deleted) ?? null;
   },
   createSubscription(input: Record<string, unknown>) {
     return request<AsaasSubscription>('/subscriptions', { method: 'POST', body: JSON.stringify(input) });
@@ -118,6 +122,20 @@ export const asaas = {
       method: 'PUT',
       body: JSON.stringify(input),
     });
+  },
+  getSubscription(id: string) {
+    return request<AsaasSubscription>(`/subscriptions/${encodeURIComponent(id)}`);
+  },
+  deleteSubscription(id: string) {
+    return request<{ deleted: boolean; id: string }>(`/subscriptions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+  listSubscriptionPayments(id: string, offset = 0, limit = 100) {
+    const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+    return request<AsaasPage<AsaasPayment>>(
+      `/subscriptions/${encodeURIComponent(id)}/payments?${params.toString()}`,
+    );
   },
   async findPayment(externalReference: string): Promise<AsaasPayment | null> {
     const page = await request<AsaasPage<AsaasPayment>>(

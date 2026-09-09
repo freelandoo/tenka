@@ -9,7 +9,7 @@ import { projectFormSchema, collectAssigneeIds, type ProjectFormValues } from '.
 import * as clientsService from '../../clients/clientsService';
 import type { ClientWithTotals } from '../../../lib/supabase/database.types';
 import { COMPANY_KEYS, COMPANY_LABELS } from '../companies';
-import { parseCurrencyToCents, formatCurrencyFromCents } from '../../panel/format';
+import { parseCurrencyToCents, formatCurrencyFromCents, formatDate } from '../../panel/format';
 import { PostItColorPicker } from './PostItColorPicker';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { useToast } from '../../panel/ToastContext';
@@ -30,6 +30,12 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const [submitting, setSubmitting] = useState(false);
   const isEdit = project !== null;
   const [subscriptionWasActive, setSubscriptionWasActive] = useState(project?.subscription_active ?? false);
+  // Guarda o que está valendo hoje para saber se o admin realmente mexeu no
+  // valor ou no dia: sem isso a prévia apareceria em toda abertura do formulário.
+  const [subscriptionBaseline, setSubscriptionBaseline] =
+    useState<{ amountCents: number; dueDay: number; exists: boolean } | null>(null);
+  const [preview, setPreview] = useState<finance.SubscriptionPreview | null>(null);
+  const [applyToCurrentPayment, setApplyToCurrentPayment] = useState(false);
 
   const activeProfiles = useMemo(() => profiles.filter((p) => p.active), [profiles]);
 
@@ -92,11 +98,19 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     finance.fetchProjectFinance(project.id).then((detail) => {
       if (cancelled) return;
       setValue('clientCpfCnpj', detail.project.cpf_cnpj ?? '');
-      if (!detail.subscription) return;
+      if (!detail.subscription) {
+        setSubscriptionBaseline({ amountCents: 0, dueDay: 0, exists: false });
+        return;
+      }
       setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
       setValue('dueDay', String(detail.subscription.due_day));
       setValue('subscriptionActive', detail.subscription.status === 'active');
       setSubscriptionWasActive(detail.subscription.status === 'active');
+      setSubscriptionBaseline({
+        amountCents: detail.subscription.amount_cents,
+        dueDay: detail.subscription.due_day,
+        exists: true,
+      });
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [project, setValue]);
@@ -122,6 +136,38 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     setValue('clientEmail', selecionado.email);
     setValue('clientCpfCnpj', selecionado.cpf_cnpj ?? '');
   }, [selecionado, setValue]);
+
+  // Prévia do impacto: alterar valor ou dia mexe no próximo vencimento, e pode
+  // ou não mexer na cobrança deste mês que já está no Asaas. Quem decide é o
+  // admin — a Tenka só mostra os dois números antes de salvar.
+  const monthlyFeeInput = watch('monthlyFee');
+  const dueDayInput = watch('dueDay');
+  useEffect(() => {
+    if (!project || !subscriptionBaseline?.exists) return;
+    const amountCents = monthlyFeeInput.trim() === '' ? 0 : parseCurrencyToCents(monthlyFeeInput) ?? 0;
+    const day = Number(dueDayInput);
+    const changed = amountCents > 0 && Number.isInteger(day) && day >= 1 && day <= 31
+      && (amountCents !== subscriptionBaseline.amountCents || day !== subscriptionBaseline.dueDay);
+    if (!changed) { setPreview(null); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      finance.previewSubscription(project.id, {
+        amountCents, dueDay: day, applyToCurrentPayment: true,
+      })
+        .then((result) => { if (!cancelled) setPreview(result); })
+        .catch(() => { if (!cancelled) setPreview(null); });
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [project, subscriptionBaseline, monthlyFeeInput, dueDayInput]);
+
+  // Zerar o valor é o gesto de remover a mensalidade; manter "assinatura ativa"
+  // marcada só produziria um erro de validação sem explicar o que fazer.
+  useEffect(() => {
+    if (monthlyFeeInput.trim() === '' && subscriptionActive) setValue('subscriptionActive', false);
+  }, [monthlyFeeInput, subscriptionActive, setValue]);
+
+  const currentImpact = preview?.current?.willChange ? preview.current : null;
+  useEffect(() => { if (!currentImpact) setApplyToCurrentPayment(false); }, [currentImpact]);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -197,10 +243,16 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
             amountCents: monthlyFeeCents,
             dueDay: Number(values.dueDay),
             activate: values.subscriptionActive,
+            applyToCurrentPayment: applyToCurrentPayment && Boolean(currentImpact),
           });
           if (subscriptionWasActive && !values.subscriptionActive) {
             await finance.subscriptionAction(project.id, 'pause');
           }
+        } else if (subscriptionBaseline?.exists || project.monthly_fee_cents > 0) {
+          // Zerar o valor é como o admin remove a mensalidade. Antes isso não
+          // fazia nada e a recorrência seguia cobrando no Asaas; agora o backend
+          // desliga a assinatura e zera o valor do projeto.
+          await finance.clearSubscription(project.id);
         }
         // Sincroniza responsáveis: adiciona novos, remove ausentes.
         const current = new Set(project.assignees.map((a) => a.user_id));
@@ -221,6 +273,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         'asaas-nao-configurado': 'A integração com o Asaas ainda não está configurada.',
         'cliente-obrigatorio-para-ativacao': 'Selecione um cliente antes de ativar a assinatura.',
         'cpf-cnpj-obrigatorio-para-ativacao': 'Falta cadastrar o CPF/CNPJ para funcionar no Asaas.',
+        'cobranca-atual-nao-sincronizada': 'A cobrança deste mês não está no Asaas e não pode ser alterada por aqui.',
+        'competencia-ja-liquidada': 'A competência do próximo vencimento já consta como paga.',
       };
       toast(
         'error',
@@ -438,6 +492,38 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           <p className="panel-field__hint">
             Se hoje ainda não passou do dia escolhido, a primeira cobrança vence neste mês; caso contrário, no mês seguinte.
           </p>
+          {preview && (
+            <div className="project-form__impact" role="group" aria-label="Impacto da alteração">
+              <p>
+                <strong>Próxima cobrança:</strong>{' '}
+                {formatCurrencyFromCents(preview.next.amountCents)} em {formatDate(preview.next.dueDate)}.
+              </p>
+              {currentImpact ? (
+                <label className="project-form__subscription-toggle">
+                  <input
+                    type="checkbox"
+                    checked={applyToCurrentPayment}
+                    onChange={(event) => setApplyToCurrentPayment(event.target.checked)}
+                  />
+                  <span>
+                    <strong>Aplicar também na cobrança deste mês</strong>
+                    <small>
+                      {formatCurrencyFromCents(currentImpact.amountCents)} em {formatDate(currentImpact.dueDate)}
+                      {' → '}
+                      {formatCurrencyFromCents(currentImpact.nextAmountCents)} em {formatDate(currentImpact.nextDueDate)}.
+                      {' '}Sem marcar, este mês continua como está.
+                    </small>
+                  </span>
+                </label>
+              ) : (
+                <p className="panel-field__hint">
+                  {preview.current
+                    ? 'A cobrança deste mês já está liquidada ou fora do Asaas e não será alterada.'
+                    : 'Não há cobrança deste mês para alterar.'}
+                </p>
+              )}
+            </div>
+          )}
           {subscriptionActive && !clientCpfCnpj.trim() && (
             <p className="finance-warning">Falta cadastrar o CPF/CNPJ para funcionar no Asaas.</p>
           )}

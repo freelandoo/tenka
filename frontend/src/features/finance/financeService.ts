@@ -64,6 +64,15 @@ export interface SubscriptionInput {
   billingType?: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
   activate: boolean;
   confirmPaidCompetence?: boolean;
+  applyToCurrentPayment?: boolean;
+}
+
+export interface SubscriptionPreview {
+  next: { amountCents: number; dueDate: string };
+  current: null | {
+    id: string; asaasPaymentId: string | null; status: string; amountCents: number; dueDate: string;
+    willChange: boolean; nextAmountCents: number; nextDueDate: string; editable: boolean;
+  };
 }
 
 export const saveSubscription = (projectId: string, input: SubscriptionInput) =>
@@ -71,10 +80,27 @@ export const saveSubscription = (projectId: string, input: SubscriptionInput) =>
     method: 'PUT', body: input,
   });
 
+export const previewSubscription = (
+  projectId: string,
+  input: Pick<SubscriptionInput, 'amountCents' | 'dueDay' | 'applyToCurrentPayment'>,
+) => apiRequest<SubscriptionPreview>(`/projects/${projectId}/subscription/preview`, {
+  method: 'POST', body: input,
+});
+
 export const subscriptionAction = (
   projectId: string,
   action: 'pause' | 'reactivate' | 'sync',
 ) => apiRequest(`/projects/${projectId}/subscription/${action}`, { method: 'POST' });
+
+export const cancelSubscription = (projectId: string, confirmation: string) =>
+  apiRequest(`/projects/${projectId}/subscription/cancel`, {
+    method: 'POST', body: { confirmation },
+  });
+
+export const clearSubscription = (projectId: string) =>
+  apiRequest<{ cleared: true; queued: boolean }>(`/projects/${projectId}/subscription/clear`, {
+    method: 'POST',
+  });
 
 export interface PaymentPlanInput {
   status: 'draft' | 'active';

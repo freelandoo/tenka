@@ -81,4 +81,29 @@ describe('cliente Asaas', () => {
       'dueDate%5Bge%5D=2026-09-01&dueDate%5Ble%5D=2026-09-30&offset=100&limit=100',
     ), expect.any(Object));
   });
+
+  it('ignora assinatura já apagada ao procurar pela referência externa', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      data: [{ id: 'sub_old', status: 'INACTIVE', nextDueDate: '2026-10-10', value: 300,
+        billingType: 'PIX', externalReference: 'project-subscription:p1', deleted: true }],
+      hasMore: false,
+    }), { status: 200 }));
+
+    expect(await asaas.findSubscription('project-subscription:p1')).toBeNull();
+  });
+
+  it('consulta pagamentos e cancela uma assinatura definitivamente', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [], hasMore: false }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ deleted: true, id: 'sub_1' }), { status: 200 }));
+
+    await asaas.listSubscriptionPayments('sub_1');
+    await asaas.deleteSubscription('sub_1');
+
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('/subscriptions/sub_1/payments?offset=0&limit=100');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://api-sandbox.asaas.com/v3/subscriptions/sub_1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
 });
