@@ -213,17 +213,25 @@ async function finishOperation(operation: Operation): Promise<void> {
   }
 }
 
-interface WebhookEvent { id: string; payload: Record<string, unknown>; attempts: number }
+interface WebhookEvent {
+  id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+  event_at: string;
+}
 
 async function claimWebhook(): Promise<WebhookEvent | null> {
   const client = await getPool().connect();
   try {
     await client.query('begin');
     const { rows } = await client.query<WebhookEvent>(
-      `select id, payload, attempts from public.asaas_webhook_events
+      `select id, event_type, payload, attempts,
+              coalesce(event_at, received_at) as event_at
+         from public.asaas_webhook_events
         where (status in ('pending', 'failed') or
                (status = 'processing' and updated_at < now() - interval '5 minutes'))
-          and attempts < 10
+          and run_after <= now() and attempts < 10
         order by received_at for update skip locked limit 1`,
     );
     if (!rows[0]) {
@@ -249,26 +257,50 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
   try {
     const payment = event.payload.payment as Record<string, unknown> | undefined;
     if (payment?.id && payment.subscription && payment.dueDate) {
-      const providerStatus = String(payment.status ?? 'PENDING');
+      const eventStatus: Record<string, string> = {
+        PAYMENT_DELETED: 'DELETED',
+        PAYMENT_REFUNDED: 'REFUNDED',
+        PAYMENT_PARTIALLY_REFUNDED: 'PARTIALLY_REFUNDED',
+        PAYMENT_REFUND_REQUESTED: 'REFUND_REQUESTED',
+        PAYMENT_CHARGEBACK_REQUESTED: 'CHARGEBACK_REQUESTED',
+        PAYMENT_CHARGEBACK_DISPUTE: 'CHARGEBACK_DISPUTE',
+        PAYMENT_AWAITING_RISK_ANALYSIS: 'AWAITING_RISK_ANALYSIS',
+      };
+      const providerStatus = eventStatus[event.event_type] ?? String(payment.status ?? 'PENDING');
       const status = paymentStatus(providerStatus);
       const dueDate = String(payment.dueDate);
+      const subscriptionRef = String(payment.subscription);
+      const subscription = await getPool().query<{ id: string; project_id: string }>(
+        `select id, project_id from public.project_subscriptions
+          where asaas_subscription_id = $1`,
+        [subscriptionRef],
+      );
+      if (!subscription.rows[0]) {
+        throw new Error(`Assinatura do webhook ainda não vinculada: ${subscriptionRef}.`);
+      }
+      const linked = subscription.rows[0];
       await getPool().query(
         `insert into public.subscription_payments
            (project_id, subscription_id, competence, amount_cents, due_date, status,
             asaas_payment_id, payment_url, billing_type, provider_status,
-            paid_at, confirmed_at, received_at, cancelled_at, source)
-         select ps.project_id, ps.id, $2::date,
-                round(($3::numeric) * 100)::bigint, $4::date, $5,
-                $6, $7, $8, $9,
-                case when $5 in ('confirmed','received') then now() else null end,
-                case when $5 = 'confirmed' then now() else null end,
-                case when $5 = 'received' then now() else null end,
-                case when $5 = 'cancelled' then now() else null end,
-                'asaas'
-           from public.project_subscriptions ps
-          where ps.asaas_subscription_id = $1
-         on conflict (project_id, competence) do update set
+            paid_at, confirmed_at, received_at, cancelled_at, source,
+            payment_date, credit_date, client_payment_date, provider_event_at,
+            original_due_date, bank_slip_url, pix_payload)
+         values ($1,$2,$3::date,round(($4::numeric) * 100)::bigint,$5::date,$6,
+                 $7,$8,$9,$10,
+                 case when $6 in ('confirmed','received')
+                      then coalesce($13::date,$11::date)::timestamptz else null end,
+                 case when $6 = 'confirmed'
+                      then coalesce($13::date,$11::date)::timestamptz else null end,
+                 case when $6 = 'received'
+                      then coalesce($13::date,$11::date)::timestamptz else null end,
+                 case when $6 = 'cancelled' then $14::timestamptz else null end,
+                 'asaas',$11::date,$12::date,$13::date,$14::timestamptz,
+                 $15::date,$16,$17)
+         on conflict (asaas_payment_id) where asaas_payment_id is not null do update set
+           project_id = excluded.project_id,
            subscription_id = excluded.subscription_id,
+           competence = excluded.competence,
            amount_cents = excluded.amount_cents,
            due_date = excluded.due_date,
            status = excluded.status,
@@ -280,9 +312,19 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
            confirmed_at = excluded.confirmed_at,
            received_at = excluded.received_at,
            cancelled_at = excluded.cancelled_at,
-           source = 'asaas'`,
+           source = 'asaas',
+           payment_date = excluded.payment_date,
+           credit_date = excluded.credit_date,
+           client_payment_date = excluded.client_payment_date,
+           provider_event_at = excluded.provider_event_at,
+           original_due_date = excluded.original_due_date,
+           bank_slip_url = excluded.bank_slip_url,
+           pix_payload = excluded.pix_payload
+         where subscription_payments.provider_event_at is null
+            or excluded.provider_event_at >= subscription_payments.provider_event_at`,
         [
-          String(payment.subscription),
+          linked.project_id,
+          linked.id,
           competenceFromDueDate(dueDate),
           Number(payment.value ?? 0),
           dueDate,
@@ -291,6 +333,13 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
           String(payment.invoiceUrl ?? ''),
           String(payment.billingType ?? ''),
           providerStatus,
+          typeof payment.paymentDate === 'string' ? payment.paymentDate : null,
+          typeof payment.creditDate === 'string' ? payment.creditDate : null,
+          typeof payment.clientPaymentDate === 'string' ? payment.clientPaymentDate : null,
+          event.event_at,
+          typeof payment.originalDueDate === 'string' ? payment.originalDueDate : null,
+          String(payment.bankSlipUrl ?? ''),
+          String(payment.pixPayload ?? ''),
         ],
       );
     }
@@ -300,9 +349,15 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
       [event.id],
     );
   } catch (error) {
+    const retryMinutes = Math.min(60, 2 ** Math.min(event.attempts, 5));
     await getPool().query(
-      `update public.asaas_webhook_events set status = 'failed', last_error = $2 where id = $1`,
-      [event.id, error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.'],
+      `update public.asaas_webhook_events
+          set status = case when $3 >= 10 then 'needs_review' else 'failed' end,
+              last_error = $2,
+              run_after = now() + ($4 * interval '1 minute')
+        where id = $1`,
+      [event.id, error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.',
+        event.attempts, retryMinutes],
     );
   }
 }

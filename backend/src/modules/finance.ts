@@ -9,6 +9,7 @@ import { nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
 import { planDiff, protectedPlanChangeError } from '../finance/planDiff';
 import { validateInstallmentGroups } from '../finance/installments';
+import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -16,6 +17,7 @@ const subscriptionSchema = z.object({
   nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).optional(),
   activate: z.boolean().default(false),
+  confirmPaidCompetence: z.boolean().default(false),
 });
 
 const planSchema = z.object({
@@ -187,6 +189,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const nextDueDate = isStartingCycle
           ? nextMonthlyDueDate(parsed.data.dueDay)
           : parsed.data.nextDueDate ?? previous?.next_due_date ?? nextMonthlyDueDate(parsed.data.dueDay);
+        if (isStartingCycle) {
+          const settled = await client.query<{ status: string }>(
+            `select status from public.subscription_payments
+              where project_id = $1
+                and competence = date_trunc('month', $2::date)::date
+                and status in ('confirmed', 'received', 'legacy_paid')`,
+            [id, nextDueDate],
+          );
+          if (requiresPaidCompetenceConfirmation(
+            settled.rows.map((row) => row.status),
+            parsed.data.confirmPaidCompetence,
+          )) return 'paid-competence' as const;
+        }
         const billingType = parsed.data.billingType ?? previous?.billing_type ?? 'UNDEFINED';
         // A referência externa é um parâmetro separado do project_id para o
         // Postgres não tentar inferir o mesmo placeholder como UUID e texto.
@@ -238,6 +253,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         return subscription;
       });
       if (!result) return reply.code(404).send({ error: 'projeto-inexistente' });
+      if (result === 'paid-competence') {
+        return reply.code(409).send({
+          error: 'competencia-ja-liquidada',
+          message: 'A competência do próximo vencimento já possui pagamento liquidado.',
+        });
+      }
       if (parsed.data.activate) financeWorker.kick();
       return reply.send({ subscriptionId: result.id, queued: parsed.data.activate });
     } catch (error) {
@@ -491,10 +512,22 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const eventId = typeof body.id === 'string' ? body.id : '';
     const eventType = typeof body.event === 'string' ? body.event : '';
     if (!eventId || !eventType) return reply.code(400).send({ error: 'evento-invalido' });
+    const payment = body.payment && typeof body.payment === 'object'
+      ? body.payment as Record<string, unknown>
+      : null;
+    const rawEventAt = typeof body.dateCreated === 'string' ? body.dateCreated : '';
+    const eventAt = rawEventAt && !Number.isNaN(Date.parse(rawEventAt))
+      ? new Date(rawEventAt).toISOString()
+      : new Date().toISOString();
     await getPool().query(
-      `insert into public.asaas_webhook_events (provider_event_id,event_type,payload)
-       values ($1,$2,$3::jsonb) on conflict (provider_event_id) do nothing`,
-      [eventId, eventType, JSON.stringify(body)],
+      `insert into public.asaas_webhook_events
+         (provider_event_id,event_type,payload,payment_id,subscription_id,event_at)
+       values ($1,$2,$3::jsonb,$4,$5,$6::timestamptz)
+       on conflict (provider_event_id) do nothing`,
+      [eventId, eventType, JSON.stringify(body),
+        typeof payment?.id === 'string' ? payment.id : null,
+        typeof payment?.subscription === 'string' ? payment.subscription : null,
+        eventAt],
     );
     financeWorker.kick();
     return reply.send({ received: true });

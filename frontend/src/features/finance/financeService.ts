@@ -35,6 +35,7 @@ export interface SubscriptionInput {
   nextDueDate?: string;
   billingType?: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
   activate: boolean;
+  confirmPaidCompetence?: boolean;
 }
 
 export const saveSubscription = (projectId: string, input: SubscriptionInput) =>

@@ -7,6 +7,9 @@ describe('mapeamento financeiro do Asaas', () => {
     expect(paymentStatus('CONFIRMED')).toBe('confirmed');
     expect(paymentStatus('OVERDUE')).toBe('overdue');
     expect(paymentStatus('PENDING')).toBe('pending');
+    expect(paymentStatus('REFUND_REQUESTED')).toBe('refund_requested');
+    expect(paymentStatus('DUNNING_RECEIVED')).toBe('dunning');
+    expect(paymentStatus('AWAITING_RISK_ANALYSIS')).toBe('awaiting_risk_analysis');
   });
 
   it('deriva a competência do vencimento', () => {

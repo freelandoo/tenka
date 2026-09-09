@@ -4,16 +4,8 @@
  * O `vitest.config.ts` do backend não toca banco nem rede, então aqui existe um
  * duplo em memória de `subscription_payments`, `project_subscriptions` e
  * `asaas_webhook_events`. Ele não é um Postgres: modela só o que estes testes
- * precisam — a chave primária `(project_id, competence)`, o índice único de
- * `asaas_payment_id` e o `on conflict` do upsert real (migration 0018).
- *
- * ATENÇÃO AO `it.fails`
- * ---------------------
- * Os casos marcados com `it.fails` reproduzem defeitos conhecidos: eles passam
- * HOJE porque a implementação erra, e vão QUEBRAR no dia em que o defeito for
- * corrigido. Isso é o sinal esperado — ao corrigir cada achado, remova o
- * `.fails` do caso correspondente e ele vira um teste de regressão comum.
- * Os identificadores (C1…C6, A6) são os da auditoria de 08/09/2026.
+ * precisam — a identidade por `asaas_payment_id`, a ordem dos eventos e o
+ * reagendamento de tentativas. Os identificadores C1…C6/A6 vêm da auditoria.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,10 +40,13 @@ interface PaymentRow {
 
 interface EventRow {
   id: string;
+  event_type: string;
   payload: Record<string, unknown>;
-  status: 'pending' | 'processing' | 'done' | 'failed';
+  status: 'pending' | 'processing' | 'done' | 'failed' | 'needs_review';
   attempts: number;
   last_error: string | null;
+  event_at: string;
+  run_after: string;
 }
 
 interface IssuedQuery {
@@ -85,9 +80,6 @@ class FakeDb {
   payments: PaymentRow[] = [];
   events: EventRow[] = [];
   issued: IssuedQuery[] = [];
-  /** `dateCreated` do evento em processamento, usado pela guarda de ordem. */
-  private currentEventAt: string | null = null;
-
   readonly pool = {
     query: (sql: string, values: unknown[] = []) => this.run(sql, values),
     connect: async () => ({
@@ -121,7 +113,16 @@ class FakeDb {
   }
 
   seedEvent(payload: Record<string, unknown>, id = 'evt_1'): void {
-    this.events.push({ id, payload, status: 'pending', attempts: 0, last_error: null });
+    this.events.push({
+      id,
+      event_type: String(payload.event ?? ''),
+      payload,
+      status: 'pending',
+      attempts: 0,
+      last_error: null,
+      event_at: typeof payload.dateCreated === 'string' ? payload.dateCreated : PROCESSED_AT,
+      run_after: PROCESSED_AT,
+    });
   }
 
   event(id = 'evt_1'): EventRow {
@@ -153,7 +154,10 @@ class FakeDb {
     if (sql.includes('public.asaas_webhook_events')) return this.webhookQuery(sql, values);
     if (sql.includes('public.subscription_payments')) return this.paymentQuery(sql, values);
     if (sql.includes('public.project_subscriptions')) {
-      return { rows: [...this.subscriptions], rowCount: this.subscriptions.length };
+      const rows = values.length === 0 ? [...this.subscriptions] : this.subscriptions.filter(
+        (row) => row.asaas_subscription_id === values[0],
+      );
+      return { rows, rowCount: rows.length };
     }
 
     // Uma correção pode emitir SQL que este duplo ainda não modela. Devolver
@@ -165,14 +169,18 @@ class FakeDb {
   private webhookQuery(sql: string, values: unknown[]): { rows: unknown[]; rowCount: number } {
     if (sql.startsWith('select')) {
       const claimed = this.events.find(
-        (row) => (row.status === 'pending' || row.status === 'failed') && row.attempts < 10,
+        (row) => (row.status === 'pending' || row.status === 'failed') && row.attempts < 10
+          && row.run_after <= PROCESSED_AT,
       );
       if (!claimed) return { rows: [], rowCount: 0 };
-      this.currentEventAt = typeof claimed.payload.dateCreated === 'string'
-        ? claimed.payload.dateCreated
-        : null;
       return {
-        rows: [{ id: claimed.id, payload: claimed.payload, attempts: claimed.attempts }],
+        rows: [{
+          id: claimed.id,
+          event_type: claimed.event_type,
+          payload: claimed.payload,
+          attempts: claimed.attempts,
+          event_at: claimed.event_at,
+        }],
         rowCount: 1,
       };
     }
@@ -187,8 +195,9 @@ class FakeDb {
       target.status = 'done';
       target.last_error = null;
     } else if (sql.includes("'failed'")) {
-      target.status = 'failed';
+      target.status = Number(values[2]) >= 10 ? 'needs_review' : 'failed';
       target.last_error = String(values[1] ?? '');
+      target.run_after = '2026-09-08T12:02:00.000Z';
     }
     return { rows: [], rowCount: 1 };
   }
@@ -199,19 +208,12 @@ class FakeDb {
     }
     if (!sql.includes('insert into')) return { rows: [], rowCount: 0 };
 
-    const [subscriptionRef, competence, value, dueDate, status, paymentId, paymentUrl,
-      billingType, providerStatus] = values as string[];
-
-    // `insert ... select ... from project_subscriptions where asaas_subscription_id = $1`:
-    // assinatura desconhecida grava zero linhas, sem erro. É o defeito C2.
-    const subscription = this.subscriptions.find(
-      (row) => row.asaas_subscription_id === subscriptionRef,
-    );
-    if (!subscription) return { rows: [], rowCount: 0 };
+    const [projectId, subscriptionId, competence, value, dueDate, status, paymentId, paymentUrl,
+      billingType, providerStatus, paymentDate, , clientPaymentDate, eventAt] = values as string[];
 
     const incoming: PaymentRow = {
-      project_id: subscription.project_id,
-      subscription_id: subscription.id,
+      project_id: String(projectId),
+      subscription_id: String(subscriptionId),
       competence: String(competence),
       amount_cents: Math.round(Number(value) * 100),
       due_date: String(dueDate),
@@ -220,16 +222,17 @@ class FakeDb {
       payment_url: String(paymentUrl ?? ''),
       billing_type: String(billingType ?? ''),
       provider_status: String(providerStatus ?? ''),
-      paid_at: ['confirmed', 'received'].includes(String(status)) ? PROCESSED_AT : null,
-      confirmed_at: status === 'confirmed' ? PROCESSED_AT : null,
-      received_at: status === 'received' ? PROCESSED_AT : null,
-      cancelled_at: status === 'cancelled' ? PROCESSED_AT : null,
+      paid_at: ['confirmed', 'received'].includes(String(status))
+        ? String(clientPaymentDate ?? paymentDate ?? PROCESSED_AT) : null,
+      confirmed_at: status === 'confirmed' ? String(clientPaymentDate ?? paymentDate ?? PROCESSED_AT) : null,
+      received_at: status === 'received' ? String(clientPaymentDate ?? paymentDate ?? PROCESSED_AT) : null,
+      cancelled_at: status === 'cancelled' ? String(eventAt) : null,
       source: 'asaas',
-      provider_event_at: this.currentEventAt,
+      provider_event_at: String(eventAt),
     };
 
     const existing = this.payments.find(
-      (row) => row.project_id === incoming.project_id && row.competence === incoming.competence,
+      (row) => row.asaas_payment_id === incoming.asaas_payment_id,
     );
 
     if (existing) {
@@ -239,26 +242,12 @@ class FakeDb {
       const hasOrderGuard = /do update[\s\S]*\bwhere\b[\s\S]*provider_event_at/.test(sql);
       if (
         hasOrderGuard && existing.provider_event_at && incoming.provider_event_at &&
-        incoming.provider_event_at <= existing.provider_event_at
+        incoming.provider_event_at < existing.provider_event_at
       ) {
         return { rows: [], rowCount: 0 };
       }
       Object.assign(existing, incoming);
       return { rows: [], rowCount: 1 };
-    }
-
-    // `subscription_payments_asaas_uniq` — índice único parcial que o
-    // `on conflict (project_id, competence)` não cobre. É o defeito C1.
-    const clash = this.payments.find(
-      (row) => row.asaas_payment_id !== null && row.asaas_payment_id === incoming.asaas_payment_id,
-    );
-    if (clash) {
-      throw Object.assign(
-        new Error(
-          'duplicate key value violates unique constraint "subscription_payments_asaas_uniq"',
-        ),
-        { code: '23505', constraint: 'subscription_payments_asaas_uniq' },
-      );
     }
 
     this.payments.push(incoming);
@@ -354,11 +343,11 @@ describe('worker financeiro — caminho feliz', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Defeitos conhecidos — remova o `.fails` junto com a correção
+// Regressões dos defeitos encontrados na auditoria
 // ---------------------------------------------------------------------------
 
 describe('worker financeiro — defeitos da auditoria', () => {
-  it.fails('C1 — reagendar a cobrança para outro mês não pode quebrar o upsert', async () => {
+  it('C1 — reagendar a cobrança para outro mês não pode quebrar o upsert', async () => {
     // Cobrança de agosto que o Asaas reemitiu para setembro. A competência
     // derivada muda, o `on conflict (project_id, competence)` não encontra a
     // linha antiga e o índice único de `asaas_payment_id` é violado.
@@ -376,7 +365,7 @@ describe('worker financeiro — defeitos da auditoria', () => {
     expect(hoisted.db.event().status).toBe('done');
   });
 
-  it.fails('C2 — cobrança de assinatura ainda não vinculada não pode ser descartada', async () => {
+  it('C2 — cobrança de assinatura ainda não vinculada não pode ser descartada', async () => {
     // O Asaas emite PAYMENT_CREATED logo após createSubscription, antes de a
     // Tenka gravar o asaas_subscription_id. O INSERT ... SELECT não encontra a
     // assinatura, grava zero linhas — e hoje o evento é marcado como concluído.
@@ -388,7 +377,7 @@ describe('worker financeiro — defeitos da auditoria', () => {
     expect(hoisted.db.event().status).not.toBe('done');
   });
 
-  it.fails('C3 — PAYMENT_DELETED precisa cancelar a mensalidade', async () => {
+  it('C3 — PAYMENT_DELETED precisa cancelar a mensalidade', async () => {
     // O tipo do evento é gravado e nunca lido: tudo sai de `payment.status`,
     // que num evento de exclusão não vem como DELETED.
     hoisted.db.seedPayment({
@@ -402,7 +391,7 @@ describe('worker financeiro — defeitos da auditoria', () => {
     expect(hoisted.db.payments[0]?.cancelled_at).not.toBeNull();
   });
 
-  it.fails('C4 — evento atrasado não pode regredir uma mensalidade recebida', async () => {
+  it('C4 — evento atrasado não pode regredir uma mensalidade recebida', async () => {
     hoisted.db.seedPayment({
       project_id: 'p1', competence: '2026-09-01', asaas_payment_id: 'pay_1',
       status: 'received', provider_status: 'RECEIVED',
@@ -418,7 +407,7 @@ describe('worker financeiro — defeitos da auditoria', () => {
     expect(hoisted.db.payments[0]?.status).toBe('received');
   });
 
-  it.fails('C6 — a data informada pelo Asaas precisa chegar ao banco', async () => {
+  it('C6 — a data informada pelo Asaas precisa chegar ao banco', async () => {
     // Hoje `paid_at`/`received_at` recebem now() e os campos de data do payload
     // — paymentDate, clientPaymentDate, confirmedDate — são descartados.
     hoisted.db.seedEvent(paymentEvent({
@@ -431,7 +420,7 @@ describe('worker financeiro — defeitos da auditoria', () => {
     expect(insert?.values).toContain('2026-08-05');
   });
 
-  it.fails('A6 — falha ao processar precisa esperar antes da próxima tentativa', async () => {
+  it('A6 — falha ao processar precisa esperar antes da próxima tentativa', async () => {
     // Sem `run_after`, o claim devolve o mesmo evento na iteração seguinte do
     // laço (que roda 20 vezes por rodada) e queima as 10 tentativas de uma vez.
     hoisted.db.seedEvent(paymentEvent({ dueDate: '12/09/2026' }));

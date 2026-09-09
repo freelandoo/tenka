@@ -155,11 +155,21 @@ export function ProjectDrawer({
     }
     setBusy(true);
     try {
-      await financeService.saveSubscription(project.id, {
+      const input: financeService.SubscriptionInput = {
         amountCents: finance.subscription.amount_cents,
         dueDay: finance.subscription.due_day,
         activate: true,
-      });
+      };
+      try {
+        await financeService.saveSubscription(project.id, input);
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'competencia-ja-liquidada') throw error;
+        const confirmed = window.confirm(
+          'A competência do próximo vencimento já consta como paga. Deseja mesmo gerar uma nova cobrança para esse mês?',
+        );
+        if (!confirmed) return;
+        await financeService.saveSubscription(project.id, { ...input, confirmPaidCompetence: true });
+      }
       toast('success', 'Ativação enviada ao Asaas.');
       await loadFinance();
       setActivityRevision((value) => value + 1);
