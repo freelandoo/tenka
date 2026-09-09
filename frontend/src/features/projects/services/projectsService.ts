@@ -9,6 +9,7 @@ import type {
   ProjectNoteRow,
   ProjectRow,
   ProjectStatus,
+  SubscriptionPaymentRow,
 } from '../../../lib/supabase/database.types';
 
 export interface BoardProject extends ProjectRow {
@@ -101,23 +102,23 @@ export async function reopenProject(projectId: string): Promise<void> {
   await apiRequest(`/projects/${projectId}/reopen`, { method: 'POST' });
 }
 
-/** Projetos cuja mensalidade foi confirmada na competência `YYYY-MM`. */
-export async function fetchSubscriptionPayments(competence: string): Promise<string[]> {
-  const data = await apiRequest<{ paidProjectIds: string[] }>('/subscription-payments', {
+/** Cobranças do Asaas recebidas para a competência `YYYY-MM`. */
+export async function fetchSubscriptionPayments(competence: string): Promise<SubscriptionPaymentRow[]> {
+  const data = await apiRequest<{ payments: SubscriptionPaymentRow[] }>('/subscription-payments', {
     query: { competence },
   });
-  return data.paidProjectIds;
+  return data.payments;
 }
 
-/** Marca ou desfaz o recebimento da mensalidade em uma competência específica. */
-export async function setSubscriptionPaid(
+/** Registra no Asaas um pagamento recebido fora da plataforma. */
+export async function registerSubscriptionPaymentOutside(
   projectId: string,
   competence: string,
-  paid: boolean,
-): Promise<void> {
-  await apiRequest(`/projects/${projectId}/subscription-payment`, {
-    method: 'PUT',
-    body: { competence, paid },
+  paymentDate: string,
+): Promise<{ submitted: true; awaitingWebhook: true }> {
+  return apiRequest(`/projects/${projectId}/subscription-payment/receive-in-cash`, {
+    method: 'POST',
+    body: { competence, paymentDate },
   });
 }
 

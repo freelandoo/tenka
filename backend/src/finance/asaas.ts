@@ -65,6 +65,15 @@ export interface AsaasSubscription {
   externalReference?: string;
 }
 
+export interface AsaasPayment {
+  id: string;
+  status: string;
+  billingType: string;
+  value: number;
+  dueDate: string;
+  invoiceUrl?: string;
+}
+
 interface Page<T> {
   data: T[];
 }
@@ -96,6 +105,15 @@ export const asaas = {
   updateSubscription(id: string, input: Record<string, unknown>) {
     return request<AsaasSubscription>(`/subscriptions/${encodeURIComponent(id)}`, {
       method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+  receivePaymentInCash(
+    id: string,
+    input: { paymentDate: string; value: number; notifyCustomer: boolean },
+  ) {
+    return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}/receiveInCash`, {
+      method: 'POST',
       body: JSON.stringify(input),
     });
   },

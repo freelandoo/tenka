@@ -385,8 +385,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           [id, project.rows[0].value_cents, parsed.data.dueDate ?? null, parsed.data.paid, req.userId],
         );
         await client.query(
-          `update public.projects set financial_plan_status = 'active' where id = $1;
-           insert into public.project_activity (project_id, actor_id, action, metadata)
+          "update public.projects set financial_plan_status = 'active' where id = $1",
+          [id],
+        );
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
            values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
           [id, req.userId, JSON.stringify({
             paymentName: 'Pagamento do projeto', from: 'pending',

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Banknote, Copy, ExternalLink } from 'lucide-react';
 import type { BoardProject } from '../services/projectsService';
+import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 import { cents, formatCurrencyFromCents } from '../../panel/format';
 import {
   fetchSubscriptionPayments,
-  setSubscriptionPaid,
+  registerSubscriptionPaymentOutside,
 } from '../services/projectsService';
 import { useToast } from '../../panel/ToastContext';
 import { subscribeRealtime } from '../../../lib/api/events';
@@ -17,6 +19,26 @@ interface SubscriptionListProps {
   competence: string;
   competenceLabel: string;
   onChanged(): void;
+}
+
+const PAYMENT_STATUS: Record<SubscriptionPaymentRow['status'], string> = {
+  pending: 'Pendente',
+  confirmed: 'Confirmado',
+  received: 'Recebido',
+  overdue: 'Em atraso',
+  cancelled: 'Cancelado',
+  refunded: 'Estornado',
+  chargeback: 'Chargeback',
+  failed: 'Falha',
+  legacy_paid: 'Pago (legado)',
+};
+
+function localIsoDate(): string {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -41,7 +63,7 @@ export function SubscriptionList({
 }: SubscriptionListProps) {
   const { toast } = useToast();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
-  const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
+  const [payments, setPayments] = useState<SubscriptionPaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState(false);
   const paymentsRequest = useRef(0);
@@ -52,9 +74,9 @@ export function SubscriptionList({
     const request = ++paymentsRequest.current;
     setPaymentsLoading(true);
     try {
-      const ids = await fetchSubscriptionPayments(competence);
+      const rows = await fetchSubscriptionPayments(competence);
       if (request !== paymentsRequest.current) return;
-      setPaidIds(new Set(ids));
+      setPayments(rows);
       setPaymentsError(false);
     } catch {
       if (request !== paymentsRequest.current) return;
@@ -101,30 +123,35 @@ export function SubscriptionList({
     return { total, ativas, parada };
   }, [linhas]);
 
-  const togglePaid = async (project: BoardProject) => {
-    const targetCompetence = competence;
-    const nextPaid = !paidIds.has(project.id);
+  const paymentsByProject = useMemo(
+    () => new Map(payments.map((payment) => [payment.project_id, payment])),
+    [payments],
+  );
+
+  const registerOutside = async (project: BoardProject, payment: SubscriptionPaymentRow) => {
+    const accepted = window.confirm(
+      `Registrar no Asaas o pagamento de ${formatCurrencyFromCents(payment.amount_cents)} ` +
+      `referente a ${competenceLabel}? A Tenka só mostrará como pago após receber o webhook.`,
+    );
+    if (!accepted) return;
     setBusyPaymentId(project.id);
     try {
-      await setSubscriptionPaid(project.id, competence, nextPaid);
-      if (currentCompetence.current === targetCompetence) {
-        setPaidIds((current) => {
-          const next = new Set(current);
-          if (nextPaid) next.add(project.id);
-          else next.delete(project.id);
-          return next;
-        });
-      }
-      toast(
-        'success',
-        nextPaid
-          ? `Pagamento de ${competenceLabel} confirmado.`
-          : `Confirmação de ${competenceLabel} removida.`,
-      );
+      await registerSubscriptionPaymentOutside(project.id, competence, localIsoDate());
+      toast('success', 'Pagamento registrado no Asaas. Aguardando confirmação pelo webhook.');
+      if (currentCompetence.current === competence) await loadPayments();
     } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao confirmar o pagamento.');
+      toast('error', error instanceof Error ? error.message : 'Falha ao registrar o pagamento no Asaas.');
     } finally {
       setBusyPaymentId(null);
+    }
+  };
+
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('success', 'Link da cobrança copiado.');
+    } catch {
+      toast('error', 'Não foi possível copiar o link da cobrança.');
     }
   };
 
@@ -145,7 +172,13 @@ export function SubscriptionList({
       )}
       <ul className="costs__list">
         {linhas.map((p) => {
-          const paid = paidIds.has(p.id);
+          const payment = paymentsByProject.get(p.id);
+          const canRegisterOutside = Boolean(
+            isAdmin &&
+            payment?.asaas_payment_id &&
+            payment.source === 'asaas' &&
+            ['pending', 'overdue', 'failed'].includes(payment.status),
+          );
           return (
             <li key={p.id} className={`fees__row${p.subscription_active ? '' : ' is-off'}`}>
               <span className="fees__main">
@@ -157,31 +190,34 @@ export function SubscriptionList({
                 {formatCurrencyFromCents(p.monthly_fee_cents)}
                 <small>/mês</small>
               </span>
-              <button
-                type="button"
-                className={`fees__paid${paid ? ' is-paid' : ''}`}
-                disabled={
-                  paymentsLoading ||
-                  paymentsError ||
-                  busyPaymentId === p.id ||
-                  !isAdmin ||
-                  !p.subscription_active
-                }
-                aria-pressed={paid}
-                aria-label={`${paid ? 'Pago' : 'Marcar como pago'} — ${p.name} — ${competenceLabel}`}
-                title={
-                  !isAdmin
-                    ? 'Somente administradores confirmam pagamentos'
-                    : !p.subscription_active
-                      ? 'Ative a mensalidade para confirmar o pagamento'
-                      : paid
-                        ? `Remover confirmação de ${competenceLabel}`
-                        : `Confirmar pagamento de ${competenceLabel}`
-                }
-                onClick={() => void togglePaid(p)}
-              >
-                Pago
-              </button>
+              <span className="fees__billing">
+                <span className={`finance-badge finance-badge--${payment?.status ?? 'not-issued'}`}>
+                  {paymentsLoading
+                    ? 'Consultando'
+                    : payment
+                      ? PAYMENT_STATUS[payment.status]
+                      : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
+                </span>
+                {payment?.payment_url && (
+                  <span className="fees__billing-actions">
+                    <a className="panel-btn panel-btn--ghost panel-btn--sm" href={payment.payment_url}
+                      target="_blank" rel="noreferrer">
+                      <ExternalLink size={13} /> Abrir cobrança
+                    </a>
+                    <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm"
+                      onClick={() => void copyLink(payment.payment_url!)}>
+                      <Copy size={13} /> Copiar link
+                    </button>
+                  </span>
+                )}
+                {canRegisterOutside && payment && (
+                  <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm"
+                    disabled={busyPaymentId === p.id}
+                    onClick={() => void registerOutside(p, payment)}>
+                    <Banknote size={13} /> Registrar pagamento por fora
+                  </button>
+                )}
+              </span>
               <span
                 className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}
               >

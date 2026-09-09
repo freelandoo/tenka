@@ -3,18 +3,19 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { SubscriptionList } from './SubscriptionList';
 import {
   fetchSubscriptionPayments,
-  setSubscriptionPaid,
+  registerSubscriptionPaymentOutside,
 } from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
+import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 
 vi.mock('../services/projectsService', () => ({
   fetchSubscriptionPayments: vi.fn(),
-  setSubscriptionPaid: vi.fn(),
+  registerSubscriptionPaymentOutside: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const mockedFetchPayments = vi.mocked(fetchSubscriptionPayments);
-const mockedSetPaid = vi.mocked(setSubscriptionPaid);
+const mockedRegisterOutside = vi.mocked(registerSubscriptionPaymentOutside);
 
 const defaultProps = {
   competence: '2026-08',
@@ -47,6 +48,23 @@ function makeProject(over: Partial<BoardProject> = {}): BoardProject {
     assignees: [],
     ...over,
   } as BoardProject;
+}
+
+function makePayment(over: Partial<SubscriptionPaymentRow> = {}): SubscriptionPaymentRow {
+  return {
+    project_id: 'a',
+    competence: '2026-08-01',
+    amount_cents: 29990,
+    due_date: '2026-08-10',
+    status: 'pending',
+    asaas_payment_id: 'pay_123',
+    payment_url: 'https://sandbox.asaas.com/i/pay_123',
+    billing_type: 'PIX',
+    provider_status: 'PENDING',
+    paid_at: null,
+    source: 'asaas',
+    ...over,
+  };
 }
 
 beforeEach(() => {
@@ -169,9 +187,8 @@ describe('SubscriptionList', () => {
     expect(within(linha).getByText('André Marcolino')).toBeInTheDocument();
   });
 
-  it('confirma o pagamento na competência selecionada e permite desfazer', async () => {
-    mockedFetchPayments.mockResolvedValue([]);
-    mockedSetPaid.mockResolvedValue(undefined);
+  it('mostra pendência como status e oferece acesso à cobrança sem baixa local', async () => {
+    mockedFetchPayments.mockResolvedValue([makePayment()]);
     render(
       <SubscriptionList
         {...defaultProps}
@@ -181,16 +198,47 @@ describe('SubscriptionList', () => {
       />,
     );
 
-    const button = await screen.findByRole('button', {
-      name: 'Marcar como pago — Refibras — Agosto de 2026',
-    });
+    expect(await screen.findByText('Pendente')).toBeInTheDocument();
     expect(mockedFetchPayments).toHaveBeenCalledWith('2026-08');
-    fireEvent.click(button);
-
-    await waitFor(() => expect(mockedSetPaid).toHaveBeenCalledWith('a', '2026-08', true));
-    expect(screen.getByRole('button', { name: 'Pago — Refibras — Agosto de 2026' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(screen.getByRole('link', { name: 'Abrir cobrança' })).toHaveAttribute(
+      'href', 'https://sandbox.asaas.com/i/pay_123',
     );
+    expect(screen.getByRole('button', { name: 'Copiar link' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Marcar como pago/ })).toBeNull();
+  });
+
+  it('registra pagamento por fora no Asaas e aguarda o webhook', async () => {
+    mockedFetchPayments.mockResolvedValue([makePayment()]);
+    mockedRegisterOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(
+      <SubscriptionList
+        {...defaultProps}
+        projects={[makeProject({ id: 'a', name: 'Refibras' })]}
+        isAdmin
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar pagamento por fora' }));
+    await waitFor(() => expect(mockedRegisterOutside).toHaveBeenCalledWith(
+      'a', '2026-08', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    ));
+    expect(screen.getByText('Pendente')).toBeInTheDocument();
+  });
+
+  it('não oferece baixa externa depois que o webhook confirma o recebimento', async () => {
+    mockedFetchPayments.mockResolvedValue([makePayment({ status: 'received' })]);
+    render(
+      <SubscriptionList
+        {...defaultProps}
+        projects={[makeProject({ id: 'a', name: 'Refibras' })]}
+        isAdmin
+        onChanged={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('Recebido')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar pagamento por fora' })).toBeNull();
   });
 });

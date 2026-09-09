@@ -14,6 +14,7 @@ import { contactStatusForProject } from '../whatsapp/repo';
 import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { nextMonthlyDueDate } from '../finance/dueDate';
+import { asaas, AsaasError } from '../finance/asaas';
 
 /**
  * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
@@ -69,9 +70,9 @@ const moveSchema = z.object({
 });
 
 const competenceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
-const paymentSchema = z.object({
+const externalPaymentSchema = z.object({
   competence: competenceSchema,
-  paid: z.boolean(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 function isAdmin(req: FastifyRequest): boolean {
@@ -125,70 +126,90 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ projects });
   });
 
-  // ---- Recebimentos mensais -----------------------------------------------
-  // A recorrência diz se a cobrança continua existindo; esta tabela responde
-  // uma pergunta diferente: "a competência selecionada já foi paga?".
+  // ---- Cobranças mensais ---------------------------------------------------
+  // O Asaas é a fonte de verdade: a listagem expõe o estado e os links que
+  // chegaram pelo webhook, sem criar uma segunda baixa financeira na Tenka.
   app.get('/subscription-payments', staffOnly, async (req, reply) => {
     const parsed = competenceSchema.safeParse(
       (req.query as { competence?: string }).competence,
     );
     if (!parsed.success) return reply.code(400).send({ error: 'competencia-invalida' });
 
-    const { rows } = await getPool().query<{ project_id: string }>(
-      `select sp.project_id
+    const { rows } = await getPool().query<{ project_id: string; status: string }>(
+      `select sp.*
          from public.subscription_payments sp
          join public.projects p on p.id = sp.project_id
         where sp.competence = ($1 || '-01')::date
-          and sp.status in ('confirmed', 'received', 'legacy_paid')
           and p.archived_at is null
           and ($3 or exists (select 1 from public.project_assignees a
                               where a.project_id = p.id and a.user_id = $2))`,
       [parsed.data, req.userId, isAdmin(req)],
     );
-    return reply.send({ paidProjectIds: rows.map((row) => row.project_id) });
+    return reply.send({
+      payments: rows,
+      // Mantido durante a transição para clientes antigos, mas é somente leitura.
+      paidProjectIds: rows
+        .filter((row) => ['confirmed', 'received', 'legacy_paid'].includes(row.status))
+        .map((row) => row.project_id),
+    });
   });
 
+  // Compatibilidade segura: clientes antigos não podem mais criar nem apagar
+  // baixas locais. Uma mensalidade integrada só muda após o webhook do Asaas.
   app.put(
     '/projects/:id/subscription-payment',
     adminOnly,
+    async (_req, reply) => reply.code(409).send({
+      error: 'pagamento-mensal-deve-ser-registrado-no-asaas',
+    }),
+  );
+
+  app.post(
+    '/projects/:id/subscription-payment/receive-in-cash',
+    adminOnly,
     async (req, reply) => {
+      if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
       const { id } = req.params as { id: string };
-      const parsed = paymentSchema.safeParse(req.body);
+      const parsed = externalPaymentSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
 
+      const { rows } = await getPool().query<{
+        asaas_payment_id: string | null;
+        amount_cents: number;
+        status: string;
+        source: string;
+      }>(
+        `select asaas_payment_id, amount_cents, status, source
+           from public.subscription_payments
+          where project_id = $1 and competence = ($2 || '-01')::date`,
+        [id, parsed.data.competence],
+      );
+      const payment = rows[0];
+      if (!payment) return reply.code(404).send({ error: 'cobranca-mensal-nao-encontrada' });
+      if (payment.source !== 'asaas' || !payment.asaas_payment_id) {
+        return reply.code(409).send({ error: 'cobranca-mensal-nao-vinculada-ao-asaas' });
+      }
+      if (!['pending', 'overdue', 'failed'].includes(payment.status)) {
+        return reply.code(409).send({ error: 'cobranca-mensal-nao-esta-em-aberto' });
+      }
+
       try {
-        if (parsed.data.paid) {
-          const { rows } = await withActor(req.userId!, (client) =>
-            client.query(
-              `insert into public.subscription_payments
-                 (project_id, competence, paid_at, received_at, status,
-                  amount_cents, source, paid_by)
-               select id, ($2 || '-01')::date, now(), now(), 'legacy_paid',
-                      monthly_fee_cents, 'manual', $3
-                 from public.projects
-                where id = $1 and monthly_fee_cents > 0
-               on conflict (project_id, competence) do update
-                 set paid_at = now(), received_at = now(), status = 'legacy_paid',
-                     amount_cents = (select monthly_fee_cents from public.projects where id = $1),
-                     source = 'manual', paid_by = excluded.paid_by
-               returning project_id`,
-              [id, parsed.data.competence, req.userId],
-            ),
-          );
-          if (rows.length === 0)
-            return reply.code(404).send({ error: 'mensalidade-inexistente' });
-        } else {
-          await withActor(req.userId!, (client) =>
-            client.query(
-              `delete from public.subscription_payments
-                where project_id = $1 and competence = ($2 || '-01')::date`,
-              [id, parsed.data.competence],
-            ),
-          );
+        await asaas.receivePaymentInCash(payment.asaas_payment_id, {
+          paymentDate: parsed.data.paymentDate,
+          value: Number(payment.amount_cents) / 100,
+          notifyCustomer: true,
+        });
+        // Não atualiza subscription_payments aqui. PAYMENT_RECEIVED precisa
+        // chegar pelo webhook para a Tenka refletir o pagamento.
+        return reply.code(202).send({ submitted: true, awaitingWebhook: true });
+      } catch (error) {
+        if (error instanceof AsaasError) {
+          req.log.error({ err: error, projectId: id }, 'asaas receive in cash error');
+          // Não propaga 401/403 do provedor como se a sessão da Tenka tivesse
+          // expirado; para o painel isto é uma falha da integração externa.
+          return reply.code(502).send({ error: error.message });
         }
-        return reply.send({ paid: parsed.data.paid });
-      } catch (err) {
-        return sendDbError(err, reply);
+        return sendDbError(error, reply);
       }
     },
   );

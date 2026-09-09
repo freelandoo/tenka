@@ -2908,7 +2908,7 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
    --------------------------------------------------------------------------- */
 .fees__row {
   display: grid;
-  grid-template-columns: 1fr 64px auto auto auto;
+  grid-template-columns: minmax(120px, 1fr) 64px auto minmax(150px, auto) auto;
   align-items: center;
   gap: 10px;
   padding: 7px 9px;
@@ -2940,6 +2940,10 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 
 .fees__parada { font-size: 11px; color: var(--panel-text-faint); }
+
+.fees__billing { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.fees__billing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+.fees__billing .panel-btn { min-height: 26px; padding: 3px 6px; font-size: 10px; }
 
 .fees__paid {
   min-width: 52px;

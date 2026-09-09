@@ -307,9 +307,12 @@ export interface SubscriptionPaymentRow {
   amount_cents: number;
   due_date: string | null;
   status: 'pending' | 'confirmed' | 'received' | 'overdue' | 'cancelled' | 'refunded' | 'chargeback' | 'failed' | 'legacy_paid';
+  asaas_payment_id: string | null;
   payment_url: string | null;
+  billing_type: string | null;
   provider_status: string | null;
   paid_at: string | null;
+  source: 'asaas' | 'manual';
   project_name?: string;
   client_name?: string;
 }
