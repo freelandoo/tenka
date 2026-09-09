@@ -49,7 +49,11 @@ export const subscriptionAction = (
 
 export interface PaymentPlanInput {
   status: 'draft' | 'active';
-  payments: Array<{ name: string; description: string; amountCents: number; dueDate: string | null }>;
+  payments: Array<{
+    /** Ausente numa linha nova; presente, preserva a linha e o vínculo com o Asaas. */
+    id?: string;
+    name: string; description: string; amountCents: number; dueDate: string | null;
+  }>;
 }
 
 export const savePaymentPlan = (projectId: string, input: PaymentPlanInput) =>

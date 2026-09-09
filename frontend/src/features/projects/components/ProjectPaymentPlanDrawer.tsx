@@ -6,7 +6,8 @@ import { formatCurrencyFromCents, parseCurrencyToCents } from '../../panel/forma
 import * as finance from '../../finance/financeService';
 import type { BoardProject } from '../services/projectsService';
 
-interface DraftRow { name: string; description: string; amount: string; dueDate: string }
+/** `id` ausente = linha nova. Presente, o backend atualiza em vez de recriar. */
+interface DraftRow { id?: string; name: string; description: string; amount: string; dueDate: string }
 const moneyInput = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 
 type PaymentPlanProject = Pick<BoardProject, 'id' | 'name' | 'value_cents'>;
@@ -37,8 +38,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     finance.fetchProjectFinance(project.id).then((detail) => {
       if (!cancelled) {
         const loaded = detail.projectPayments.map((item) => ({
-          name: item.name, description: item.description, amount: moneyInput(item.amount_cents),
-          dueDate: item.due_date ?? '',
+          id: item.id, name: item.name, description: item.description,
+          amount: moneyInput(item.amount_cents), dueDate: item.due_date ?? '',
         }));
         setRows(appendStage
           ? loaded.length <= 1
@@ -62,6 +63,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
       await finance.savePaymentPlan(project.id, {
         status,
         payments: rows.map((row) => ({
+          ...(row.id ? { id: row.id } : {}),
           name: row.name, description: row.description,
           amountCents: parseCurrencyToCents(row.amount) ?? 0, dueDate: row.dueDate || null,
         })),
@@ -77,6 +79,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           ? 'A soma das etapas não pode ultrapassar o valor total do projeto.'
         : code === 'plano-com-pagamento-realizado'
           ? 'O plano já tem pagamento realizado e não pode ser substituído.'
+        : code === 'plano-desatualizado'
+          ? 'O plano mudou em outra tela. Feche e abra de novo para continuar.'
           : code || 'Falha ao salvar o plano.');
     } finally { setBusy(false); }
   };

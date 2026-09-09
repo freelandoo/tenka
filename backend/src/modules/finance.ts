@@ -7,6 +7,7 @@ import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
 import { nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
+import { planDiff } from '../finance/planDiff';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -19,6 +20,9 @@ const subscriptionSchema = z.object({
 const planSchema = z.object({
   status: z.enum(['draft', 'active']),
   payments: z.array(z.object({
+    // Ausente numa linha nova. Presente, identifica a linha a atualizar — e é
+    // o que impede o salvamento de recriar a cobrança já enviada ao Asaas.
+    id: z.string().uuid().optional(),
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(1000).default(''),
     amountCents: z.number().int().positive(),
@@ -276,23 +280,54 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const { rows } = await client.query<{ value_cents: number }>(
           'select value_cents from public.projects where id = $1 for update', [id]);
         if (!rows[0]) return 'missing';
-        const paid = await client.query(
-          `select 1 from public.project_payments where project_id = $1 and status = 'paid' limit 1`, [id]);
-        if (paid.rows[0]) return 'has-paid';
-        const previousPlan = await client.query(
-          `select name, description, amount_cents, due_date, status, position
+        const previousPlan = await client.query<{
+          id: string; name: string; description: string; amount_cents: number;
+          due_date: string | null; status: string; position: number;
+        }>(
+          `select id, name, description, amount_cents, due_date, status, position
              from public.project_payments where project_id = $1 order by position`, [id]);
+        if (previousPlan.rows.some((row) => row.status === 'paid')) return 'has-paid';
         const total = parsed.data.payments.reduce((sum, item) => sum + item.amountCents, 0);
         const totalError = projectPlanTotalError(parsed.data.status, total, rows[0].value_cents);
         if (totalError) return totalError;
-        await client.query('delete from public.project_payments where project_id = $1', [id]);
-        for (const [position, payment] of parsed.data.payments.entries()) {
+
+        // Diferença em vez de apagar e reinserir: a linha que permanece mantém
+        // o seu id, e com ele o vínculo com a cobrança correspondente.
+        const diff = planDiff(previousPlan.rows, parsed.data.payments);
+        if (diff.error) return diff.error;
+        const rowStatus = parsed.data.status === 'active' ? 'pending' : 'draft';
+
+        if (diff.remove.length > 0) {
+          await client.query(
+            'delete from public.project_payments where project_id = $1 and id = any($2::uuid[])',
+            [id, diff.remove],
+          );
+        }
+        // `project_payments_project_position_uniq` não é adiável: as posições
+        // atuais saem da faixa final antes de qualquer reatribuição, senão
+        // reordenar duas linhas colide no meio da transação.
+        if (diff.update.length > 0) {
+          await client.query(
+            'update public.project_payments set position = position + 1000 where project_id = $1',
+            [id]);
+        }
+        for (const item of diff.update) {
+          await client.query(
+            `update public.project_payments
+                set name = $2, description = $3, amount_cents = $4, due_date = $5,
+                    status = $6, position = $7
+              where id = $1`,
+            [item.id, item.row.name, item.row.description, item.row.amountCents,
+              item.row.dueDate, rowStatus, item.position],
+          );
+        }
+        for (const item of diff.create) {
           await client.query(
             `insert into public.project_payments
                (project_id,name,description,amount_cents,due_date,status,position,created_by)
              values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-            [id, payment.name, payment.description, payment.amountCents, payment.dueDate,
-              parsed.data.status === 'active' ? 'pending' : 'draft', position, req.userId],
+            [id, item.row.name, item.row.description, item.row.amountCents, item.row.dueDate,
+              rowStatus, item.position, req.userId],
           );
         }
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
@@ -305,15 +340,24 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             current: parsed.data.payments,
             status: parsed.data.status,
             totalCents: total,
+            created: diff.create.length,
+            updated: diff.update.length,
+            removed: diff.remove.length,
           })],
         );
-        return 'ok';
+        const saved = await client.query(
+          'select * from public.project_payments where project_id = $1 order by position', [id]);
+        return { payments: saved.rows };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'has-paid') return reply.code(409).send({ error: 'plano-com-pagamento-realizado' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
       if (result === 'sum-mismatch') return reply.code(409).send({ error: 'soma-diferente-do-valor-do-projeto' });
-      return reply.send({ ok: true });
+      // O painel está com uma versão antiga do plano em tela; recarregar resolve.
+      if (result === 'linha-desconhecida' || result === 'linha-repetida') {
+        return reply.code(409).send({ error: 'plano-desatualizado' });
+      }
+      return reply.send({ ok: true, ...result });
     } catch (error) {
       return sendDbError(error, reply);
     }
