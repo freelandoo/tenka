@@ -191,13 +191,6 @@ export function SubscriptionList({
                 <small>/mês</small>
               </span>
               <span className="fees__billing">
-                <span className={`finance-badge finance-badge--${payment?.status ?? 'not-issued'}`}>
-                  {paymentsLoading
-                    ? 'Consultando'
-                    : payment
-                      ? PAYMENT_STATUS[payment.status]
-                      : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
-                </span>
                 {(payment?.payment_url || (canRegisterOutside && payment)) && (
                   <span className="fees__billing-actions">
                     {payment?.payment_url && (
@@ -224,6 +217,13 @@ export function SubscriptionList({
                     )}
                   </span>
                 )}
+                <span className={`finance-badge finance-badge--${payment?.status ?? 'not-issued'}`}>
+                  {paymentsLoading
+                    ? 'Consultando'
+                    : payment
+                      ? PAYMENT_STATUS[payment.status]
+                      : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
+                </span>
               </span>
               <span
                 className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}

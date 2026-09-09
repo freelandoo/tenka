@@ -2908,7 +2908,7 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
    --------------------------------------------------------------------------- */
 .fees__row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) 64px auto minmax(150px, auto) auto;
+  grid-template-columns: minmax(120px, 1fr) 64px auto minmax(190px, auto) auto;
   align-items: center;
   gap: 10px;
   padding: 7px 9px;
@@ -2941,11 +2941,38 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 .fees__parada { font-size: 11px; color: var(--panel-text-faint); }
 
-.fees__billing { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+/* Acoes primeiro, status por ultimo: o chip encosta na coluna "Ativa" e os
+   dois pills leem como um par. */
+.fees__billing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .fees__billing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
 a.fees__billing-icon { text-decoration: none; }
-.fees__billing-icon { width: 28px; height: 28px; border-radius: 7px; }
+.fees__billing-icon { width: 26px; height: 26px; border-radius: 999px; }
 .fees__billing-icon:disabled { opacity: 0.5; cursor: wait; }
+
+/* Mesmo pill de .costs__toggle e .project-payments__status. A cor fica com os
+   modificadores de status, entao esta regra nao define color. */
+.fees__billing .finance-badge {
+  padding: 3px 8px;
+  font-family: var(--panel-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Sem border-color no seletor acima: os modificadores de status pintam a borda
+   e perderiam para a especificidade de .fees__billing. */
+.fees__billing .finance-badge--not-issued,
+.fees__billing .finance-badge--cancelled,
+.fees__billing .finance-badge--refunded {
+  border-color: var(--panel-line-strong);
+  color: var(--panel-text-faint);
+}
+.fees__billing .finance-badge--pending { border-color: rgba(244, 189, 104, 0.35); }
 
 .fees__paid {
   min-width: 52px;
