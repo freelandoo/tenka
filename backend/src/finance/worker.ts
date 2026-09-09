@@ -1,5 +1,4 @@
-import type { PoolClient } from 'pg';
-import { getPool } from '../db/pool';
+import { getPool, withActor } from '../db/pool';
 import { hasAsaas } from '../env';
 import { asaas } from './asaas';
 import { competenceFromDueDate, paymentStatus } from './status';
@@ -111,13 +110,18 @@ async function executeOperation(operation: Operation): Promise<string | null> {
   if (operation.kind === 'pause_subscription') {
     if (!ctx.asaas_subscription_id) throw new Error('Assinatura ainda não existe no Asaas.');
     await asaas.updateSubscription(ctx.asaas_subscription_id, { status: 'INACTIVE' });
-    await getPool().query(
-      `update public.project_subscriptions
-          set status = 'inactive', paused_at = now(), last_synced_at = now(), sync_error = null
-        where id = $1;
-       update public.projects set subscription_active = false where id = $2`,
-      [ctx.id, ctx.project_id],
-    );
+    await withActor(null, async (client) => {
+      await client.query(
+        `update public.project_subscriptions
+            set status = 'inactive', paused_at = now(), last_synced_at = now(), sync_error = null
+          where id = $1`,
+        [ctx.id],
+      );
+      await client.query(
+        'update public.projects set subscription_active = false where id = $1',
+        [ctx.project_id],
+      );
+    });
     return ctx.asaas_subscription_id;
   }
 
@@ -139,14 +143,19 @@ async function executeOperation(operation: Operation): Promise<string | null> {
     const subscription = ctx.asaas_subscription_id
       ? await asaas.updateSubscription(ctx.asaas_subscription_id, { ...input, status: 'ACTIVE' })
       : existing ?? (await asaas.createSubscription(input));
-    await getPool().query(
-      `update public.project_subscriptions
-          set asaas_subscription_id = $2, status = 'active', started_at = coalesce(started_at, now()),
-              paused_at = null, last_synced_at = now(), sync_error = null
-        where id = $1;
-       update public.projects set subscription_active = true where id = $3`,
-      [ctx.id, subscription.id, ctx.project_id],
-    );
+    await withActor(null, async (client) => {
+      await client.query(
+        `update public.project_subscriptions
+            set asaas_subscription_id = $2, status = 'active', started_at = coalesce(started_at, now()),
+                paused_at = null, last_synced_at = now(), sync_error = null
+          where id = $1`,
+        [ctx.id, subscription.id],
+      );
+      await client.query(
+        'update public.projects set subscription_active = true where id = $1',
+        [ctx.project_id],
+      );
+    });
     return subscription.id;
   }
 
@@ -156,14 +165,20 @@ async function executeOperation(operation: Operation): Promise<string | null> {
       ...input,
       ...(operation.kind === 'reactivate_subscription' ? { status: 'ACTIVE' } : {}),
     });
-    await getPool().query(
-      `update public.project_subscriptions
-          set status = $2, paused_at = case when $2 = 'active' then null else paused_at end,
-              last_synced_at = now(), sync_error = null
-        where id = $1;
-       update public.projects set subscription_active = ($2 = 'active') where id = $3`,
-      [ctx.id, subscription.status === 'INACTIVE' ? 'inactive' : 'active', ctx.project_id],
-    );
+    const localStatus = subscription.status === 'INACTIVE' ? 'inactive' : 'active';
+    await withActor(null, async (client) => {
+      await client.query(
+        `update public.project_subscriptions
+            set status = $2, paused_at = case when $2 = 'active' then null else paused_at end,
+                last_synced_at = now(), sync_error = null
+          where id = $1`,
+        [ctx.id, localStatus],
+      );
+      await client.query(
+        'update public.projects set subscription_active = ($2 = \'active\') where id = $1',
+        [ctx.project_id, localStatus],
+      );
+    });
   }
   return ctx.asaas_subscription_id;
 }
@@ -180,16 +195,21 @@ async function finishOperation(operation: Operation): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.';
     const retryMinutes = Math.min(60, 2 ** Math.min(operation.attempts, 5));
-    await getPool().query(
-      `update public.asaas_operations
-          set status = 'failed', last_error = $2,
-              run_after = now() + ($3 * interval '1 minute')
-        where id = $1;
-       update public.project_subscriptions
-          set status = 'error', sync_error = $2
-        where id = $4`,
-      [operation.id, message, retryMinutes, operation.subscription_id],
-    );
+    await withActor(null, async (client) => {
+      await client.query(
+        `update public.asaas_operations
+            set status = 'failed', last_error = $2,
+                run_after = now() + ($3 * interval '1 minute')
+          where id = $1`,
+        [operation.id, message, retryMinutes],
+      );
+      await client.query(
+        `update public.project_subscriptions
+            set status = 'error', sync_error = $2
+          where id = $1`,
+        [operation.subscription_id, message],
+      );
+    });
   }
 }
 

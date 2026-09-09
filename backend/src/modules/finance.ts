@@ -49,7 +49,15 @@ async function queueOperation(
   await client.query(
     `insert into public.asaas_operations
        (operation_key, project_id, subscription_id, kind)
-     values ($1 || ':' || gen_random_uuid()::text, $2, $3, $1)`,
+     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1
+      where not exists (
+        select 1
+          from public.asaas_operations
+         where subscription_id = $3
+           and kind = $1
+           and (status in ('pending', 'processing', 'uncertain')
+             or (status = 'failed' and attempts < 5))
+      )`,
     [kind, projectId, subscriptionId],
   );
 }

@@ -272,7 +272,15 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             await client.query(
               `insert into public.asaas_operations
                  (operation_key, project_id, subscription_id, kind)
-               values ('activate_subscription:' || gen_random_uuid()::text,$1,$2,'activate_subscription')`,
+               select 'activate_subscription:' || gen_random_uuid()::text,$1,$2,'activate_subscription'
+                where not exists (
+                  select 1
+                    from public.asaas_operations
+                   where subscription_id = $2
+                     and kind = 'activate_subscription'
+                     and (status in ('pending', 'processing', 'uncertain')
+                       or (status = 'failed' and attempts < 5))
+                )`,
               [newId, subscription.id],
             );
           }
