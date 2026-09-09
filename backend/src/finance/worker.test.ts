@@ -38,6 +38,19 @@ interface PaymentRow {
   provider_event_at: string | null;
 }
 
+interface ProjectPaymentWebhookRow {
+  id: string;
+  amount_cents: number;
+  due_date: string | null;
+  status: 'draft' | 'pending' | 'paid' | 'cancelled';
+  asaas_payment_id: string | null;
+  external_reference: string | null;
+  provider_status: string | null;
+  sync_status: 'local' | 'synced';
+  payment_date: string | null;
+  provider_event_at: string | null;
+}
+
 interface EventRow {
   id: string;
   event_type: string;
@@ -78,6 +91,7 @@ import { runFinanceWorker } from './worker';
 class FakeDb {
   subscriptions: SubscriptionRow[] = [];
   payments: PaymentRow[] = [];
+  projectPayments: ProjectPaymentWebhookRow[] = [];
   events: EventRow[] = [];
   issued: IssuedQuery[] = [];
   readonly pool = {
@@ -125,6 +139,14 @@ class FakeDb {
     });
   }
 
+  seedProjectPayment(id: string): void {
+    this.projectPayments.push({
+      id, amount_cents: 100_000, due_date: '2026-09-20', status: 'pending',
+      asaas_payment_id: null, external_reference: null, provider_status: null,
+      sync_status: 'local', payment_date: null, provider_event_at: null,
+    });
+  }
+
   event(id = 'evt_1'): EventRow {
     const found = this.events.find((row) => row.id === id);
     if (!found) throw new Error(`evento ${id} não existe no duplo de banco`);
@@ -153,6 +175,7 @@ class FakeDb {
 
     if (sql.includes('public.asaas_webhook_events')) return this.webhookQuery(sql, values);
     if (sql.includes('public.subscription_payments')) return this.paymentQuery(sql, values);
+    if (sql.includes('public.project_payments')) return this.projectPaymentQuery(sql, values);
     if (sql.includes('public.project_subscriptions')) {
       const rows = values.length === 0 ? [...this.subscriptions] : this.subscriptions.filter(
         (row) => row.asaas_subscription_id === values[0],
@@ -195,7 +218,7 @@ class FakeDb {
       target.status = 'done';
       target.last_error = null;
     } else if (sql.includes("'failed'")) {
-      target.status = Number(values[2]) >= 10 ? 'needs_review' : 'failed';
+      target.status = values[2] === true ? 'needs_review' : 'failed';
       target.last_error = String(values[1] ?? '');
       target.run_after = '2026-09-08T12:02:00.000Z';
     }
@@ -251,6 +274,26 @@ class FakeDb {
     }
 
     this.payments.push(incoming);
+    return { rows: [], rowCount: 1 };
+  }
+
+  private projectPaymentQuery(sql: string, values: unknown[]): { rows: unknown[]; rowCount: number } {
+    const row = this.projectPayments.find((item) => item.id === values[0]);
+    if (sql.startsWith('select')) return { rows: row ? [{ id: row.id }] : [], rowCount: row ? 1 : 0 };
+    if (!row || !sql.startsWith('update')) return { rows: [], rowCount: 0 };
+    const eventAt = String(values[13]);
+    if (row.provider_event_at && eventAt < row.provider_event_at) return { rows: [], rowCount: 0 };
+    Object.assign(row, {
+      amount_cents: Math.round(Number(values[1]) * 100),
+      due_date: values[2] ? String(values[2]) : row.due_date,
+      status: String(values[3]),
+      asaas_payment_id: String(values[4]),
+      external_reference: String(values[5]),
+      provider_status: String(values[10]),
+      sync_status: 'synced',
+      payment_date: values[12] ?? values[11] ?? null,
+      provider_event_at: eventAt,
+    });
     return { rows: [], rowCount: 1 };
   }
 }
@@ -429,5 +472,46 @@ describe('worker financeiro — defeitos da auditoria', () => {
 
     expect(hoisted.db.event().attempts).toBe(1);
     expect(hoisted.db.event().status).toBe('failed');
+  });
+});
+
+describe('worker financeiro — pagamentos de projeto', () => {
+  const projectPaymentId = '77777777-7777-4777-8777-777777777777';
+
+  it('roteia pela referência externa e baixa somente a linha indicada', async () => {
+    hoisted.db.seedProjectPayment(projectPaymentId);
+    hoisted.db.seedProjectPayment('88888888-8888-4888-8888-888888888888');
+    hoisted.db.seedEvent(paymentEvent({
+      subscription: undefined,
+      externalReference: `project-payment:${projectPaymentId}`,
+      status: 'RECEIVED',
+      paymentDate: '2026-09-07',
+      clientPaymentDate: '2026-09-07',
+    }, 'PAYMENT_RECEIVED'));
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.projectPayments[0]).toMatchObject({
+      id: projectPaymentId,
+      status: 'paid',
+      asaas_payment_id: 'pay_1',
+      external_reference: `project-payment:${projectPaymentId}`,
+      payment_date: '2026-09-07',
+      sync_status: 'synced',
+    });
+    expect(hoisted.db.projectPayments[1]?.status).toBe('pending');
+    expect(hoisted.db.event().status).toBe('done');
+  });
+
+  it('manda referência externa desconhecida para revisão', async () => {
+    hoisted.db.seedEvent(paymentEvent({
+      subscription: undefined,
+      externalReference: 'origem-desconhecida:123',
+    }));
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.event().status).toBe('needs_review');
+    expect(hoisted.db.event().attempts).toBe(1);
   });
 });
