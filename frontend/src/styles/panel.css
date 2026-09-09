@@ -3576,6 +3576,13 @@ a.fees__billing-icon { text-decoration: none; }
 .finance-badge--active, .finance-badge--received, .finance-badge--paid, .finance-badge--confirmed, .finance-badge--legacy_paid { color: #7bd7a0; border-color: color-mix(in srgb, #7bd7a0 35%, transparent); }
 .finance-badge--error, .finance-badge--overdue, .finance-badge--chargeback { color: #ef8f8f; border-color: color-mix(in srgb, #ef8f8f 35%, transparent); }
 .finance-badge--pending_activation, .finance-badge--pending { color: #f4bd68; }
+.finance-reconciliation { display: grid; gap: 14px; }
+.finance-reconciliation .cart-panel__head { align-items: center; }
+.finance-reconciliation .cart-panel__head p { margin: 5px 0 0; color: var(--panel-text-dim); font-size: 12px; }
+.finance-reconciliation__controls { display: grid; grid-template-columns: minmax(150px, 220px) minmax(150px, 220px) auto; gap: 10px; align-items: end; }
+.finance-reconciliation__result { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid color-mix(in srgb, #7bd7a0 35%, transparent); border-radius: 999px; color: #7bd7a0; font-size: 11px; white-space: nowrap; }
+.finance-reconciliation__result.has-errors { color: #ef8f8f; border-color: color-mix(in srgb, #ef8f8f 35%, transparent); }
+.finance-reconciliation__time { margin: 0; color: var(--panel-text-faint); font-size: 11px; }
 .finance-admin__details { margin-top: 22px; }
 .finance-admin__details > summary {
   margin-bottom: 18px;
@@ -3617,4 +3624,6 @@ a.fees__billing-icon { text-decoration: none; }
   .finance-installments__preview li { grid-template-columns: 1fr auto; }
   .finance-installments__preview time { grid-column: 1 / -1; }
   .project-form__finance-grid { grid-template-columns: 1fr; }
+  .finance-reconciliation__controls { grid-template-columns: 1fr; }
+  .finance-reconciliation__result { align-self: start; }
 }

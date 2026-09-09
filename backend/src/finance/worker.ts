@@ -1,6 +1,7 @@
 import { getPool, withActor } from '../db/pool';
 import { hasAsaas } from '../env';
 import { asaas } from './asaas';
+import { projectPaymentStatusFromProvider } from './reconciliation';
 import { competenceFromDueDate, paymentStatus } from './status';
 
 export interface Operation {
@@ -11,6 +12,7 @@ export interface Operation {
   kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription'
     | 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge';
   attempts: number;
+  request_payload: Record<string, unknown>;
 }
 
 interface SubscriptionContext {
@@ -56,7 +58,8 @@ async function claimOperation(): Promise<Operation | null> {
   try {
     await client.query('begin');
     const { rows } = await client.query<Operation>(
-      `select id, project_id, subscription_id, project_payment_id, kind, attempts
+      `select id, project_id, subscription_id, project_payment_id, kind, attempts,
+              request_payload
          from public.asaas_operations
         where (status in ('pending', 'failed') or
                (status = 'processing' and updated_at < now() - interval '5 minutes'))
@@ -161,6 +164,32 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
       [ctx.id],
     );
     return ctx.asaas_payment_id;
+  }
+
+  if (operation.kind === 'update_project_charge') {
+    if (!ctx.asaas_payment_id) throw new Error('Cobrança do projeto ainda não existe no Asaas.');
+    if (ctx.status !== 'pending') throw new Error('Somente cobranças pendentes podem ser alteradas.');
+    const amountCents = Number(operation.request_payload.amountCents ?? ctx.amount_cents);
+    const dueDate = String(operation.request_payload.dueDate ?? ctx.due_date ?? '');
+    if (!Number.isInteger(amountCents) || amountCents <= 0 || !dueDate) {
+      throw new Error('Valor ou vencimento inválido para atualizar a cobrança.');
+    }
+    const payment = await asaas.updatePayment(ctx.asaas_payment_id, {
+      billingType: ctx.billing_type || 'UNDEFINED',
+      value: amountCents / 100,
+      dueDate,
+      externalReference: ctx.external_reference ?? `project-payment:${ctx.id}`,
+      description: `${ctx.project_name} — ${ctx.name}`.slice(0, 500),
+    });
+    // Valor e vencimento continuam com a versão local anterior até o
+    // PAYMENT_UPDATED. Assim o webhook permanece a autoridade da confirmação.
+    await getPool().query(
+      `update public.project_payments
+          set sync_status = 'synced', sync_error = null, provider_status = $2
+        where id = $1`,
+      [ctx.id, payment.status],
+    );
+    return payment.id;
   }
 
   if (operation.kind !== 'create_project_charge') {
@@ -355,10 +384,7 @@ async function processProjectPaymentWebhook(
   if (!existing.rows[0]) {
     throw new WebhookNeedsReviewError(`Pagamento de projeto não encontrado: ${externalReference}.`);
   }
-  const mappedStatus = paymentStatus(providerStatus);
-  const localStatus = mappedStatus === 'received' || mappedStatus === 'confirmed'
-    ? 'paid'
-    : ['cancelled', 'refunded', 'chargeback'].includes(mappedStatus) ? 'cancelled' : 'pending';
+  const localStatus = projectPaymentStatusFromProvider(providerStatus);
   await getPool().query(
     `update public.project_payments
         set amount_cents = round(($2::numeric) * 100)::bigint,

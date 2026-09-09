@@ -7,11 +7,12 @@ import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
 import { nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
-import { planDiff, protectedPlanChangeError } from '../finance/planDiff';
+import { integratedPlanUpdates, planDiff } from '../finance/planDiff';
 import { validateInstallmentGroups } from '../finance/installments';
 import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
+import { reconcileFinancialPayments, type LocalFinancialPayment } from '../finance/reconciliation';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -58,6 +59,24 @@ const projectExternalPaymentSchema = z.object({
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+const reconciliationSchema = z.object({
+  dueDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dueDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((value) => value.dueDateFrom <= value.dueDateTo, {
+  message: 'invalid-range',
+});
+
+async function listAsaasPaymentsForReconciliation(dueDateFrom: string, dueDateTo: string) {
+  const payments = [];
+  const limit = 100;
+  for (let offset = 0; offset < 10_000; offset += limit) {
+    const page = await asaas.listPayments({ dueDateFrom, dueDateTo, offset, limit });
+    payments.push(...page.data);
+    if (!page.hasMore && page.data.length < limit) break;
+  }
+  return payments;
+}
+
 async function queueOperation(
   client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
   projectId: string,
@@ -84,19 +103,20 @@ async function queueProjectPaymentOperation(
   client: { query: (sql: string, values?: unknown[]) => Promise<{ rowCount?: number | null }> },
   projectId: string,
   projectPaymentId: string,
-  kind: 'create_project_charge' | 'cancel_project_charge',
+  kind: 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge',
+  requestPayload: Record<string, unknown> = {},
 ): Promise<boolean> {
   const result = await client.query(
     `insert into public.asaas_operations
-       (operation_key, project_id, project_payment_id, kind)
-     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1
+       (operation_key, project_id, project_payment_id, kind, request_payload)
+     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1, $4::jsonb
       where not exists (
         select 1 from public.asaas_operations
          where project_payment_id = $3 and kind = $1
            and (status in ('pending', 'processing', 'uncertain')
              or (status = 'failed' and attempts < 5))
       )`,
-    [kind, projectId, projectPaymentId],
+    [kind, projectId, projectPaymentId, JSON.stringify(requestPayload)],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -174,6 +194,99 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       subscriptionPayments: payments.rows,
       projectPayments: plans.rows,
     });
+  });
+
+  app.get('/admin/finance/reconciliation/latest', adminOnly, async (_req, reply) => {
+    const { rows } = await getPool().query(
+      `select * from public.finance_reconciliation_snapshot
+        where ran_at = (select max(ran_at) from public.finance_reconciliation_snapshot)
+        order by (divergence = 'none'), kind, asaas_payment_id`,
+    );
+    const shaped = rows.map((row) => ({
+      kind: row.kind, projectId: row.project_id, asaasPaymentId: row.asaas_payment_id,
+      localStatus: row.local_status, providerStatus: row.provider_status,
+      localAmountCents: row.local_amount_cents,
+      providerAmountCents: row.provider_amount_cents,
+      divergence: row.divergence, details: row.details,
+    }));
+    const divergences = shaped.filter((row) => row.divergence !== 'none').length;
+    return reply.send({
+      rows: shaped, ranAt: rows[0]?.ran_at ?? null, total: shaped.length,
+      divergences, reconciled: shaped.length - divergences,
+    });
+  });
+
+  app.post('/admin/finance/reconciliation', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const parsed = reconciliationSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    try {
+      const [providerPayments, projectRows, subscriptionRows, subscriptions] = await Promise.all([
+        listAsaasPaymentsForReconciliation(parsed.data.dueDateFrom, parsed.data.dueDateTo),
+        getPool().query<{
+          project_id: string; asaas_payment_id: string; status: string;
+          amount_cents: number; due_date: string | null;
+        }>(
+          `select project_id, asaas_payment_id, status, amount_cents, due_date
+             from public.project_payments
+            where asaas_payment_id is not null
+              and due_date between $1::date and $2::date`,
+          [parsed.data.dueDateFrom, parsed.data.dueDateTo],
+        ),
+        getPool().query<{
+          project_id: string; asaas_payment_id: string; status: string;
+          amount_cents: number; due_date: string | null;
+        }>(
+          `select project_id, asaas_payment_id, status, amount_cents, due_date
+             from public.subscription_payments
+            where source = 'asaas' and asaas_payment_id is not null
+              and due_date between $1::date and $2::date`,
+          [parsed.data.dueDateFrom, parsed.data.dueDateTo],
+        ),
+        getPool().query<{ asaas_subscription_id: string; project_id: string }>(
+          `select asaas_subscription_id, project_id from public.project_subscriptions
+            where asaas_subscription_id is not null`,
+        ),
+      ]);
+      const localPayments: LocalFinancialPayment[] = [
+        ...projectRows.rows.map((row) => ({
+          kind: 'project_payment' as const, projectId: row.project_id,
+          asaasPaymentId: row.asaas_payment_id, status: row.status,
+          amountCents: row.amount_cents, dueDate: row.due_date,
+        })),
+        ...subscriptionRows.rows.map((row) => ({
+          kind: 'subscription' as const, projectId: row.project_id,
+          asaasPaymentId: row.asaas_payment_id, status: row.status,
+          amountCents: row.amount_cents, dueDate: row.due_date,
+        })),
+      ];
+      const subscriptionProjects = new Map(
+        subscriptions.rows.map((row) => [row.asaas_subscription_id, row.project_id]),
+      );
+      const result = reconcileFinancialPayments(localPayments, providerPayments, subscriptionProjects);
+      const ranAt = new Date().toISOString();
+      await withActor(req.userId!, async (client) => {
+        for (const row of result) {
+          await client.query(
+            `insert into public.finance_reconciliation_snapshot
+               (ran_at,kind,project_id,asaas_payment_id,local_status,provider_status,
+                local_amount_cents,provider_amount_cents,divergence,details)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)`,
+            [ranAt, row.kind, row.projectId, row.asaasPaymentId, row.localStatus,
+              row.providerStatus, row.localAmountCents, row.providerAmountCents,
+              row.divergence, JSON.stringify(row.details)],
+          );
+        }
+      });
+      const divergences = result.filter((row) => row.divergence !== 'none').length;
+      return reply.send({
+        ranAt, rows: result, total: result.length, divergences,
+        reconciled: result.length - divergences,
+      });
+    } catch (error) {
+      if (error instanceof AsaasError) return reply.code(502).send({ error: error.message });
+      return sendDbError(error, reply);
+    }
   });
 
   app.get('/projects/:id/finance', adminOnly, async (req, reply) => {
@@ -366,18 +479,37 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         // o seu id, e com ele o vínculo com a cobrança correspondente.
         const diff = planDiff(previousPlan.rows, parsed.data.payments);
         if (diff.error) return diff.error;
-        const protectionError = protectedPlanChangeError(
-          previousPlan.rows.map((row) => ({
+        const protectedRows = previousPlan.rows.map((row) => ({
             id: row.id, position: row.position, name: row.name, description: row.description,
             amountCents: row.amount_cents, dueDate: row.due_date, kind: row.kind,
             installmentGroupId: row.installment_group_id,
             installmentNumber: row.installment_number, installmentCount: row.installment_count,
             groupLabel: row.group_label, status: row.status, syncStatus: row.sync_status,
-          })),
-          parsed.data.payments,
-        );
-        if (protectionError) return protectionError;
+          }));
+        const integratedChanges = integratedPlanUpdates(protectedRows, parsed.data.payments);
+        if (integratedChanges.error) return integratedChanges.error;
+        if (integratedChanges.updates.length > 0 && !hasAsaas) return 'asaas-not-configured' as const;
         const rowStatus = parsed.data.status === 'active' ? 'pending' : 'draft';
+
+        if (integratedChanges.updates.length > 0) {
+          const inFlight = await client.query(
+            `select 1 from public.asaas_operations
+              where project_payment_id = any($1::uuid[])
+                and kind = 'update_project_charge'
+                and (status in ('pending','processing','uncertain')
+                  or (status = 'failed' and attempts < 5))
+              limit 1`,
+            [integratedChanges.updates.map((item) => item.id)],
+          );
+          if (inFlight.rows[0]) return 'sync-in-progress' as const;
+        }
+        for (const item of integratedChanges.updates) {
+          const queued = await queueProjectPaymentOperation(
+            client, id, item.id, 'update_project_charge',
+            { amountCents: item.amountCents, dueDate: item.dueDate },
+          );
+          if (!queued) throw new Error('Falha ao enfileirar atualização financeira.');
+        }
 
         if (diff.remove.length > 0) {
           await client.query(
@@ -396,11 +528,20 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         for (const item of diff.update) {
           await client.query(
             `update public.project_payments
-                set name = $2, description = $3, amount_cents = $4, due_date = $5,
-                    status = case when status = 'paid' then status else $6 end,
-                    position = $7, kind = $8,
-                    installment_group_id = $9, installment_number = $10,
-                    installment_count = $11, group_label = $12
+                set name = case when sync_status = 'local' then $2 else name end,
+                    description = case when sync_status = 'local' then $3 else description end,
+                    amount_cents = case when sync_status = 'local' then $4 else amount_cents end,
+                    due_date = case when sync_status = 'local' then $5 else due_date end,
+                    status = case
+                      when sync_status = 'local' and status <> 'paid' then $6
+                      else status
+                    end,
+                    position = $7,
+                    kind = case when sync_status = 'local' then $8 else kind end,
+                    installment_group_id = case when sync_status = 'local' then $9 else installment_group_id end,
+                    installment_number = case when sync_status = 'local' then $10 else installment_number end,
+                    installment_count = case when sync_status = 'local' then $11 else installment_count end,
+                    group_label = case when sync_status = 'local' then $12 else group_label end
               where id = $1`,
             [item.id, item.row.name, item.row.description, item.row.amountCents,
               item.row.dueDate, rowStatus, item.position, item.row.kind ?? 'stage',
@@ -418,6 +559,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
               rowStatus, item.position, req.userId, item.row.kind ?? 'stage',
               item.row.installmentGroupId ?? null, item.row.installmentNumber ?? null,
               item.row.installmentCount ?? null, item.row.groupLabel ?? ''],
+          );
+        }
+        if (integratedChanges.updates.length > 0) {
+          await client.query(
+            `update public.project_payments
+                set sync_status = 'queued', sync_error = null
+              where id = any($1::uuid[])`,
+            [integratedChanges.updates.map((item) => item.id)],
           );
         }
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
@@ -460,7 +609,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         );
         const saved = await client.query(
           'select * from public.project_payments where project_id = $1 order by position', [id]);
-        return { payments: saved.rows, queuedCount };
+        return { payments: saved.rows, queuedCount: queuedCount + integratedChanges.updates.length };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
@@ -472,6 +621,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (result === 'linha-paga-imutavel' || result === 'linha-sincronizada-imutavel') {
         return reply.code(409).send({ error: result });
       }
+      if (result === 'asaas-not-configured') return reply.code(503).send({ error: 'asaas-nao-configurado' });
+      if (result === 'sync-in-progress') return reply.code(409).send({ error: 'sincronizacao-ja-em-processamento' });
       if (result.queuedCount > 0) financeWorker.kick();
       return reply.send({ ok: true, ...result });
     } catch (error) {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as finance from '../../finance/financeService';
 import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
@@ -132,5 +132,47 @@ describe('ProjectPaymentPlanDrawer', () => {
 
     expect(within(screen.getByRole('list')).getAllByText('R$ 2.000,00')).toHaveLength(4);
     expect(screen.getByText('20/01/2027')).toBeInTheDocument();
+  });
+
+  it('permite ajustar valor e vencimento sincronizados sem liberar estrutura ou exclusão', async () => {
+    const synced = (id: string, name: string, amount: number, dueDate: string, position: number) => ({
+      id, project_id: 'project-1', name, description: '', amount_cents: amount,
+      due_date: dueDate, paid_at: null, status: 'pending' as const, position, notes: '', receipt_url: '',
+      kind: 'stage' as const, installment_group_id: null, installment_number: null,
+      installment_count: null, group_label: '', asaas_payment_id: `pay-${position}`,
+      external_reference: `project-payment:${id}`, payment_url: '', bank_slip_url: '', pix_payload: '',
+      billing_type: 'PIX' as const, provider_status: 'PENDING', sync_status: 'synced' as const,
+      sync_error: null, payment_date: null, provider_event_at: null,
+    });
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'sandbox',
+      project: { id: 'project-1', name: 'Projeto', value_cents: 200_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [
+        synced('11111111-1111-4111-8111-111111111111', 'Entrada', 100_000, '2026-10-20', 0),
+        synced('22222222-2222-4222-8222-222222222222', 'Final', 100_000, '2026-11-20', 1),
+      ],
+      subscriptionPayments: [],
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'Projeto', value_cents: 200_000 }}
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    const firstAmount = await screen.findByLabelText('Valor da etapa 1');
+    expect(firstAmount).not.toBeDisabled();
+    expect(screen.getByLabelText('Nome da etapa 1')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remover etapa 1' })).toBeDisabled();
+    fireEvent.change(firstAmount, { target: { value: '1100,00' } });
+    fireEvent.change(screen.getByLabelText('Valor da etapa 2'), { target: { value: '900,00' } });
+    fireEvent.change(screen.getByLabelText('Vencimento da etapa 1'), { target: { value: '2026-10-21' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar plano' }));
+
+    await waitFor(() => expect(finance.savePaymentPlan).toHaveBeenCalledWith('project-1', expect.objectContaining({
+      payments: expect.arrayContaining([
+        expect.objectContaining({ id: '11111111-1111-4111-8111-111111111111', amountCents: 110_000, dueDate: '2026-10-21' }),
+        expect.objectContaining({ id: '22222222-2222-4222-8222-222222222222', amountCents: 90_000 }),
+      ]),
+    })));
   });
 });

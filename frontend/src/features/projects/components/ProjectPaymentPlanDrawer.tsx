@@ -188,7 +188,10 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           groupLabel: row.groupLabel,
         })),
       });
-      toast('success', status === 'active' ? 'Plano de pagamentos ativado.' : 'Rascunho salvo.');
+      const hasIntegrated = rows.some((row) => row.syncStatus === 'synced');
+      toast('success', hasIntegrated
+        ? 'Plano salvo. Alterações financeiras aguardam confirmação do Asaas.'
+        : status === 'active' ? 'Plano de pagamentos ativado.' : 'Rascunho salvo.');
       onSaved();
       onBack();
     } catch (error) {
@@ -200,7 +203,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
         : code === 'linha-paga-imutavel'
           ? 'Um item já pago não pode ser alterado nem removido.'
         : code === 'linha-sincronizada-imutavel'
-          ? 'Uma cobrança já sincronizada deve ser alterada pelas ações do Asaas.'
+          ? 'Cobrança sincronizada: altere somente valor ou vencimento e aguarde a sincronização atual terminar.'
         : code === 'plano-desatualizado'
           ? 'O plano mudou em outra tela. Feche e abra de novo para continuar.'
         : code.startsWith('metadados-') || code === 'grupo-incompleto'
@@ -219,16 +222,18 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     {loading ? <p className="panel-field__hint">Carregando plano…</p> : <>
       <div className="finance-plan">
         {rows.map((row, index) => {
-          const immutable = row.status === 'paid' || row.syncStatus !== 'local';
+          const structuralImmutable = row.status === 'paid' || row.syncStatus !== 'local';
+          const financialImmutable = row.status === 'paid' || !['local', 'synced'].includes(row.syncStatus);
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
           return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">
               {row.kind === 'installment' && <small>{row.groupLabel || 'Parcelamento'}</small>}
-              <input className="panel-input" aria-label={`Nome da ${itemLabel} ${index + 1}`} placeholder="Ex.: Entrada" value={row.name} disabled={immutable} onChange={(event) => update(index, { name: event.target.value })} />
+              <input className="panel-input" aria-label={`Nome da ${itemLabel} ${index + 1}`} placeholder="Ex.: Entrada" value={row.name} disabled={structuralImmutable} onChange={(event) => update(index, { name: event.target.value })} />
+              {row.syncStatus === 'synced' && <small>Valor e vencimento serão alterados no Asaas</small>}
             </span>
-            <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={immutable} onChange={(event) => update(index, { amount: event.target.value })} />
-            <input className="panel-input" aria-label={`Vencimento da ${itemLabel} ${index + 1}`} type="date" value={row.dueDate} disabled={immutable} onChange={(event) => update(index, { dueDate: event.target.value })} />
-            <button type="button" className="panel-iconbtn" aria-label={`Remover ${itemLabel} ${index + 1}`} disabled={immutable} onClick={() => removeRow(index)}><Trash2 size={14} /></button>
+            <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} onChange={(event) => update(index, { amount: event.target.value })} />
+            <input className="panel-input" aria-label={`Vencimento da ${itemLabel} ${index + 1}`} type="date" value={row.dueDate} disabled={financialImmutable} onChange={(event) => update(index, { dueDate: event.target.value })} />
+            <button type="button" className="panel-iconbtn" aria-label={`Remover ${itemLabel} ${index + 1}`} disabled={structuralImmutable} onClick={() => removeRow(index)}><Trash2 size={14} /></button>
           </div>;
         })}
         <div className="finance-plan__buttons">

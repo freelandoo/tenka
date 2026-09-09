@@ -74,6 +74,7 @@ export interface AsaasPayment {
   invoiceUrl?: string;
   bankSlipUrl?: string;
   externalReference?: string;
+  subscription?: string;
 }
 
 export interface AsaasPixQrCode {
@@ -82,13 +83,15 @@ export interface AsaasPixQrCode {
   expirationDate: string;
 }
 
-interface Page<T> {
+export interface AsaasPage<T> {
   data: T[];
+  hasMore?: boolean;
+  totalCount?: number;
 }
 
 export const asaas = {
   async findCustomer(externalReference: string): Promise<AsaasCustomer | null> {
-    const page = await request<Page<AsaasCustomer>>(
+    const page = await request<AsaasPage<AsaasCustomer>>(
       `/customers?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
     );
     return page.data[0] ?? null;
@@ -102,7 +105,7 @@ export const asaas = {
     });
   },
   async findSubscription(externalReference: string): Promise<AsaasSubscription | null> {
-    const page = await request<Page<AsaasSubscription>>(
+    const page = await request<AsaasPage<AsaasSubscription>>(
       `/subscriptions?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
     );
     return page.data[0] ?? null;
@@ -117,13 +120,22 @@ export const asaas = {
     });
   },
   async findPayment(externalReference: string): Promise<AsaasPayment | null> {
-    const page = await request<Page<AsaasPayment>>(
+    const page = await request<AsaasPage<AsaasPayment>>(
       `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
     );
     return page.data[0] ?? null;
   },
   getPayment(id: string) {
     return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`);
+  },
+  listPayments(input: { dueDateFrom: string; dueDateTo: string; offset?: number; limit?: number }) {
+    const params = new URLSearchParams({
+      'dueDate[ge]': input.dueDateFrom,
+      'dueDate[le]': input.dueDateTo,
+      offset: String(input.offset ?? 0),
+      limit: String(input.limit ?? 100),
+    });
+    return request<AsaasPage<AsaasPayment>>(`/payments?${params.toString()}`);
   },
   createPayment(input: Record<string, unknown>) {
     return request<AsaasPayment>('/payments', { method: 'POST', body: JSON.stringify(input) });

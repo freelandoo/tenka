@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  integratedPlanUpdates,
   planDiff,
   protectedPlanChangeError,
   type PlanRowCurrent,
@@ -121,13 +122,24 @@ describe('protecao de linhas financeiras', () => {
     ])).toBe('linha-paga-imutavel');
   });
 
-  it('recusa alterar linha sincronizada, mas aceita apenas reordena-la', () => {
-    const synced = protectedRow({ syncStatus: 'synced' });
+  it('permite alterar valor e vencimento de linha sincronizada pela fila', () => {
+    const synced = protectedRow({ syncStatus: 'synced', dueDate: '2026-10-20' });
     expect(protectedPlanChangeError([synced], [
-      row({ id: ENTRADA, name: 'Entrada', amountCents: 200_000 }),
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
     ])).toBeNull();
+    expect(integratedPlanUpdates([synced], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
+    ]).updates).toEqual([{ id: ENTRADA, amountCents: 210_000, dueDate: '2026-10-21' }]);
+  });
+
+  it('recusa remover, reestruturar ou sobrescrever sincronização em andamento', () => {
+    const synced = protectedRow({ syncStatus: 'synced', dueDate: '2026-10-20' });
+    expect(protectedPlanChangeError([synced], [])).toBe('linha-sincronizada-imutavel');
     expect(protectedPlanChangeError([synced], [
-      row({ id: ENTRADA, name: 'Entrada', amountCents: 200_000, dueDate: '2026-10-20' }),
+      row({ id: ENTRADA, name: 'Outro nome', amountCents: 200_000, dueDate: '2026-10-20' }),
+    ])).toBe('linha-sincronizada-imutavel');
+    expect(protectedPlanChangeError([{ ...synced, syncStatus: 'queued' }], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
     ])).toBe('linha-sincronizada-imutavel');
   });
 });

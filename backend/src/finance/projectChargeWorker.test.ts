@@ -8,6 +8,7 @@ const hoisted = vi.hoisted(() => ({
     findPayment: vi.fn(),
     getPayment: vi.fn(),
     createPayment: vi.fn(),
+    updatePayment: vi.fn(),
     getPixQrCode: vi.fn(),
     deletePayment: vi.fn(),
   },
@@ -38,6 +39,7 @@ import { executeOperation, type Operation } from './worker';
 const operation = (kind: Operation['kind']): Operation => ({
   id: 'operation-1', project_id: 'project-1', subscription_id: null,
   project_payment_id: '77777777-7777-4777-8777-777777777777', kind, attempts: 1,
+  request_payload: {},
 });
 
 describe('worker de cobranças de projeto', () => {
@@ -88,5 +90,25 @@ describe('worker de cobranças de projeto', () => {
     expect(hoisted.queries.some((query) =>
       query.sql.includes("set status = 'cancelled'") && query.values[0] === '77777777-7777-4777-8777-777777777777',
     )).toBe(true);
+  });
+
+  it('edita valor e vencimento no Asaas e aguarda o webhook para trocar os dados locais', async () => {
+    hoisted.asaasPaymentId = 'pay_1';
+    hoisted.asaas.updatePayment.mockResolvedValue({
+      id: 'pay_1', status: 'PENDING', billingType: 'PIX', value: 2100,
+      dueDate: '2026-10-15',
+    });
+    const edit = operation('update_project_charge');
+    edit.request_payload = { amountCents: 210_000, dueDate: '2026-10-15' };
+
+    await expect(executeOperation(edit)).resolves.toBe('pay_1');
+
+    expect(hoisted.asaas.updatePayment).toHaveBeenCalledWith('pay_1', expect.objectContaining({
+      value: 2100, dueDate: '2026-10-15',
+    }));
+    const finalUpdate = hoisted.queries.find((query) =>
+      query.sql.includes("set sync_status = 'synced'") && query.values[0] === '77777777-7777-4777-8777-777777777777');
+    expect(finalUpdate?.sql).not.toContain('amount_cents');
+    expect(finalUpdate?.sql).not.toContain('due_date');
   });
 });

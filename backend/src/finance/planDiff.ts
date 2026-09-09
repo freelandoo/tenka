@@ -46,6 +46,12 @@ export interface ProtectedPlanRow extends PlanRowCurrent {
 
 export type ProtectedPlanChangeError = 'linha-paga-imutavel' | 'linha-sincronizada-imutavel';
 
+export interface IntegratedPlanUpdate {
+  id: string;
+  amountCents: number;
+  dueDate: string;
+}
+
 export interface PlanCreate {
   position: number;
   row: PlanRowInput;
@@ -106,21 +112,49 @@ function sameFinancialRow(current: ProtectedPlanRow, desired: PlanRowInput): boo
     && current.groupLabel === (desired.groupLabel ?? '');
 }
 
+function sameIntegratedStructure(current: ProtectedPlanRow, desired: PlanRowInput): boolean {
+  return current.name === desired.name
+    && current.description === desired.description
+    && current.kind === (desired.kind ?? 'stage')
+    && current.installmentGroupId === (desired.installmentGroupId ?? null)
+    && current.installmentNumber === (desired.installmentNumber ?? null)
+    && current.installmentCount === (desired.installmentCount ?? null)
+    && current.groupLabel === (desired.groupLabel ?? '');
+}
+
+/**
+ * Uma cobrança pendente já sincronizada pode mudar somente valor/vencimento.
+ * Exclusão e mudanças estruturais exigem cancelamento; alterações enquanto
+ * outra sincronização está em voo são recusadas para não perder intenção.
+ */
+export function integratedPlanUpdates(
+  current: ProtectedPlanRow[],
+  desired: PlanRowInput[],
+): { error: ProtectedPlanChangeError | null; updates: IntegratedPlanUpdate[] } {
+  const desiredById = new Map(
+    desired.filter((row): row is PlanRowInput & { id: string } => row.id !== undefined)
+      .map((row) => [row.id, row]),
+  );
+  const updates: IntegratedPlanUpdate[] = [];
+  for (const row of current) {
+    const incoming = desiredById.get(row.id);
+    const changedOrRemoved = !incoming || !sameFinancialRow(row, incoming);
+    if (!changedOrRemoved) continue;
+    if (row.status === 'paid') return { error: 'linha-paga-imutavel', updates: [] };
+    if (row.syncStatus === 'local') continue;
+    if (row.syncStatus !== 'synced' || !incoming || !sameIntegratedStructure(row, incoming)) {
+      return { error: 'linha-sincronizada-imutavel', updates: [] };
+    }
+    if (!incoming.dueDate) return { error: 'linha-sincronizada-imutavel', updates: [] };
+    updates.push({ id: row.id, amountCents: incoming.amountCents, dueDate: incoming.dueDate });
+  }
+  return { error: null, updates };
+}
+
 /** Linhas pagas ou ja enviadas ao Asaas podem ser reordenadas, mas nao reescritas/removidas. */
 export function protectedPlanChangeError(
   current: ProtectedPlanRow[],
   desired: PlanRowInput[],
 ): ProtectedPlanChangeError | null {
-  const desiredById = new Map(
-    desired.filter((row): row is PlanRowInput & { id: string } => row.id !== undefined)
-      .map((row) => [row.id, row]),
-  );
-  for (const row of current) {
-    const incoming = desiredById.get(row.id);
-    const changedOrRemoved = !incoming || !sameFinancialRow(row, incoming);
-    if (!changedOrRemoved) continue;
-    if (row.status === 'paid') return 'linha-paga-imutavel';
-    if (row.syncStatus !== 'local') return 'linha-sincronizada-imutavel';
-  }
-  return null;
+  return integratedPlanUpdates(current, desired).error;
 }

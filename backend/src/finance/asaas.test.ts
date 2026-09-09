@@ -69,4 +69,16 @@ describe('cliente Asaas', () => {
       expect.objectContaining({ method: 'DELETE' }),
     );
   });
+
+  it('lista cobranças por intervalo de vencimento para conciliação', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      data: [], hasMore: false,
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    await asaas.listPayments({ dueDateFrom: '2026-09-01', dueDateTo: '2026-09-30', offset: 100 });
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(
+      'dueDate%5Bge%5D=2026-09-01&dueDate%5Ble%5D=2026-09-30&offset=100&limit=100',
+    ), expect.any(Object));
+  });
 });

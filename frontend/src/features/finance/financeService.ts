@@ -23,8 +23,36 @@ export interface ProjectFinance {
   subscriptionPayments: SubscriptionPaymentRow[];
 }
 
+export interface ReconciliationRow {
+  kind: 'subscription' | 'project_payment';
+  projectId: string | null;
+  asaasPaymentId: string | null;
+  localStatus: string | null;
+  providerStatus: string | null;
+  localAmountCents: number | null;
+  providerAmountCents: number | null;
+  divergence: 'none' | 'missing_local' | 'missing_provider' | 'status' | 'amount' | 'due_date' | 'multiple';
+  details: { localDueDate?: string | null; providerDueDate?: string | null };
+}
+
+export interface ReconciliationResult {
+  ranAt: string | null;
+  rows: ReconciliationRow[];
+  total: number;
+  divergences: number;
+  reconciled: number;
+}
+
 export const fetchFinanceOverview = () =>
   apiRequest<FinanceOverview>('/admin/finance/overview');
+
+export const fetchLatestReconciliation = () =>
+  apiRequest<ReconciliationResult>('/admin/finance/reconciliation/latest');
+
+export const runReconciliation = (dueDateFrom: string, dueDateTo: string) =>
+  apiRequest<ReconciliationResult>('/admin/finance/reconciliation', {
+    method: 'POST', body: { dueDateFrom, dueDateTo },
+  });
 
 export const fetchProjectFinance = (projectId: string) =>
   apiRequest<ProjectFinance>(`/projects/${projectId}/finance`);
