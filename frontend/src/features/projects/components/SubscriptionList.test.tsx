@@ -7,15 +7,25 @@ import {
 } from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
+import * as financeService from '../../finance/financeService';
+import type { ProjectFinance } from '../../finance/financeService';
 
 vi.mock('../services/projectsService', () => ({
   fetchSubscriptionPayments: vi.fn(),
   registerSubscriptionPaymentOutside: vi.fn(),
 }));
+vi.mock('../../finance/financeService', () => ({
+  fetchProjectFinance: vi.fn(),
+  saveSubscription: vi.fn(),
+  subscriptionAction: vi.fn(),
+}));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const mockedFetchPayments = vi.mocked(fetchSubscriptionPayments);
 const mockedRegisterOutside = vi.mocked(registerSubscriptionPaymentOutside);
+const mockedFetchFinance = vi.mocked(financeService.fetchProjectFinance);
+const mockedSaveSubscription = vi.mocked(financeService.saveSubscription);
+const mockedSubscriptionAction = vi.mocked(financeService.subscriptionAction);
 
 const defaultProps = {
   competence: '2026-08',
@@ -76,9 +86,34 @@ function makePayment(over: Partial<SubscriptionPaymentRow> = {}): SubscriptionPa
   };
 }
 
+function makeFinance(
+  project: BoardProject,
+  status: 'draft' | 'pending_activation' | 'active' | 'inactive' | 'cancelled' = 'active',
+  asaasSubscriptionId: string | null = 'sub-1',
+): ProjectFinance {
+  return {
+    configured: true,
+    environment: 'sandbox',
+    project: { ...project, cpf_cnpj: '12345678909' },
+    subscription: {
+      id: 'subscription-1', project_id: project.id, amount_cents: project.monthly_fee_cents,
+      billing_type: 'PIX', due_day: project.due_day ?? 10, next_due_date: '2026-09-10',
+      status, asaas_subscription_id: asaasSubscriptionId,
+      external_reference: `project-subscription:${project.id}`, sync_error: null,
+      created_at: '2026-08-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
+    },
+    projectPayments: [],
+    subscriptionPayments: [],
+    paymentPlanDraft: null,
+  } as ProjectFinance;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedFetchPayments.mockResolvedValue([]);
+  mockedFetchFinance.mockResolvedValue(makeFinance(makeProject()));
+  mockedSaveSubscription.mockResolvedValue({ subscriptionId: 'subscription-1', queued: true });
+  mockedSubscriptionAction.mockResolvedValue({ queued: true });
 });
 
 describe('SubscriptionList', () => {
@@ -158,13 +193,40 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('R$ 359,80/mês')).toBeInTheDocument();
   });
 
-  it('não oferece atalho de ativação fora do financeiro administrativo', () => {
+  it('admin confirma a desativação e vê que cobranças emitidas serão preservadas', async () => {
+    const project = makeProject({ id: 'a' });
+    mockedFetchFinance.mockResolvedValue(makeFinance(project));
+    const onChanged = vi.fn();
     render(
-      <SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a' })]} isAdmin onChanged={vi.fn()} />,
+      <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={onChanged} />,
     );
 
-    expect(screen.getByText('Ativa')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ativa' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Gerenciar mensalidade ativa/i }));
+    expect(await screen.findByRole('heading', { name: 'Desativar mensalidade?' })).toBeInTheDocument();
+    expect(screen.getByText(/Cobranças já emitidas, inclusive pendentes ou vencidas/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sim, desativar' }));
+
+    await waitFor(() => expect(mockedSubscriptionAction).toHaveBeenCalledWith('a', 'pause'));
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('admin ativa uma mensalidade inativa somente após a confirmação', async () => {
+    const project = makeProject({ id: 'b', subscription_active: false });
+    mockedFetchFinance.mockResolvedValue(makeFinance(project, 'inactive'));
+    render(
+      <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Gerenciar mensalidade inativa/i }));
+    expect(await screen.findByRole('heading', { name: 'Reativar mensalidade?' })).toBeInTheDocument();
+    expect(screen.getByText(/histórico anterior permanece inalterado/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sim, reativar' }));
+
+    await waitFor(() => expect(mockedSaveSubscription).toHaveBeenCalledWith('b', {
+      amountCents: 29_990,
+      dueDay: 10,
+      activate: true,
+    }));
   });
 
   it('colaborador vê os valores mas não altera a recorrência', () => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectFormModal } from './ProjectFormModal';
 import * as clientsService from '../../clients/clientsService';
@@ -27,9 +27,7 @@ vi.mock('../services/projectsService', () => ({
 vi.mock('../../finance/financeService', () => ({
   fetchProjectFinance: vi.fn(),
   saveSubscription: vi.fn(),
-  previewSubscription: vi.fn(),
   clearSubscription: vi.fn(),
-  subscriptionAction: vi.fn(),
 }));
 
 const existingClient = {
@@ -125,7 +123,7 @@ describe('ProjectFormModal — contato do cliente', () => {
     expect(phone).not.toHaveAttribute('readonly');
     expect(email).not.toHaveAttribute('readonly');
     expect(cpfCnpj).not.toHaveAttribute('readonly');
-    expect(screen.getByText('Assinatura ativa')).toBeInTheDocument();
+    expect(screen.queryByText('Assinatura ativa')).not.toBeInTheDocument();
     const subscriptionHeading = screen.getByText('Mensalidade do projeto');
     expect(subscriptionHeading.closest('fieldset')).toBeNull();
     expect(subscriptionHeading.closest('section')).toHaveClass('project-form__finance');
@@ -137,6 +135,9 @@ describe('ProjectFormModal — contato do cliente', () => {
     await user.type(cpfCnpj, '123.456.789-00');
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com contato');
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-10-15');
+    await user.type(screen.getByLabelText('Valor mensal (R$)'), '299,90');
+    await user.type(screen.getByLabelText('Dia do vencimento'), '10');
+    expect(screen.getByText(/será salva como inativa/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
 
     await waitFor(() =>
@@ -146,6 +147,8 @@ describe('ProjectFormModal — contato do cliente', () => {
           clientPhone: '(11) 99999-8888',
           clientEmail: 'cliente@exemplo.com',
           clientCpfCnpj: '123.456.789-00',
+          monthlyFeeCents: 29_990,
+          subscriptionActive: false,
         }),
       ),
     );
@@ -153,7 +156,7 @@ describe('ProjectFormModal — contato do cliente', () => {
   });
 });
 
-describe('ProjectFormModal — impacto da mensalidade', () => {
+describe('ProjectFormModal — mensalidade simplificada', () => {
   // O cadastro central é a fonte do contato: o formulário recarrega telefone e
   // e-mail do cliente escolhido, então o fixture precisa tê-los preenchidos.
   beforeEach(() => {
@@ -162,16 +165,8 @@ describe('ProjectFormModal — impacto da mensalidade', () => {
     ]);
   });
 
-  it('mostra a prévia e só toca a cobrança deste mês quando o admin marca a opção', async () => {
+  it('preserva uma mensalidade ativa ao editar valor e dia, sem expor controle de ativação', async () => {
     const user = userEvent.setup();
-    vi.mocked(finance.previewSubscription).mockResolvedValue({
-      next: { amountCents: 35_000, dueDate: '2026-10-10' },
-      current: {
-        id: 'local-1', asaasPaymentId: 'pay-1', status: 'pending',
-        amountCents: 30_000, dueDate: '2026-09-10',
-        willChange: true, nextAmountCents: 35_000, nextDueDate: '2026-09-10', editable: true,
-      },
-    });
 
     render(
       <ProjectFormModal project={makeProject()} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />,
@@ -179,28 +174,23 @@ describe('ProjectFormModal — impacto da mensalidade', () => {
 
     const fee = await screen.findByLabelText('Valor mensal (R$)');
     await waitFor(() => expect(fee).toHaveValue(formatCurrencyFromCents(30_000)));
+    expect(screen.queryByRole('checkbox', { name: /Assinatura ativa/i })).toBeNull();
+    expect(screen.getByText(/mensalidade já está ativa/i)).toBeInTheDocument();
     await user.clear(fee);
     await user.type(fee, '350,00');
-
-    const impacto = await screen.findByRole('group', { name: 'Impacto da alteração' });
-    expect(impacto).toHaveTextContent('Próxima cobrança');
-    await user.click(within(impacto).getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(finance.saveSubscription).toHaveBeenCalledWith('project-1',
-      expect.objectContaining({ amountCents: 35_000, applyToCurrentPayment: true })));
+      expect.objectContaining({ amountCents: 35_000, activate: true, applyToCurrentPayment: false })));
   });
 
-  it('mantém a cobrança deste mês intacta quando a opção não é marcada', async () => {
+  it('mantém uma mensalidade ainda inativa e orienta a ativação pelo Financeiro', async () => {
     const user = userEvent.setup();
-    vi.mocked(finance.previewSubscription).mockResolvedValue({
-      next: { amountCents: 35_000, dueDate: '2026-10-10' },
-      current: {
-        id: 'local-1', asaasPaymentId: 'pay-1', status: 'pending',
-        amountCents: 30_000, dueDate: '2026-09-10',
-        willChange: true, nextAmountCents: 35_000, nextDueDate: '2026-09-10', editable: true,
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue(financeDetail({
+      subscription: {
+        amount_cents: 30_000, due_day: 10, status: 'draft', asaas_subscription_id: null,
       },
-    });
+    }));
 
     render(
       <ProjectFormModal project={makeProject()} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />,
@@ -208,16 +198,14 @@ describe('ProjectFormModal — impacto da mensalidade', () => {
 
     const fee = await screen.findByLabelText('Valor mensal (R$)');
     await waitFor(() => expect(fee).toHaveValue(formatCurrencyFromCents(30_000)));
-    await user.clear(fee);
-    await user.type(fee, '350,00');
-    await screen.findByRole('group', { name: 'Impacto da alteração' });
+    expect(screen.getByText(/Para começar a cobrar, acesse Financeiro/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(finance.saveSubscription).toHaveBeenCalledWith('project-1',
-      expect.objectContaining({ applyToCurrentPayment: false })));
+      expect.objectContaining({ activate: false, applyToCurrentPayment: false })));
   });
 
-  it('zerar o valor remove a mensalidade em vez de deixar a recorrência cobrando', async () => {
+  it('aceita valor zero e remove a mensalidade em vez de deixar a recorrência cobrando', async () => {
     const user = userEvent.setup();
     render(
       <ProjectFormModal project={makeProject()} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />,
@@ -226,6 +214,7 @@ describe('ProjectFormModal — impacto da mensalidade', () => {
     const fee = await screen.findByLabelText('Valor mensal (R$)');
     await waitFor(() => expect(fee).toHaveValue(formatCurrencyFromCents(30_000)));
     await user.clear(fee);
+    await user.type(fee, '0');
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(finance.clearSubscription).toHaveBeenCalledWith('project-1'));

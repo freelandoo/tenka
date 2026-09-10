@@ -73,7 +73,7 @@ export function AdminBillingView() {
     </div>
 
     <div className="finance-admin__overview-head">
-      <p>Configurações e planos agora ficam dentro do drawer de cada projeto.</p>
+      <p>Ative ou desative mensalidades na lista acima. Aqui ficam os dados técnicos e a conciliação.</p>
       <button className="panel-iconbtn" type="button" onClick={() => void load()} aria-label="Atualizar financeiro"><RefreshCw size={16} /></button>
     </div>
 

@@ -12,7 +12,6 @@ const valid = {
   company: 'tenka' as const,
   value: '12.500,00',
   monthlyFee: '500,00',
-  subscriptionActive: true,
   dueDay: '10',
   dueDate: '2026-09-30',
   colorKey: 'azul',
@@ -45,8 +44,9 @@ describe('projectFormSchema', () => {
     expect(projectFormSchema.safeParse({ ...valid, dueDay: '32' }).success).toBe(false);
   });
 
-  it('não permite ativar assinatura sem valor mensal', () => {
-    expect(projectFormSchema.safeParse({ ...valid, monthlyFee: '', subscriptionActive: true }).success).toBe(false);
+  it('aceita mensalidade vazia ou zero sem exigir vencimento', () => {
+    expect(projectFormSchema.safeParse({ ...valid, monthlyFee: '', dueDay: '' }).success).toBe(true);
+    expect(projectFormSchema.safeParse({ ...valid, monthlyFee: '0', dueDay: '' }).success).toBe(true);
   });
 
   it('rejeita cor fora da paleta', () => {

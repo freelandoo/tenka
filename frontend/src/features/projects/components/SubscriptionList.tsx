@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Banknote, Copy, ExternalLink } from 'lucide-react';
+import { Banknote, Copy, ExternalLink, LoaderCircle } from 'lucide-react';
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 import { cents, formatCurrencyFromCents } from '../../panel/format';
@@ -9,6 +9,9 @@ import {
 } from '../services/projectsService';
 import { useToast } from '../../panel/ToastContext';
 import { subscribeRealtime } from '../../../lib/api/events';
+import { PanelOverlay } from '../../panel/PanelOverlay';
+import * as financeService from '../../finance/financeService';
+import type { ProjectFinance } from '../../finance/financeService';
 
 interface SubscriptionListProps {
   /** TODOS os projetos não-arquivados — board e histórico. */
@@ -63,12 +66,17 @@ export function SubscriptionList({
   isAdmin,
   competence,
   competenceLabel,
+  onChanged,
 }: SubscriptionListProps) {
   const { toast } = useToast();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [payments, setPayments] = useState<SubscriptionPaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState(false);
+  const [manageProject, setManageProject] = useState<BoardProject | null>(null);
+  const [manageFinance, setManageFinance] = useState<ProjectFinance | null>(null);
+  const [manageLoading, setManageLoading] = useState(false);
+  const [manageBusy, setManageBusy] = useState(false);
   const paymentsRequest = useRef(0);
   const currentCompetence = useRef(competence);
   currentCompetence.current = competence;
@@ -158,6 +166,68 @@ export function SubscriptionList({
     }
   };
 
+  const openSubscriptionManagement = async (project: BoardProject) => {
+    setManageProject(project);
+    setManageFinance(null);
+    setManageLoading(true);
+    try {
+      setManageFinance(await financeService.fetchProjectFinance(project.id));
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao consultar a mensalidade.');
+      setManageProject(null);
+    } finally {
+      setManageLoading(false);
+    }
+  };
+
+  const applySubscriptionStatus = async () => {
+    if (!manageProject || !manageFinance?.subscription) return;
+    const subscription = manageFinance.subscription;
+    const isActive = subscription.status === 'active';
+    setManageBusy(true);
+    try {
+      if (isActive) {
+        await financeService.subscriptionAction(manageProject.id, 'pause');
+        toast('success', 'Desativação enviada ao Asaas. Cobranças já emitidas continuam válidas.');
+      } else {
+        const input: financeService.SubscriptionInput = {
+          amountCents: subscription.amount_cents,
+          dueDay: subscription.due_day,
+          activate: true,
+        };
+        try {
+          await financeService.saveSubscription(manageProject.id, input);
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'competencia-ja-liquidada') throw error;
+          const accepted = window.confirm(
+            'A competência do próximo vencimento já consta como paga. Deseja mesmo gerar uma nova cobrança para esse mês?',
+          );
+          if (!accepted) return;
+          await financeService.saveSubscription(manageProject.id, {
+            ...input,
+            confirmPaidCompetence: true,
+          });
+        }
+        toast('success', 'Ativação enviada ao Asaas. As próximas cobranças serão geradas automaticamente.');
+      }
+      setManageProject(null);
+      setManageFinance(null);
+      onChanged();
+      await loadPayments();
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const friendly: Record<string, string> = {
+        'asaas-nao-configurado': 'A integração com o Asaas ainda não está configurada.',
+        'assinatura-nao-sincronizada': 'Esta mensalidade ainda não foi sincronizada com o Asaas.',
+        'cliente-obrigatorio-para-ativacao': 'Vincule um cliente antes de ativar a mensalidade.',
+        'cpf-cnpj-obrigatorio-para-ativacao': 'Cadastre o CPF/CNPJ do cliente antes de ativar.',
+      };
+      toast('error', friendly[code] ?? (code || 'Falha ao atualizar a mensalidade.'));
+    } finally {
+      setManageBusy(false);
+    }
+  };
+
   if (linhas.length === 0) {
     return (
       <p className="costs__empty">
@@ -228,11 +298,20 @@ export function SubscriptionList({
                       : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
                 </span>
               </span>
-              <span
-                className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}
-              >
-                {p.subscription_active ? 'Ativa' : 'Inativa'}
-              </span>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className={`costs__toggle fees__status-button${p.subscription_active ? ' is-on' : ''}`}
+                  aria-label={`Gerenciar mensalidade ${p.subscription_active ? 'ativa' : 'inativa'} de ${p.name}`}
+                  onClick={() => void openSubscriptionManagement(p)}
+                >
+                  {p.subscription_active ? 'Ativa' : 'Inativa'}
+                </button>
+              ) : (
+                <span className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}>
+                  {p.subscription_active ? 'Ativa' : 'Inativa'}
+                </span>
+              )}
             </li>
           );
         })}
@@ -250,6 +329,99 @@ export function SubscriptionList({
         </span>
         <strong>{formatCurrencyFromCents(total)}/mês</strong>
       </div>
+
+      {manageProject && (
+        <PanelOverlay
+          variant="modal"
+          labelledBy="subscription-status-title"
+          onClose={() => { if (!manageBusy) setManageProject(null); }}
+        >
+          <div className="subscription-confirm">
+            {manageLoading ? (
+              <>
+                <h2 id="subscription-status-title" style={{ position: 'absolute', clip: 'rect(0 0 0 0)' }}>
+                  Consultando mensalidade
+                </h2>
+                <div className="subscription-confirm__loading" role="status">
+                  <LoaderCircle size={18} aria-hidden="true" /> Consultando mensalidade…
+                </div>
+              </>
+            ) : manageFinance?.subscription ? (
+              <>
+                <div>
+                  <p className="panel-eyebrow">Mensalidade · {manageProject.name}</p>
+                  <h2 id="subscription-status-title">
+                    {manageFinance.subscription.status === 'active'
+                      ? 'Desativar mensalidade?'
+                      : manageFinance.subscription.asaas_subscription_id
+                        ? 'Reativar mensalidade?'
+                        : 'Ativar mensalidade?'}
+                  </h2>
+                </div>
+
+                {manageFinance.subscription.status === 'active' ? (
+                  <div className="subscription-confirm__impact">
+                    <strong>O que acontece ao desativar</strong>
+                    <p>As próximas cobranças deixam de ser geradas até você reativar.</p>
+                    <p>Cobranças já emitidas, inclusive pendentes ou vencidas, continuam registradas e podem ser pagas normalmente.</p>
+                  </div>
+                ) : (
+                  <div className="subscription-confirm__impact">
+                    <strong>O que acontece ao ativar</strong>
+                    <p>O Asaas começará a gerar as próximas cobranças de {formatCurrencyFromCents(manageFinance.subscription.amount_cents)}, com vencimento no dia {manageFinance.subscription.due_day}.</p>
+                    <p>O histórico anterior permanece inalterado.</p>
+                  </div>
+                )}
+
+                {!manageFinance.configured || !manageFinance.project.client_id || !manageFinance.project.cpf_cnpj ? (
+                  <p className="finance-warning">
+                    {!manageFinance.configured
+                      ? 'A integração com o Asaas ainda não está configurada.'
+                      : !manageFinance.project.client_id
+                        ? 'Vincule um cliente ao projeto antes de ativar.'
+                        : 'Cadastre o CPF/CNPJ do cliente antes de ativar.'}
+                  </p>
+                ) : null}
+
+                <div className="subscription-confirm__actions">
+                  <button type="button" className="panel-btn panel-btn--ghost"
+                    disabled={manageBusy} onClick={() => setManageProject(null)}>
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    className={`panel-btn ${manageFinance.subscription.status === 'active' ? 'panel-btn--danger' : 'panel-btn--primary'}`}
+                    disabled={manageBusy || manageFinance.subscription.status === 'pending_activation' || (
+                      manageFinance.subscription.status !== 'active' && (
+                        !manageFinance.configured || !manageFinance.project.client_id || !manageFinance.project.cpf_cnpj
+                      )
+                    )}
+                    onClick={() => void applySubscriptionStatus()}
+                  >
+                    {manageBusy
+                      ? 'Processando…'
+                      : manageFinance.subscription.status === 'active'
+                        ? 'Sim, desativar'
+                        : manageFinance.subscription.status === 'pending_activation'
+                          ? 'Ativação em andamento'
+                          : manageFinance.subscription.asaas_subscription_id
+                            ? 'Sim, reativar'
+                            : 'Sim, ativar'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="subscription-status-title">Mensalidade indisponível</h2>
+                <p className="panel-field__hint">Não foi possível localizar a configuração desta mensalidade.</p>
+                <div className="subscription-confirm__actions">
+                  <button type="button" className="panel-btn panel-btn--ghost" onClick={() => setManageProject(null)}>Fechar</button>
+                </div>
+              </>
+            )}
+          </div>
+        </PanelOverlay>
+      )}
     </div>
   );
 }

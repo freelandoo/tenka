@@ -48,11 +48,9 @@ export const projectFormSchema = z
   monthlyFee: z
     .string()
     .trim()
-    .refine((raw) => raw === '' || (parseCurrencyToCents(raw) ?? 0) > 0, {
-      message: 'Informe uma mensalidade maior que zero (ex.: 500,00).',
+    .refine((raw) => raw === '' || parseCurrencyToCents(raw) !== null, {
+      message: 'Informe um valor válido (ex.: 500,00) ou deixe vazio.',
     }),
-  /** Cobrança recorrente ligada — soma na carteira enquanto marcada. */
-  subscriptionActive: z.boolean(),
   dueDay: z
     .string()
     .trim()
@@ -73,13 +71,9 @@ export const projectFormSchema = z
     message: 'Informe pelo menos telefone ou e-mail do cliente.',
     path: ['clientPhone'],
   })
-  .refine((v) => v.monthlyFee === '' || v.dueDay !== '', {
+  .refine((v) => (parseCurrencyToCents(v.monthlyFee) ?? 0) === 0 || v.dueDay !== '', {
     message: 'Informe o dia de vencimento da mensalidade.',
     path: ['dueDay'],
-  })
-  .refine((v) => !v.subscriptionActive || v.monthlyFee !== '', {
-    message: 'Informe o valor mensal antes de ativar a assinatura.',
-    path: ['monthlyFee'],
   });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;
