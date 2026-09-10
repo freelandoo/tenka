@@ -6,12 +6,17 @@ import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
 vi.mock('../../finance/financeService', () => ({
   fetchProjectFinance: vi.fn(),
   savePaymentPlan: vi.fn(),
+  savePaymentPlanDraft: vi.fn(),
 }));
-vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const toast = vi.fn();
+vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast }) }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(finance.savePaymentPlan).mockResolvedValue(undefined);
+  vi.mocked(finance.savePaymentPlan).mockResolvedValue({ ok: true, queuedCount: 0, billingIssues: [] });
+  vi.mocked(finance.savePaymentPlanDraft).mockResolvedValue({
+    saved: true, updatedAt: '2026-09-09T12:00:00.000Z',
+  });
   vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
     configured: true,
     environment: 'sandbox',
@@ -19,6 +24,7 @@ beforeEach(() => {
     subscription: null,
     projectPayments: [],
     subscriptionPayments: [],
+    paymentPlanDraft: null,
   });
 });
 
@@ -37,7 +43,8 @@ describe('ProjectPaymentPlanDrawer', () => {
     expect(await screen.findByDisplayValue('Entrada')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Etapa 2')).toBeInTheDocument();
     expect(screen.getAllByDisplayValue('1250,00')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Ativar plano' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Salvar e ativar' })).toBeEnabled();
     expect(screen.getByLabelText('Vencimento da etapa 1')).toHaveValue('');
     expect(screen.getByLabelText('Vencimento da etapa 2')).toHaveValue('');
   });
@@ -57,16 +64,16 @@ describe('ProjectPaymentPlanDrawer', () => {
     fireEvent.change(screen.getByLabelText('Valor da etapa 3'), { target: { value: '1,00' } });
 
     expect(screen.getByText('Valor excedido')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Salvar rascunho' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Ativar plano' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Salvar e ativar' })).toBeDisabled();
   });
 
-  it('previsualiza e adiciona somente o saldo restante sem gravar antes do salvamento', async () => {
+  it('previsualiza parcelas e salva o rascunho automaticamente ao sair', async () => {
+    const onClose = vi.fn();
     render(
       <ProjectPaymentPlanDrawer
         project={{ id: 'project-1', name: 'Site Braslar', value_cents: 250000 }}
         onBack={vi.fn()}
-        onClose={vi.fn()}
+        onClose={onClose}
         onSaved={vi.fn()}
       />,
     );
@@ -85,16 +92,17 @@ describe('ProjectPaymentPlanDrawer', () => {
     expect(screen.getByDisplayValue('833,34')).toBeInTheDocument();
     expect(screen.getByText('Não distribuído').parentElement).toHaveTextContent('R$ 0,00');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
-    expect(finance.savePaymentPlan).toHaveBeenCalledWith('project-1', expect.objectContaining({
-      status: 'draft',
-      payments: expect.arrayContaining([
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    await waitFor(() => expect(finance.savePaymentPlanDraft).toHaveBeenCalledWith(
+      'project-1', expect.arrayContaining([
         expect.objectContaining({
           kind: 'installment', installmentNumber: 1, installmentCount: 3,
           amountCents: 83333, dueDate: '2026-10-20', groupLabel: 'Restante',
         }),
       ]),
-    }));
+    ));
+    expect(finance.savePaymentPlan).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it('desconta uma entrada existente e parcela somente o restante', async () => {
@@ -113,6 +121,7 @@ describe('ProjectPaymentPlanDrawer', () => {
         payment_date: null, provider_event_at: null,
       }],
       subscriptionPayments: [],
+      paymentPlanDraft: null,
     });
 
     render(
@@ -153,6 +162,7 @@ describe('ProjectPaymentPlanDrawer', () => {
         synced('22222222-2222-4222-8222-222222222222', 'Final', 100_000, '2026-11-20', 1),
       ],
       subscriptionPayments: [],
+      paymentPlanDraft: null,
     });
 
     render(<ProjectPaymentPlanDrawer
@@ -166,7 +176,7 @@ describe('ProjectPaymentPlanDrawer', () => {
     fireEvent.change(firstAmount, { target: { value: '1100,00' } });
     fireEvent.change(screen.getByLabelText('Valor da etapa 2'), { target: { value: '900,00' } });
     fireEvent.change(screen.getByLabelText('Vencimento da etapa 1'), { target: { value: '2026-10-21' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar plano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e ativar' }));
 
     await waitFor(() => expect(finance.savePaymentPlan).toHaveBeenCalledWith('project-1', expect.objectContaining({
       payments: expect.arrayContaining([
@@ -174,5 +184,76 @@ describe('ProjectPaymentPlanDrawer', () => {
         expect.objectContaining({ id: '22222222-2222-4222-8222-222222222222', amountCents: 90_000 }),
       ]),
     })));
+  });
+
+  it('restaura uma versão em rascunho sem substituir o plano ativo', async () => {
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'sandbox',
+      project: {
+        id: 'project-1', name: 'Projeto', value_cents: 200_000,
+        financial_plan_status: 'active',
+      } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: '11111111-1111-4111-8111-111111111111', project_id: 'project-1',
+        name: 'Plano ativo', description: '', amount_cents: 200_000, due_date: null,
+        paid_at: null, status: 'pending', position: 0, notes: '', receipt_url: '',
+        kind: 'stage', installment_group_id: null, installment_number: null,
+        installment_count: null, group_label: '', asaas_payment_id: null,
+        external_reference: null, payment_url: '', bank_slip_url: '', pix_payload: '',
+        billing_type: 'UNDEFINED', provider_status: null, sync_status: 'local',
+        sync_error: null, payment_date: null, provider_event_at: null,
+      }],
+      subscriptionPayments: [],
+      paymentPlanDraft: {
+        updatedAt: '2026-09-09T12:00:00.000Z',
+        payments: [{
+          id: '11111111-1111-4111-8111-111111111111', name: 'Plano editado',
+          description: '', amountCents: 200_000, dueDate: null, kind: 'stage',
+          installmentGroupId: null, installmentNumber: null, installmentCount: null,
+          groupLabel: '',
+        }],
+      },
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'Projeto', value_cents: 200_000 }}
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(await screen.findByDisplayValue('Plano editado')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Plano ativo')).toBeNull();
+    expect(screen.getByText('Rascunho salvo')).toBeInTheDocument();
+    expect(finance.savePaymentPlan).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando o plano ativa mas uma cobrança datada não pode ser gerada', async () => {
+    vi.mocked(finance.savePaymentPlan).mockResolvedValue({
+      ok: true, queuedCount: 0, billingIssues: ['cpf-cnpj-obrigatorio'],
+    });
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'sandbox',
+      project: { id: 'project-1', name: 'Projeto', value_cents: 200_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: '11111111-1111-4111-8111-111111111111', project_id: 'project-1',
+        name: 'Parcela', description: '', amount_cents: 200_000, due_date: '2026-10-10',
+        paid_at: null, status: 'pending', position: 0, notes: '', receipt_url: '',
+        kind: 'installment', installment_group_id: '22222222-2222-4222-8222-222222222222',
+        installment_number: 1, installment_count: 1, group_label: 'Plano',
+        asaas_payment_id: null, external_reference: null, payment_url: '', bank_slip_url: '',
+        pix_payload: '', billing_type: 'UNDEFINED', provider_status: null,
+        sync_status: 'local', sync_error: null, payment_date: null, provider_event_at: null,
+      }],
+      subscriptionPayments: [], paymentPlanDraft: null,
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'Projeto', value_cents: 200_000 }}
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Salvar e ativar' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(
+      'error', expect.stringContaining('CPF/CNPJ do cliente ausente'),
+    ));
   });
 });

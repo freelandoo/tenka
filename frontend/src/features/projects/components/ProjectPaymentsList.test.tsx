@@ -8,9 +8,11 @@ vi.mock('../../finance/financeService', () => ({
   fetchFinanceOverview: vi.fn(),
   fetchProjectFinance: vi.fn(),
   savePaymentPlan: vi.fn(),
+  savePaymentPlanDraft: vi.fn(),
   setDefaultProjectPayment: vi.fn(),
   updateProjectPayment: vi.fn(),
   createProjectCharge: vi.fn(),
+  createDefaultProjectCharge: vi.fn(),
   cancelProjectCharge: vi.fn(),
   registerProjectPaymentOutside: vi.fn(),
 }));
@@ -20,6 +22,7 @@ const fetchOverview = vi.mocked(finance.fetchFinanceOverview);
 const setDefaultPayment = vi.mocked(finance.setDefaultProjectPayment);
 const updatePayment = vi.mocked(finance.updateProjectPayment);
 const createCharge = vi.mocked(finance.createProjectCharge);
+const createDefaultCharge = vi.mocked(finance.createDefaultProjectCharge);
 const registerOutside = vi.mocked(finance.registerProjectPaymentOutside);
 
 const payment = (over: Partial<ProjectPaymentRow> = {}): ProjectPaymentRow => ({
@@ -66,9 +69,16 @@ const overview = (projectPayments: ProjectPaymentRow[]): finance.FinanceOverview
 
 beforeEach(() => {
   vi.clearAllMocks();
-  setDefaultPayment.mockResolvedValue({ payment: payment({ virtual: false, status: 'paid' }) });
+  setDefaultPayment.mockResolvedValue({
+    payment: payment({ virtual: false, status: 'paid' }),
+    queued: false, billingIssue: null, dueDate: null,
+  });
   updatePayment.mockResolvedValue({ payment: payment({ status: 'paid' }) });
-  createCharge.mockResolvedValue({ queued: true });
+  createCharge.mockResolvedValue({ queued: true, dueDate: '2026-09-20' });
+  createDefaultCharge.mockResolvedValue({
+    payment: payment({ virtual: false, due_date: '2026-09-09', sync_status: 'queued' }),
+    queued: true, billingIssue: null, dueDate: '2026-09-09',
+  });
   registerOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
 });
 
@@ -131,6 +141,45 @@ describe('ProjectPaymentsList', () => {
     expect(updatePayment).not.toHaveBeenCalled();
   });
 
+  it('gera cobrança manual sem data usando hoje como vencimento', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({ due_date: null })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    const button = await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' });
+    expect(button).toHaveAttribute('title', expect.stringContaining('vencimento hoje'));
+    fireEvent.click(button);
+
+    await waitFor(() => expect(createCharge).toHaveBeenCalledWith('payment-1'));
+  });
+
+  it('materializa o pagamento único e gera a cobrança quando ainda é virtual', async () => {
+    fetchOverview.mockResolvedValue(overview([
+      payment({ id: 'virtual:project-1', virtual: true, due_date: null }),
+    ]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' }));
+
+    await waitFor(() => expect(createDefaultCharge).toHaveBeenCalledWith('project-1'));
+    expect(createCharge).not.toHaveBeenCalled();
+  });
+
+  it('identifica parcela programada e etapa sem vencimento', async () => {
+    fetchOverview.mockResolvedValue(overview([
+      payment({ id: 'stage-1', name: 'Entrega', due_date: null }),
+      payment({
+        id: 'installment-1', name: 'Parcela 1/1', position: 1, kind: 'installment',
+        due_date: '2026-10-20', installment_group_id: '11111111-1111-4111-8111-111111111111',
+        installment_number: 1, installment_count: 1, group_label: 'Restante',
+      }),
+    ]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver etapas — Site Braslar' }));
+    expect(screen.getByText('Etapa sem vencimento')).toBeInTheDocument();
+    expect(screen.getByText('Parcela programada')).toBeInTheDocument();
+  });
+
   it('não permite baixa direta em cobrança sincronizada e aguarda o webhook do Asaas', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     fetchOverview.mockResolvedValue(overview([payment({
@@ -143,6 +192,8 @@ describe('ProjectPaymentsList', () => {
     expect(await screen.findByRole('link', { name: 'Abrir cobrança — Site Braslar' })).toHaveAttribute(
       'href', 'https://sandbox.asaas.com/i/pay_asaas_1',
     );
+    expect(screen.getByRole('button', { name: 'Copiar link — Site Braslar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar cobrança — Site Braslar' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Marcar como pago — Site Braslar' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento por fora — Site Braslar' }));
 

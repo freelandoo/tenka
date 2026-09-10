@@ -12,6 +12,17 @@ export interface FinanceOverview {
   subscriptions: ProjectSubscriptionRow[];
   subscriptionPayments: SubscriptionPaymentRow[];
   projectPayments: ProjectPaymentRow[];
+  queue?: {
+    level: 'ok' | 'attention' | 'critical';
+    reasons: string[];
+    stalledOperations: number;
+    exhaustedOperations: number;
+    uncertainOperations: number;
+    needsReviewEvents: number;
+    stalledEvents: number;
+    oldestPendingAt: string | null;
+    lastWebhookAt: string | null;
+  };
 }
 
 export interface ProjectFinance {
@@ -21,6 +32,7 @@ export interface ProjectFinance {
   subscription: ProjectSubscriptionRow | null;
   projectPayments: ProjectPaymentRow[];
   subscriptionPayments: SubscriptionPaymentRow[];
+  paymentPlanDraft: PaymentPlanDraft | null;
 }
 
 export interface ReconciliationRow {
@@ -43,6 +55,28 @@ export interface ReconciliationResult {
   reconciled: number;
 }
 
+export type HistoricalReviewClassification =
+  | 'paid_confirmed' | 'pending_confirmed' | 'overdue_confirmed'
+  | 'needs_review' | 'future' | 'ignore';
+
+export interface HistoricalReviewItem {
+  id: string;
+  kind: 'subscription' | 'project_payment';
+  project_id: string;
+  project_name: string;
+  payment_name: string | null;
+  competence: string;
+  amount_cents: number;
+  classification: HistoricalReviewClassification;
+  asaas_payment_id: string | null;
+  notes: string;
+}
+
+export interface HistoricalReviewResult {
+  items: HistoricalReviewItem[];
+  summary: Partial<Record<HistoricalReviewClassification, number>>;
+}
+
 export const fetchFinanceOverview = () =>
   apiRequest<FinanceOverview>('/admin/finance/overview');
 
@@ -53,6 +87,16 @@ export const runReconciliation = (dueDateFrom: string, dueDateTo: string) =>
   apiRequest<ReconciliationResult>('/admin/finance/reconciliation', {
     method: 'POST', body: { dueDateFrom, dueDateTo },
   });
+
+export const fetchHistoricalReview = () =>
+  apiRequest<HistoricalReviewResult>('/admin/finance/review');
+
+export const classifyHistoricalReview = (
+  id: string,
+  classification: Exclude<HistoricalReviewClassification, 'needs_review'>,
+) => apiRequest<{ item: HistoricalReviewItem }>(`/admin/finance/review/${id}`, {
+  method: 'PATCH', body: { classification },
+});
 
 export const fetchProjectFinance = (projectId: string) =>
   apiRequest<ProjectFinance>(`/projects/${projectId}/finance`);
@@ -103,7 +147,7 @@ export const clearSubscription = (projectId: string) =>
   });
 
 export interface PaymentPlanInput {
-  status: 'draft' | 'active';
+  status: 'active';
   payments: Array<{
     /** Ausente numa linha nova; presente, preserva a linha e o vínculo com o Asaas. */
     id?: string;
@@ -116,18 +160,43 @@ export interface PaymentPlanInput {
   }>;
 }
 
+export interface PaymentPlanDraftRow {
+  id?: string;
+  name: string;
+  description: string;
+  amountCents: number | null;
+  dueDate: string | null;
+  kind: 'stage' | 'installment';
+  installmentGroupId: string | null;
+  installmentNumber: number | null;
+  installmentCount: number | null;
+  groupLabel: string;
+}
+
+export interface PaymentPlanDraft {
+  payments: PaymentPlanDraftRow[];
+  updatedAt: string;
+}
+
 export const savePaymentPlan = (projectId: string, input: PaymentPlanInput) =>
-  apiRequest(`/projects/${projectId}/payment-plan`, { method: 'PUT', body: input });
+  apiRequest<{ ok: true; queuedCount: number; billingIssues: string[] }>(`/projects/${projectId}/payment-plan`, {
+    method: 'PUT', body: input,
+  });
+
+export const savePaymentPlanDraft = (projectId: string, payments: PaymentPlanDraftRow[]) =>
+  apiRequest<{ saved: true; updatedAt: string }>(`/projects/${projectId}/payment-plan/draft`, {
+    method: 'PUT', body: { payments },
+  });
 
 export const updateProjectPayment = (
   paymentId: string,
   input: { status?: ProjectPaymentRow['status']; dueDate?: string | null; notes?: string; receiptUrl?: string },
-) => apiRequest<{ payment: ProjectPaymentRow }>(`/project-payments/${paymentId}`, {
+) => apiRequest<{ payment: ProjectPaymentRow; queued?: boolean; billingIssue?: string | null }>(`/project-payments/${paymentId}`, {
   method: 'PATCH', body: input,
 });
 
 export const createProjectCharge = (paymentId: string) =>
-  apiRequest<{ queued: true }>(`/project-payments/${paymentId}/charge`, { method: 'POST' });
+  apiRequest<{ queued: true; dueDate: string }>(`/project-payments/${paymentId}/charge`, { method: 'POST' });
 
 export const cancelProjectCharge = (paymentId: string) =>
   apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, { method: 'POST' });
@@ -139,6 +208,12 @@ export const registerProjectPaymentOutside = (paymentId: string, paymentDate: st
   );
 
 export const setDefaultProjectPayment = (projectId: string, paid: boolean, dueDate?: string | null) =>
-  apiRequest<{ payment: ProjectPaymentRow }>(`/projects/${projectId}/project-payment`, {
+  apiRequest<{ payment: ProjectPaymentRow; queued: boolean; billingIssue: string | null; dueDate: string | null }>(`/projects/${projectId}/project-payment`, {
     method: 'PUT', body: { paid, ...(dueDate !== undefined ? { dueDate } : {}) },
   });
+
+export const createDefaultProjectCharge = (projectId: string) =>
+  apiRequest<{ payment: ProjectPaymentRow; queued: boolean; billingIssue: string | null; dueDate: string }>(
+    `/projects/${projectId}/project-payment`,
+    { method: 'PUT', body: { paid: false, generateCharge: true } },
+  );

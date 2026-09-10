@@ -1,6 +1,7 @@
 import { getPool, withActor } from '../db/pool';
 import { hasAsaas } from '../env';
 import { asaas } from './asaas';
+import { isOpenSubscriptionPayment } from './subscriptionCancel';
 import { projectPaymentStatusFromProvider } from './reconciliation';
 import { competenceFromDueDate, paymentStatus } from './status';
 
@@ -252,8 +253,30 @@ export async function executeOperation(operation: Operation): Promise<string | n
 
   if (operation.kind === 'cancel_subscription') {
     if (!ctx.asaas_subscription_id) throw new Error('Assinatura ainda não existe no Asaas.');
+    const openLocal = await getPool().query<{ asaas_payment_id: string }>(
+      `select asaas_payment_id
+         from public.subscription_payments
+        where subscription_id = $1 and asaas_payment_id is not null
+          and status in ('pending', 'overdue', 'failed')`,
+      [ctx.id],
+    );
+    const cancelledPaymentIds: string[] = [];
+    for (const row of openLocal.rows) {
+      const payment = await asaas.getPayment(row.asaas_payment_id);
+      if (!isOpenSubscriptionPayment(payment.status)) continue;
+      await asaas.deletePayment(row.asaas_payment_id);
+      cancelledPaymentIds.push(row.asaas_payment_id);
+    }
     await asaas.deleteSubscription(ctx.asaas_subscription_id);
     await withActor(null, async (client) => {
+      if (cancelledPaymentIds.length > 0) {
+        await client.query(
+          `update public.subscription_payments
+              set status = 'cancelled', provider_status = 'DELETED', cancelled_at = now()
+            where asaas_payment_id = any($1::text[])`,
+          [cancelledPaymentIds],
+        );
+      }
       // O id sai da linha porque a recorrência não existe mais no Asaas: mantê-lo
       // faria uma reativação futura escrever numa assinatura apagada. Ele fica
       // registrado no histórico do projeto para auditoria.

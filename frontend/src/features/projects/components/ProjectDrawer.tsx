@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, CheckCircle2, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
+import { Archive, CalendarDays, CheckCircle2, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
 import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
@@ -45,6 +45,7 @@ export function ProjectDrawer({
   const [finance, setFinance] = useState<ProjectFinance | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [activityRevision, setActivityRevision] = useState(0);
+  const [lifecycleAction, setLifecycleAction] = useState<'finalize' | 'archive' | null>(null);
 
   const loadFinance = useCallback(async () => {
     if (!isAdmin) return;
@@ -79,18 +80,35 @@ export function ProjectDrawer({
     }
   };
 
-  const finalize = async () => {
+  const hasLiveSubscription = Boolean(
+    finance?.subscription?.asaas_subscription_id
+    && !['inactive', 'cancelled'].includes(finance.subscription.status),
+  );
+
+  const changeLifecycle = async (
+    action: 'finalize' | 'archive',
+    subscriptionAction?: service.ProjectSubscriptionLifecycleAction,
+  ) => {
     setBusy(true);
     try {
-      await service.finalizeProject(project.id);
-      toast('success', `Projeto "${project.name}" finalizado e movido para o histórico.`);
+      if (action === 'finalize') await service.finalizeProject(project.id, subscriptionAction);
+      else await service.archiveProject(project.id, subscriptionAction);
+      toast('success', action === 'finalize'
+        ? `Projeto "${project.name}" finalizado e movido para o histórico.`
+        : `Projeto "${project.name}" arquivado.`);
+      setLifecycleAction(null);
       onChanged();
       onClose();
     } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao finalizar.');
+      toast('error', error instanceof Error ? error.message : `Falha ao ${action === 'finalize' ? 'finalizar' : 'arquivar'}.`);
     } finally {
       setBusy(false);
     }
+  };
+
+  const requestLifecycle = (action: 'finalize' | 'archive') => {
+    if (hasLiveSubscription) setLifecycleAction(action);
+    else void changeLifecycle(action);
   };
 
   const reopenFromHistory = async () => {
@@ -139,7 +157,7 @@ export function ProjectDrawer({
       onSaved={() => { void loadFinance(); setActivityRevision((value) => value + 1); onChanged(); }} />;
   }
 
-  return (
+  return <>
     <PanelOverlay variant="drawer" labelledBy="project-drawer-title" onClose={onClose}>
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <span
@@ -201,7 +219,7 @@ export function ProjectDrawer({
               type="button"
               className="panel-btn panel-btn--sm"
               disabled={busy}
-              onClick={() => void finalize()}
+              onClick={() => requestLifecycle('finalize')}
             >
               <CheckCircle2 size={14} aria-hidden="true" />
               Finalizar
@@ -215,6 +233,17 @@ export function ProjectDrawer({
             >
               <RotateCcw size={14} aria-hidden="true" />
               Reabrir do histórico
+            </button>
+          )}
+          {!project.archived_at && (
+            <button
+              type="button"
+              className="panel-btn panel-btn--ghost panel-btn--sm"
+              disabled={busy}
+              onClick={() => requestLifecycle('archive')}
+            >
+              <Archive size={14} aria-hidden="true" />
+              Arquivar
             </button>
           )}
         </div>
@@ -401,7 +430,38 @@ export function ProjectDrawer({
         <ProjectActivityList projectId={project.id} profiles={profiles} revision={activityRevision} />
       </section>
     </PanelOverlay>
-  );
+    {lifecycleAction && <PanelOverlay
+      variant="modal"
+      labelledBy="project-lifecycle-title"
+      onClose={() => !busy && setLifecycleAction(null)}
+    >
+      <div className="project-lifecycle">
+        <div>
+          <p className="panel-eyebrow">Assinatura ativa</p>
+          <h2 id="project-lifecycle-title">
+            O que fazer com a mensalidade ao {lifecycleAction === 'finalize' ? 'finalizar' : 'arquivar'}?
+          </h2>
+          <p>A decisão afeta somente as cobranças recorrentes. Os pagamentos já registrados continuam no histórico.</p>
+        </div>
+        <button type="button" className="project-lifecycle__choice" disabled={busy}
+          onClick={() => void changeLifecycle(lifecycleAction, 'keep')}>
+          <strong>Manter ativa</strong><span>A assinatura continua gerando as próximas mensalidades.</span>
+        </button>
+        <button type="button" className="project-lifecycle__choice" disabled={busy}
+          onClick={() => void changeLifecycle(lifecycleAction, 'pause')}>
+          <strong>Pausar</strong><span>Interrompe cobranças futuras; cobranças já emitidas permanecem abertas.</span>
+        </button>
+        <button type="button" className="project-lifecycle__choice is-danger" disabled={busy}
+          onClick={() => void changeLifecycle(lifecycleAction, 'cancel')}>
+          <strong>Cancelar</strong><span>Encerra a assinatura e cancela cobranças ainda abertas; pagamentos recebidos são preservados.</span>
+        </button>
+        <div className="subscription-confirm__actions">
+          <button type="button" className="panel-btn panel-btn--ghost" disabled={busy}
+            onClick={() => setLifecycleAction(null)}>Voltar</button>
+        </div>
+      </div>
+    </PanelOverlay>}
+  </>;
 }
 
 /** Drawer enxuto aberto pela bolinha OBS: somente as observações. */

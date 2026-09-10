@@ -13,6 +13,11 @@ import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
 import { reconcileFinancialPayments, type LocalFinancialPayment } from '../finance/reconciliation';
+import {
+  queueProjectPaymentOperation,
+  queueSubscriptionOperation as queueOperation,
+} from '../finance/queue';
+import { queueAlert } from '../finance/queueHealth';
 import { subscriptionChangePreview } from '../finance/subscriptionPreview';
 
 const subscriptionSchema = z.object({
@@ -30,7 +35,7 @@ const subscriptionPreviewSchema = subscriptionSchema.pick({
 });
 
 const planSchema = z.object({
-  status: z.enum(['draft', 'active']),
+  status: z.literal('active'),
   payments: z.array(z.object({
     // Ausente numa linha nova. Presente, identifica a linha a atualizar — e é
     // o que impede o salvamento de recriar a cobrança já enviada ao Asaas.
@@ -47,6 +52,23 @@ const planSchema = z.object({
   })).max(60),
 });
 
+// Rascunho aceita campos incompletos de proposito. Ele nao representa divida,
+// nao alimenta o worker e so passa pelas regras financeiras ao ser publicado.
+const paymentPlanDraftSchema = z.object({
+  payments: z.array(z.object({
+    id: z.string().uuid().optional(),
+    name: z.string().max(120),
+    description: z.string().max(1000).default(''),
+    amountCents: z.number().int().nonnegative().nullable(),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+    kind: z.enum(['stage', 'installment']).default('stage'),
+    installmentGroupId: z.string().uuid().nullable().default(null),
+    installmentNumber: z.number().int().min(1).max(60).nullable().default(null),
+    installmentCount: z.number().int().min(1).max(60).nullable().default(null),
+    groupLabel: z.string().max(120).default(''),
+  })).max(60),
+});
+
 const paymentPatchSchema = z.object({
   status: z.enum(['draft', 'pending', 'paid', 'cancelled']).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -59,6 +81,7 @@ const paymentPatchSchema = z.object({
 const defaultPaymentSchema = z.object({
   paid: z.boolean(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  generateCharge: z.boolean().default(false),
 });
 
 const projectExternalPaymentSchema = z.object({
@@ -72,6 +95,14 @@ const reconciliationSchema = z.object({
   dueDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 }).refine((value) => value.dueDateFrom <= value.dueDateTo, {
   message: 'invalid-range',
+});
+
+const historicalReviewSchema = z.object({
+  classification: z.enum([
+    'paid_confirmed', 'pending_confirmed', 'overdue_confirmed',
+    'needs_review', 'future', 'ignore',
+  ]),
+  notes: z.string().trim().max(2000).optional(),
 });
 
 async function listAsaasPaymentsForReconciliation(dueDateFrom: string, dueDateTo: string) {
@@ -109,54 +140,9 @@ async function currentMonthlyPayment(
   return result.rows[0] ?? null;
 }
 
-async function queueOperation(
-  client: { query: (sql: string, values?: unknown[]) => Promise<unknown> },
-  projectId: string,
-  subscriptionId: string,
-  kind: string,
-  requestPayload: Record<string, unknown> = {},
-): Promise<void> {
-  await client.query(
-    `insert into public.asaas_operations
-       (operation_key, project_id, subscription_id, kind, request_payload)
-     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1, $4::jsonb
-      where not exists (
-        select 1
-          from public.asaas_operations
-         where subscription_id = $3
-           and kind = $1
-           and (status in ('pending', 'processing', 'uncertain')
-             or (status = 'failed' and attempts < 5))
-      )`,
-    [kind, projectId, subscriptionId, JSON.stringify(requestPayload)],
-  );
-}
-
-async function queueProjectPaymentOperation(
-  client: { query: (sql: string, values?: unknown[]) => Promise<{ rowCount?: number | null }> },
-  projectId: string,
-  projectPaymentId: string,
-  kind: 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge',
-  requestPayload: Record<string, unknown> = {},
-): Promise<boolean> {
-  const result = await client.query(
-    `insert into public.asaas_operations
-       (operation_key, project_id, project_payment_id, kind, request_payload)
-     select $1 || ':' || gen_random_uuid()::text, $2, $3, $1, $4::jsonb
-      where not exists (
-        select 1 from public.asaas_operations
-         where project_payment_id = $3 and kind = $1
-           and (status in ('pending', 'processing', 'uncertain')
-             or (status = 'failed' and attempts < 5))
-      )`,
-    [kind, projectId, projectPaymentId, JSON.stringify(requestPayload)],
-  );
-  return (result.rowCount ?? 0) > 0;
-}
-
 export async function financeRoutes(app: FastifyInstance): Promise<void> {
   app.get('/admin/finance/overview', adminOnly, async (_req, reply) => {
-    const [subscriptions, payments, plans] = await Promise.all([
+    const [subscriptions, payments, plans, queue] = await Promise.all([
       getPool().query(
         `select ps.*, p.name as project_name, p.archived_at, p.finalized_at,
                 c.id as client_id, coalesce(c.name, p.client_name) as client_name,
@@ -189,7 +175,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                   pp.installment_count, pp.group_label, pp.asaas_payment_id,
                   pp.external_reference, pp.payment_url, pp.bank_slip_url,
                   pp.pix_payload, pp.billing_type, pp.provider_status,
-                  pp.sync_status, pp.sync_error, pp.payment_date, pp.provider_event_at
+                  pp.sync_status, pp.sync_error, pp.payment_date, pp.provider_event_at,
+                  exists (select 1 from public.project_payment_plan_drafts d
+                           where d.project_id = p.id) as has_payment_plan_draft
              from public.project_payments pp
              join public.projects p on p.id = pp.project_id
              left join public.clients c on c.id = p.client_id
@@ -201,7 +189,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                   p.value_cents, true, p.created_at,
                   'stage', null::uuid, null::integer, null::integer, '', null::text,
                   null::text, '', '', '', 'UNDEFINED', null::text, 'local', null::text,
-                  null::date, null::timestamptz
+                  null::date, null::timestamptz,
+                  exists (select 1 from public.project_payment_plan_drafts d
+                           where d.project_id = p.id)
              from public.projects p
              left join public.clients c on c.id = p.client_id
             where p.archived_at is null and p.value_cents > 0
@@ -213,19 +203,56 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                 installment_number, installment_count, group_label, asaas_payment_id,
                 external_reference, payment_url, bank_slip_url, pix_payload,
                 billing_type, provider_status, sync_status, sync_error,
-                payment_date, provider_event_at
+                payment_date, provider_event_at, has_payment_plan_draft
            from listed
           order by case status when 'pending' then 0 when 'draft' then 1 when 'paid' then 2 else 3 end,
                    coalesce(due_date, created_at::date), lower(project_name)
           limit 300`,
       ),
+      // Fila parada é invisível por natureza: ninguém espera o Asaas na tela.
+      // Estes contadores são o que faz o painel avisar antes do cliente.
+      getPool().query<{
+        stalled_operations: string; exhausted_operations: string;
+        uncertain_operations: string; needs_review_events: string; stalled_events: string;
+        oldest_pending_at: string | null; last_webhook_at: string | null;
+      }>(
+        `select
+           (select count(*) from public.asaas_operations
+             where status in ('pending', 'processing')
+               and created_at < now() - interval '15 minutes')::text as stalled_operations,
+           (select count(*) from public.asaas_operations
+             where status = 'failed' and attempts >= 5)::text as exhausted_operations,
+           (select count(*) from public.asaas_operations
+             where status = 'uncertain')::text as uncertain_operations,
+           (select count(*) from public.asaas_webhook_events
+             where status = 'needs_review')::text as needs_review_events,
+           (select count(*) from public.asaas_webhook_events
+             where status in ('pending', 'failed')
+               and received_at < now() - interval '15 minutes')::text as stalled_events,
+           (select min(created_at) from public.asaas_operations
+             where status in ('pending', 'processing'))::text as oldest_pending_at,
+           (select max(received_at) from public.asaas_webhook_events)::text as last_webhook_at`,
+      ),
     ]);
+    const counts = {
+      stalledOperations: Number(queue.rows[0]?.stalled_operations ?? 0),
+      exhaustedOperations: Number(queue.rows[0]?.exhausted_operations ?? 0),
+      uncertainOperations: Number(queue.rows[0]?.uncertain_operations ?? 0),
+      needsReviewEvents: Number(queue.rows[0]?.needs_review_events ?? 0),
+      stalledEvents: Number(queue.rows[0]?.stalled_events ?? 0),
+    };
     return reply.send({
       configured: hasAsaas,
       environment: env.asaasEnvironment,
       subscriptions: subscriptions.rows,
       subscriptionPayments: payments.rows,
       projectPayments: plans.rows,
+      queue: {
+        ...counts,
+        ...queueAlert(counts),
+        oldestPendingAt: queue.rows[0]?.oldest_pending_at ?? null,
+        lastWebhookAt: queue.rows[0]?.last_webhook_at ?? null,
+      },
     });
   });
 
@@ -324,7 +351,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/projects/:id/finance', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const [project, subscription, payments, monthly] = await Promise.all([
+    const [project, subscription, payments, monthly, planDraft] = await Promise.all([
       getPool().query(
         `select p.*, c.cpf_cnpj, c.asaas_customer_id
            from public.projects p left join public.clients c on c.id = p.client_id
@@ -341,6 +368,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       getPool().query(
         `select * from public.subscription_payments
           where project_id = $1 order by competence desc limit 36`, [id]),
+      getPool().query<{ payments: unknown[]; updated_at: string }>(
+        `select payments, updated_at from public.project_payment_plan_drafts
+          where project_id = $1`, [id]),
     ]);
     if (!project.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
     return reply.send({
@@ -350,7 +380,73 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       subscription: subscription.rows[0] ?? null,
       projectPayments: payments.rows,
       subscriptionPayments: monthly.rows,
+      paymentPlanDraft: planDraft.rows[0]
+        ? { payments: planDraft.rows[0].payments, updatedAt: planDraft.rows[0].updated_at }
+        : null,
     });
+  });
+
+  app.get('/admin/finance/review', adminOnly, async (_req, reply) => {
+    const [items, summary] = await Promise.all([
+      getPool().query(
+        `select r.*, p.name as project_name, pp.name as payment_name
+           from public.finance_migration_review r
+           join public.projects p on p.id = r.project_id
+           left join public.project_payments pp on pp.id = r.project_payment_id
+          where r.classification = 'needs_review'
+          order by r.competence, lower(p.name), r.created_at
+          limit 300`,
+      ),
+      getPool().query<{ classification: string; total: string }>(
+        `select classification, count(*)::text as total
+           from public.finance_migration_review group by classification`,
+      ),
+    ]);
+    return reply.send({
+      items: items.rows,
+      summary: Object.fromEntries(summary.rows.map((row) => [row.classification, Number(row.total)])),
+    });
+  });
+
+  app.patch('/admin/finance/review/:id', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = historicalReviewSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, (client) => client.query(
+      `update public.finance_migration_review
+          set classification = $2, notes = coalesce($3, notes),
+              reviewed_by = $4, reviewed_at = now()
+        where id = $1 returning *`,
+      [id, parsed.data.classification, parsed.data.notes ?? null, req.userId],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'revisao-inexistente' });
+    return reply.send({ item: result.rows[0] });
+  });
+
+  app.put('/projects/:id/payment-plan/draft', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = paymentPlanDraftSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    try {
+      const draft = await withActor(req.userId!, async (client) => {
+        const result = await client.query<{ updated_at: string }>(
+          `insert into public.project_payment_plan_drafts
+             (project_id, payments, updated_by)
+           select p.id, $2::jsonb, $3
+             from public.projects p
+            where p.id = $1 and p.archived_at is null
+           on conflict (project_id) do update
+             set payments = excluded.payments, updated_by = excluded.updated_by
+           returning updated_at`,
+          [id, JSON.stringify(parsed.data.payments), req.userId],
+        );
+        return result.rows[0] ?? null;
+      });
+      if (!draft) return reply.code(404).send({ error: 'projeto-inexistente' });
+      return reply.send({ saved: true, updatedAt: draft.updated_at });
+    } catch (error) {
+      return sendDbError(error, reply);
+    }
   });
 
   app.post('/projects/:id/subscription/preview', adminOnly, async (req, reply) => {
@@ -606,8 +702,13 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (groupError) return reply.code(400).send({ error: groupError });
     try {
       const result = await withActor(req.userId!, async (client) => {
-        const { rows } = await client.query<{ value_cents: number }>(
-          'select value_cents from public.projects where id = $1 for update', [id]);
+        const { rows } = await client.query<{
+          value_cents: number; client_id: string | null; cpf_cnpj: string | null;
+        }>(
+          `select p.value_cents, p.client_id, c.cpf_cnpj
+             from public.projects p
+             left join public.clients c on c.id = p.client_id and c.archived_at is null
+            where p.id = $1 for update of p`, [id]);
         if (!rows[0]) return 'missing';
         const previousPlan = await client.query<{
           id: string; name: string; description: string; amount_cents: number;
@@ -720,6 +821,20 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         await client.query('update public.projects set financial_plan_status = $2 where id = $1',
           [id, parsed.data.status]);
         let queuedCount = 0;
+        const billingIssues: string[] = [];
+        const localDated = await client.query<{ id: string }>(
+          `select id from public.project_payments
+            where project_id = $1 and amount_cents > 0 and due_date is not null
+              and status = 'pending' and sync_status = 'local'`,
+          [id],
+        );
+        if (localDated.rows.length > 0) {
+          if (!hasAsaas) billingIssues.push('asaas-nao-configurado');
+          else if (!rows[0].client_id) billingIssues.push('cliente-obrigatorio');
+          else if (!(rows[0].cpf_cnpj ?? '').replace(/\D/g, '')) {
+            billingIssues.push('cpf-cnpj-obrigatorio');
+          }
+        }
         if (parsed.data.status === 'active' && hasAsaas) {
           const eligible = await client.query<{ id: string }>(
             `select pp.id
@@ -755,9 +870,15 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             removed: diff.remove.length,
           })],
         );
+        await client.query(
+          'delete from public.project_payment_plan_drafts where project_id = $1', [id]);
         const saved = await client.query(
           'select * from public.project_payments where project_id = $1 order by position', [id]);
-        return { payments: saved.rows, queuedCount: queuedCount + integratedChanges.updates.length };
+        return {
+          payments: saved.rows,
+          queuedCount: queuedCount + integratedChanges.updates.length,
+          billingIssues,
+        };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
@@ -782,10 +903,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = paymentPatchSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-    const rows = await withActor(req.userId!, async (client) => {
-      const previous = await client.query<{ project_id: string; status: string; name: string; due_date: string | null; sync_status: string }>(
-        'select project_id, status, name, due_date, sync_status from public.project_payments where id = $1 for update', [id]);
-      if (!previous.rows[0]) return [];
+    const result = await withActor(req.userId!, async (client) => {
+      const previous = await client.query<{
+        project_id: string; status: string; name: string; due_date: string | null;
+        sync_status: string; financial_plan_status: string; client_id: string | null;
+        cpf_cnpj: string | null;
+      }>(
+        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.sync_status,
+                p.financial_plan_status, p.client_id, c.cpf_cnpj
+           from public.project_payments pp
+           join public.projects p on p.id = pp.project_id
+           left join public.clients c on c.id = p.client_id and c.archived_at is null
+          where pp.id = $1 for update of pp`, [id]);
+      if (!previous.rows[0]) return { rows: [], queued: false, billingIssue: null };
       if (blocksDirectIntegratedPaymentChange({
         status: previous.rows[0].status,
         dueDate: previous.rows[0].due_date,
@@ -808,6 +938,30 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           parsed.data.receiptUrl ?? null, parsed.data.dueDate !== undefined,
           parsed.data.dueDate ?? null],
       );
+      let queued = false;
+      let billingIssue: string | null = null;
+      const row = previous.rows[0];
+      const addedDueDate = parsed.data.dueDate !== undefined
+        && parsed.data.dueDate !== null
+        && parsed.data.dueDate !== row.due_date;
+      if (addedDueDate && row.sync_status === 'local'
+        && (parsed.data.status ?? row.status) === 'pending'
+        && row.financial_plan_status === 'active') {
+        if (!hasAsaas) billingIssue = 'asaas-nao-configurado';
+        else if (!row.client_id) billingIssue = 'cliente-obrigatorio';
+        else if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) billingIssue = 'cpf-cnpj-obrigatorio';
+        else {
+          queued = await queueProjectPaymentOperation(
+            client, row.project_id, id, 'create_project_charge');
+          if (queued) {
+            await client.query(
+              "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
+              [id],
+            );
+            updated.rows[0].sync_status = 'queued';
+          }
+        }
+      }
       await client.query(
         `insert into public.project_activity (project_id, actor_id, action, metadata)
          values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
@@ -819,13 +973,16 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           dueDate: parsed.data.dueDate ?? previous.rows[0].due_date,
         })],
       );
-      return updated.rows;
+      return { rows: updated.rows, queued, billingIssue };
     });
-    if (rows === 'integrated-payment') {
+    if (result === 'integrated-payment') {
       return reply.code(409).send({ error: 'pagamento-sincronizado-deve-ser-registrado-no-asaas' });
     }
-    if (!rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
-    return reply.send({ payment: rows[0] });
+    if (!result.rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (result.queued) financeWorker.kick();
+    return reply.send({
+      payment: result.rows[0], queued: result.queued, billingIssue: result.billingIssue,
+    });
   });
 
   app.post('/project-payments/:id/charge', adminOnly, async (req, reply) => {
@@ -848,26 +1005,32 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (!row) return 'missing' as const;
       if (!row.client_id) return 'client' as const;
       if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
-      if (!row.due_date) return 'due-date' as const;
       if (row.financial_plan_status !== 'active' || row.status !== 'pending') return 'not-pending' as const;
       if (!['local', 'failed'].includes(row.sync_status)) return 'already-synced' as const;
+      const dueDate = row.due_date ?? (await client.query<{ due_date: string }>(
+        `update public.project_payments
+            set due_date = timezone('America/Sao_Paulo', current_timestamp)::date
+          where id = $1 returning due_date`,
+        [id],
+      )).rows[0]?.due_date;
+      if (!dueDate) throw new Error('Falha ao definir o vencimento da cobrança.');
       const queued = await queueProjectPaymentOperation(client, row.project_id, id, 'create_project_charge');
       if (queued) await client.query(
         "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
-      return queued ? 'queued' as const : 'already-synced' as const;
+      return queued ? { queued: true as const, dueDate } : 'already-synced' as const;
     });
     const errors: Record<string, [number, string]> = {
       missing: [404, 'pagamento-inexistente'], client: [409, 'cliente-obrigatorio'],
-      document: [409, 'cpf-cnpj-obrigatorio'], 'due-date': [409, 'vencimento-obrigatorio'],
+      document: [409, 'cpf-cnpj-obrigatorio'],
       'not-pending': [409, 'pagamento-nao-esta-pendente'],
       'already-synced': [409, 'cobranca-ja-sincronizada-ou-em-processamento'],
     };
-    if (result !== 'queued') {
+    if (typeof result === 'string') {
       const [status, error] = errors[result] ?? [409, 'cobranca-nao-pode-ser-gerada'];
       return reply.code(status).send({ error });
     }
     financeWorker.kick();
-    return reply.code(202).send({ queued: true });
+    return reply.code(202).send(result);
   });
 
   app.post('/project-payments/:id/cancel-charge', adminOnly, async (req, reply) => {
@@ -929,13 +1092,23 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     try {
       const result = await withActor(req.userId!, async (client) => {
-        const project = await client.query<{ value_cents: number }>(
-          `select value_cents from public.projects
-            where id = $1 and archived_at is null for update`, [id]);
+        const project = await client.query<{
+          value_cents: number; client_id: string | null; cpf_cnpj: string | null;
+        }>(
+          `select p.value_cents, p.client_id, c.cpf_cnpj
+             from public.projects p
+             left join public.clients c on c.id = p.client_id and c.archived_at is null
+            where p.id = $1 and p.archived_at is null for update of p`, [id]);
         if (!project.rows[0]) return 'missing' as const;
         const existing = await client.query(
           'select 1 from public.project_payments where project_id = $1 limit 1', [id]);
         if (existing.rows[0]) return 'has-plan' as const;
+        const effectiveDueDate = parsed.data.dueDate
+          ?? (parsed.data.generateCharge
+            ? (await client.query<{ today: string }>(
+              "select timezone('America/Sao_Paulo', current_timestamp)::date as today",
+            )).rows[0]?.today ?? null
+            : null);
         const { rows } = await client.query(
           `insert into public.project_payments
              (project_id, name, description, amount_cents, due_date, paid_at,
@@ -944,7 +1117,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                    case when $4 then now() else null end,
                    case when $4 then 'paid' else 'pending' end,0,$5)
            returning *`,
-          [id, project.rows[0].value_cents, parsed.data.dueDate ?? null, parsed.data.paid, req.userId],
+          [id, project.rows[0].value_cents, effectiveDueDate, parsed.data.paid, req.userId],
         );
         await client.query(
           "update public.projects set financial_plan_status = 'active' where id = $1",
@@ -958,11 +1131,31 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             to: parsed.data.paid ? 'paid' : 'pending',
           })],
         );
-        return rows[0];
+        let queued = false;
+        let billingIssue: string | null = null;
+        if (!parsed.data.paid && effectiveDueDate) {
+          if (!hasAsaas) billingIssue = 'asaas-nao-configurado';
+          else if (!project.rows[0].client_id) billingIssue = 'cliente-obrigatorio';
+          else if (!(project.rows[0].cpf_cnpj ?? '').replace(/\D/g, '')) {
+            billingIssue = 'cpf-cnpj-obrigatorio';
+          } else {
+            queued = await queueProjectPaymentOperation(
+              client, id, rows[0].id, 'create_project_charge');
+            if (queued) {
+              await client.query(
+                "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
+                [rows[0].id],
+              );
+              rows[0].sync_status = 'queued';
+            }
+          }
+        }
+        return { payment: rows[0], queued, billingIssue, dueDate: effectiveDueDate };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'has-plan') return reply.code(409).send({ error: 'projeto-ja-possui-plano' });
-      return reply.send({ payment: result });
+      if (result.queued) financeWorker.kick();
+      return reply.send(result);
     } catch (error) {
       return sendDbError(error, reply);
     }

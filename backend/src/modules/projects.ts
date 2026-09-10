@@ -15,6 +15,9 @@ import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { nextMonthlyDueDate } from '../finance/dueDate';
 import { asaas, AsaasError } from '../finance/asaas';
+import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
+import { projectValueChangeError } from '../finance/projectValueChange';
+import { queueSubscriptionOperation } from '../finance/queue';
 
 /**
  * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
@@ -73,6 +76,10 @@ const competenceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const externalPaymentSchema = z.object({
   competence: competenceSchema,
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const projectLifecycleSchema = z.object({
+  subscriptionAction: z.enum(['keep', 'pause', 'cancel']).optional(),
 });
 
 function isAdmin(req: FastifyRequest): boolean {
@@ -348,12 +355,112 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   // ---- Edição de campos (admin) -------------------------------------------
   app.patch('/projects/:id', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const patch = buildPatch(PROJECT_PATCH_COLS, (req.body ?? {}) as Record<string, unknown>);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const patch = buildPatch(PROJECT_PATCH_COLS, body);
     if (!patch) return reply.code(400).send({ error: 'nada-a-atualizar' });
     try {
-      await withActor(req.userId!, (client) =>
-        client.query(`update public.projects set ${patch.set} where id = $1`, [id, ...patch.values]),
-      );
+      const blocked = await withActor(req.userId!, async (client) => {
+        if (body.value_cents !== undefined) {
+          const nextTotal = Number(body.value_cents);
+          if (!Number.isInteger(nextTotal) || nextTotal < 0) return 'invalid-value' as const;
+          const totals = await client.query<{
+            distributed_cents: string; paid_cents: string; current_value_cents: number;
+          }>(
+            `select p.value_cents as current_value_cents,
+                    (select coalesce(sum(pp.amount_cents), 0)::text
+                       from public.project_payments pp
+                      where pp.project_id = p.id and pp.status <> 'cancelled') as distributed_cents,
+                    (select coalesce(sum(pp.amount_cents), 0)::text
+                       from public.project_payments pp
+                      where pp.project_id = p.id and pp.status = 'paid') as paid_cents
+               from public.projects p
+              where p.id = $1
+              for update of p`,
+            [id],
+          );
+          const financial = totals.rows[0];
+          if (!financial) return 'missing' as const;
+          const distributed = Number(financial.distributed_cents);
+          const paid = Number(financial.paid_cents);
+          const valueError = projectValueChangeError(nextTotal, distributed, paid);
+          if (valueError) return valueError;
+
+          // Se o contrato passa a ter saldo livre, abre uma versao editavel do
+          // plano sem tocar na versao ativa nem nas cobrancas existentes.
+          if (nextTotal !== financial.current_value_cents && distributed > 0 && nextTotal !== distributed) {
+            await client.query(
+              `insert into public.project_payment_plan_drafts (project_id, payments, updated_by)
+               select $1,
+                      coalesce(jsonb_agg(jsonb_build_object(
+                        'id', pp.id, 'name', pp.name, 'description', pp.description,
+                        'amountCents', pp.amount_cents, 'dueDate', pp.due_date,
+                        'kind', pp.kind, 'installmentGroupId', pp.installment_group_id,
+                        'installmentNumber', pp.installment_number,
+                        'installmentCount', pp.installment_count, 'groupLabel', pp.group_label
+                      ) order by pp.position) filter (where pp.id is not null), '[]'::jsonb),
+                      $2
+                 from public.project_payments pp
+                where pp.project_id = $1
+               on conflict (project_id) do nothing`,
+              [id, req.userId],
+            );
+          }
+        }
+        // Trocar o cliente de um projeto que já cobra pelo Asaas quebraria o
+        // vínculo: lá a cobrança continua no cliente antigo e não há como
+        // migrá-la. A edição inteira é recusada para o painel não gravar
+        // metade da mudança.
+        if (body.client_id !== undefined) {
+          const current = await client.query<{ client_id: string | null }>(
+            'select client_id from public.projects where id = $1 for update', [id]);
+          const before = current.rows[0]?.client_id ?? null;
+          const after = (body.client_id as string | null) ?? null;
+          if (current.rows[0] && before !== after) {
+            const [subscription, charges] = await Promise.all([
+              client.query<{ status: string; asaas_subscription_id: string | null }>(
+                `select status, asaas_subscription_id
+                   from public.project_subscriptions where project_id = $1`, [id]),
+              client.query<{ open: string }>(
+                `select count(*)::text as open from public.project_payments
+                  where project_id = $1 and asaas_payment_id is not null and status = 'pending'`,
+                [id]),
+            ]);
+            const block = blocksClientChange({
+              subscriptionStatus: subscription.rows[0]?.status ?? null,
+              asaasSubscriptionId: subscription.rows[0]?.asaas_subscription_id ?? null,
+              openSyncedCharges: Number(charges.rows[0]?.open ?? 0),
+            });
+            if (block) return block;
+          }
+        }
+        await client.query(
+          `update public.projects set ${patch.set} where id = $1`, [id, ...patch.values]);
+        return null;
+      });
+      if (blocked) {
+        if (blocked === 'invalid-value') {
+          return reply.code(400).send({ error: 'valor-total-invalido' });
+        }
+        if (blocked === 'missing') {
+          return reply.code(404).send({ error: 'projeto-inexistente' });
+        }
+        if (blocked === 'abaixo-do-pago') {
+          return reply.code(409).send({
+            error: 'valor-total-abaixo-do-pago',
+            message: 'O valor total não pode ficar abaixo do que já foi pago.',
+          });
+        }
+        if (blocked === 'abaixo-do-distribuido') {
+          return reply.code(409).send({
+            error: 'valor-total-abaixo-do-distribuido',
+            message: 'Ajuste primeiro as etapas ou parcelas: o novo total é menor que o valor distribuído.',
+          });
+        }
+        return reply.code(409).send({
+          error: 'cliente-vinculado-a-cobrancas',
+          message: clientChangeMessage(blocked),
+        });
+      }
       return reply.send({ ok: true });
     } catch (err) {
       return sendDbError(err, reply);
@@ -364,13 +471,53 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   const stamp = (col: 'archived_at' | 'finalized_at', value: 'now' | null) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = req.params as { id: string };
-      await withActor(req.userId!, (client) =>
-        client.query(
+      const parsed = projectLifecycleSchema.safeParse(req.body ?? {});
+      if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+      const result = await withActor(req.userId!, async (client) => {
+        const project = await client.query<{
+          name: string; subscription_id: string | null; subscription_status: string | null;
+          asaas_subscription_id: string | null;
+        }>(
+          `select p.name, ps.id as subscription_id, ps.status as subscription_status,
+                  ps.asaas_subscription_id
+             from public.projects p
+             left join public.project_subscriptions ps on ps.project_id = p.id
+            where p.id = $1 for update of p`,
+          [id],
+        );
+        const row = project.rows[0];
+        if (!row) return 'missing' as const;
+        const hasLiveSubscription = Boolean(
+          row.subscription_id && row.asaas_subscription_id
+          && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''),
+        );
+        const action = parsed.data.subscriptionAction;
+        if (value === 'now' && hasLiveSubscription && !action) return 'action-required' as const;
+        if (value === 'now' && hasLiveSubscription && action !== 'keep') {
+          if (!hasAsaas) return 'asaas' as const;
+          await queueSubscriptionOperation(
+            client,
+            id,
+            row.subscription_id!,
+            action === 'pause' ? 'pause_subscription' : 'cancel_subscription',
+          );
+        }
+        await client.query(
           `update public.projects set ${col} = ${value === 'now' ? 'now()' : 'null'} where id = $1`,
           [id],
-        ),
-      );
-      return reply.send({ ok: true });
+        );
+        return { queued: value === 'now' && hasLiveSubscription && action !== 'keep' };
+      });
+      if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
+      if (result === 'action-required') {
+        return reply.code(409).send({
+          error: 'acao-da-assinatura-obrigatoria',
+          message: 'Escolha se a assinatura deve continuar, ser pausada ou ser cancelada.',
+        });
+      }
+      if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
+      if (result.queued) financeWorker.kick();
+      return reply.send({ ok: true, queued: result.queued });
     };
   app.post('/projects/:id/archive', adminOnly, stamp('archived_at', 'now'));
   app.post('/projects/:id/finalize', adminOnly, stamp('finalized_at', 'now'));

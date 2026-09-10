@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ListPlus, Plus, Save, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, ListPlus, Plus, Trash2, X } from 'lucide-react';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { useToast } from '../../panel/ToastContext';
 import { formatCurrencyFromCents, parseCurrencyToCents } from '../../panel/format';
@@ -36,6 +36,8 @@ interface InstallmentForm {
   groupLabel: string;
 }
 
+type DraftSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
 const moneyInput = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 type PaymentPlanProject = Pick<BoardProject, 'id' | 'name' | 'value_cents'>;
 
@@ -71,6 +73,21 @@ function newGroupId(): string {
 
 const formattedDate = (iso: string) => iso.split('-').reverse().join('/');
 
+const draftPayload = (rows: DraftRow[]): finance.PaymentPlanDraftRow[] => rows.map((row) => ({
+  ...(row.id ? { id: row.id } : {}),
+  name: row.name,
+  description: row.description,
+  amountCents: parseCurrencyToCents(row.amount),
+  dueDate: row.dueDate || null,
+  kind: row.kind,
+  installmentGroupId: row.installmentGroupId,
+  installmentNumber: row.installmentNumber,
+  installmentCount: row.installmentCount,
+  groupLabel: row.groupLabel,
+}));
+
+const serializedDraft = (rows: DraftRow[]) => JSON.stringify(draftPayload(rows));
+
 export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack, onClose, onSaved }: {
   project: PaymentPlanProject;
   appendStage?: boolean;
@@ -82,33 +99,109 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>('idle');
   const [installmentOpen, setInstallmentOpen] = useState(false);
   const [installmentForm, setInstallmentForm] = useState<InstallmentForm>({
     count: '2', firstDueDate: '', interval: 'monthly', groupLabel: 'Restante',
   });
+  const loadedRef = useRef(false);
+  const publishingRef = useRef(false);
+  const rowsRef = useRef<DraftRow[]>([]);
+  const lastSavedRef = useRef('');
+  const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const autosaveTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     finance.fetchProjectFinance(project.id).then((detail) => {
       if (!cancelled) {
-        const loaded: DraftRow[] = detail.projectPayments.map((item) => ({
+        const activeById = new Map(detail.projectPayments.map((item) => [item.id, item]));
+        const source = detail.paymentPlanDraft?.payments ?? detail.projectPayments.map((item) => ({
           id: item.id, name: item.name, description: item.description,
-          amount: moneyInput(item.amount_cents), dueDate: item.due_date ?? '', status: item.status,
-          syncStatus: item.sync_status ?? 'local', kind: item.kind ?? 'stage',
-          installmentGroupId: item.installment_group_id ?? null,
-          installmentNumber: item.installment_number ?? null,
-          installmentCount: item.installment_count ?? null, groupLabel: item.group_label ?? '',
+          amountCents: item.amount_cents, dueDate: item.due_date,
+          kind: item.kind, installmentGroupId: item.installment_group_id,
+          installmentNumber: item.installment_number, installmentCount: item.installment_count,
+          groupLabel: item.group_label,
         }));
-        setRows(appendStage
+        const loaded: DraftRow[] = source.map((item) => {
+          const active = item.id ? activeById.get(item.id) : undefined;
+          return {
+            id: item.id, name: item.name, description: item.description,
+            amount: item.amountCents === null ? '' : moneyInput(item.amountCents),
+            dueDate: item.dueDate ?? '', status: active?.status ?? 'draft',
+            syncStatus: active?.sync_status ?? 'local', kind: item.kind,
+            installmentGroupId: item.installmentGroupId,
+            installmentNumber: item.installmentNumber,
+            installmentCount: item.installmentCount, groupLabel: item.groupLabel,
+          };
+        });
+        const opened = appendStage
           ? loaded.length <= 1
             ? quickSplit(project.value_cents, loaded[0])
             : [...loaded, emptyStage(loaded.length)]
-          : loaded);
+          : loaded;
+        lastSavedRef.current = serializedDraft(loaded);
+        rowsRef.current = opened;
+        loadedRef.current = true;
+        setRows(opened);
+        setDraftSaveState(detail.paymentPlanDraft ? 'saved' : 'idle');
       }
     }).catch((error) => toast('error', error instanceof Error ? error.message : 'Falha ao carregar o plano.'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [appendStage, project.id, project.value_cents, toast]);
+
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+
+  const persistDraft = useCallback((targetRows: DraftRow[]): Promise<boolean> => {
+    const serialized = serializedDraft(targetRows);
+    if (!loadedRef.current || publishingRef.current || serialized === lastSavedRef.current) {
+      return Promise.resolve(true);
+    }
+    setDraftSaveState('saving');
+    const request = saveChainRef.current.catch(() => undefined).then(async () => {
+      await finance.savePaymentPlanDraft(project.id, draftPayload(targetRows));
+      lastSavedRef.current = serialized;
+      if (serializedDraft(rowsRef.current) === serialized) setDraftSaveState('saved');
+      return true;
+    }).catch(() => {
+      setDraftSaveState('error');
+      return false;
+    });
+    saveChainRef.current = request;
+    return request;
+  }, [project.id]);
+
+  useEffect(() => {
+    if (!loadedRef.current || publishingRef.current) return;
+    const serialized = serializedDraft(rows);
+    if (serialized === lastSavedRef.current) return;
+    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void persistDraft(rows);
+    }, 600);
+    return () => {
+      if (autosaveTimerRef.current !== null) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [persistDraft, rows]);
+
+  const closeWithDraft = async (close: () => void) => {
+    if (busy) return;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    const saved = await persistDraft(rowsRef.current);
+    if (!saved) {
+      toast('error', 'Não foi possível salvar o rascunho. O painel continuará aberto.');
+      return;
+    }
+    close();
+  };
 
   const summary = useMemo(() => {
     const today = localIsoDate();
@@ -174,11 +267,17 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     setInstallmentOpen(false);
   };
 
-  const save = async (status: 'draft' | 'active') => {
+  const activate = async () => {
     setBusy(true);
+    publishingRef.current = true;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     try {
-      await finance.savePaymentPlan(project.id, {
-        status,
+      await saveChainRef.current.catch(() => undefined);
+      const result = await finance.savePaymentPlan(project.id, {
+        status: 'active',
         payments: rows.map((row) => ({
           ...(row.id ? { id: row.id } : {}),
           name: row.name, description: row.description,
@@ -189,12 +288,24 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
         })),
       });
       const hasIntegrated = rows.some((row) => row.syncStatus === 'synced');
-      toast('success', hasIntegrated
+      const issueMessages: Record<string, string> = {
+        'asaas-nao-configurado': 'Asaas não configurado',
+        'cliente-obrigatorio': 'cliente não vinculado',
+        'cpf-cnpj-obrigatorio': 'CPF/CNPJ do cliente ausente',
+      };
+      if (result.billingIssues.length > 0) {
+        toast('error', `Plano ativado, mas as cobranças datadas não foram geradas: ${result.billingIssues
+          .map((issue) => issueMessages[issue] ?? issue).join(', ')}.`);
+      } else toast('success', hasIntegrated
         ? 'Plano salvo. Alterações financeiras aguardam confirmação do Asaas.'
-        : status === 'active' ? 'Plano de pagamentos ativado.' : 'Rascunho salvo.');
+        : result.queuedCount > 0
+          ? `Plano ativado. ${result.queuedCount} cobrança(s) enviada(s) para criação.`
+        : 'Plano de pagamentos ativado.');
       onSaved();
       onBack();
     } catch (error) {
+      publishingRef.current = false;
+      await persistDraft(rowsRef.current);
       const code = error instanceof Error ? error.message : '';
       toast('error', code === 'soma-diferente-do-valor-do-projeto'
         ? 'A soma dos itens precisa ser igual ao valor total do projeto.'
@@ -209,14 +320,22 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
         : code.startsWith('metadados-') || code === 'grupo-incompleto'
           ? 'O grupo de parcelas está incompleto. Refaça o parcelamento.'
           : code || 'Falha ao salvar o plano.');
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+      publishingRef.current = false;
+    }
   };
 
-  return <PanelOverlay variant="drawer" labelledBy="payment-plan-title" onClose={onClose}>
+  return <PanelOverlay variant="drawer" labelledBy="payment-plan-title" onClose={() => void closeWithDraft(onClose)}>
     <header className="project-plan-drawer__header">
-      <button type="button" className="panel-iconbtn" aria-label="Voltar aos detalhes" onClick={onBack}><ArrowLeft size={18} /></button>
+      <button type="button" className="panel-iconbtn" aria-label="Voltar aos detalhes" onClick={() => void closeWithDraft(onBack)}><ArrowLeft size={18} /></button>
       <div><p className="panel-eyebrow">Divisão do valor</p><h2 id="payment-plan-title">Plano de pagamentos</h2><small>{project.name}</small></div>
-      <button type="button" className="panel-iconbtn" aria-label="Fechar" onClick={onClose}><X size={18} /></button>
+      <span className={`finance-draft-state is-${draftSaveState}`} role="status">
+        {draftSaveState === 'saving' ? 'Salvando…'
+          : draftSaveState === 'saved' ? 'Rascunho salvo'
+            : draftSaveState === 'error' ? 'Falha ao salvar' : ''}
+      </span>
+      <button type="button" className="panel-iconbtn" aria-label="Fechar" onClick={() => void closeWithDraft(onClose)}><X size={18} /></button>
     </header>
     <p className="cart-panel__hint">Combine entrada, etapas e parcelas. Itens sem vencimento continuam internos até que uma data seja definida.</p>
     {loading ? <p className="panel-field__hint">Carregando plano…</p> : <>
@@ -275,8 +394,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
         {summary.remaining < 0 && <span className="is-warning">Valor excedido <strong>{formatCurrencyFromCents(-summary.remaining)}</strong></span>}
       </div>
       <div className="finance-editor__actions">
-        <button type="button" className="panel-btn panel-btn--ghost" disabled={busy || !rowsValid || summary.remaining < 0} onClick={() => void save('draft')}><Save size={14} /> Salvar rascunho</button>
-        <button type="button" className="panel-btn" disabled={busy || !rowsValid || summary.remaining !== 0} onClick={() => void save('active')}><Check size={14} /> Ativar plano</button>
+        <span className="panel-field__hint">O rascunho é salvo automaticamente. Nenhuma cobrança é criada antes da ativação.</span>
+        <button type="button" className="panel-btn" disabled={busy || !rowsValid || summary.remaining !== 0} onClick={() => void activate()}><Check size={14} /> Salvar e ativar</button>
       </div>
     </>}
   </PanelOverlay>;

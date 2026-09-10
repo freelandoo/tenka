@@ -202,6 +202,14 @@ function errorCode(data: unknown, status: number): string {
   return `http-${status}`;
 }
 
+function errorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === 'object' && 'message' in data) {
+    const message = (data as { message: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export async function apiRequest<T = unknown>(
   path: string,
   options: RequestOptions = {},
@@ -240,7 +248,7 @@ export async function apiRequest<T = unknown>(
   if (!res.ok) {
     const data = await parseBody(res);
     const code = errorCode(data, res.status);
-    throw new ApiError(res.status, code, code);
+    throw new ApiError(res.status, code, errorMessage(data, code));
   }
 
   return (await parseBody(res)) as T;

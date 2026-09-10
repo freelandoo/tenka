@@ -315,6 +315,8 @@ export interface ProjectPaymentRow {
   project_value_cents?: number;
   /** Linha projetada para um projeto sem plano; vira registro ao confirmar. */
   virtual?: boolean;
+  /** Existe uma versao em edicao que ainda nao substituiu o plano publicado. */
+  has_payment_plan_draft?: boolean;
 }
 
 export interface SubscriptionPaymentRow {

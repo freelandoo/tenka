@@ -139,8 +139,19 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const generateCharge = async (item: ProjectPaymentRow) => {
     setBusyId(item.id);
     try {
-      await finance.createProjectCharge(item.id);
-      toast('success', 'Cobrança enviada para criação no Asaas.');
+      const result = item.virtual
+        ? await finance.createDefaultProjectCharge(item.project_id)
+        : await finance.createProjectCharge(item.id);
+      if ('billingIssue' in result && result.billingIssue) {
+        const messages: Record<string, string> = {
+          'asaas-nao-configurado': 'A data foi salva, mas o Asaas não está configurado.',
+          'cliente-obrigatorio': 'A data foi salva, mas associe um cliente antes de gerar a cobrança.',
+          'cpf-cnpj-obrigatorio': 'A data foi salva, mas cadastre o CPF/CNPJ antes de gerar a cobrança.',
+        };
+        toast('error', messages[result.billingIssue] ?? 'A data foi salva, mas a cobrança não pôde ser gerada.');
+      } else {
+        toast('success', `Cobrança enviada ao Asaas com vencimento em ${formatDate(result.dueDate)}.`);
+      }
       await load();
     } catch (caught) {
       toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar a cobrança.');
@@ -188,10 +199,13 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     const busy = busyId === item.id;
     const integrated = item.sync_status !== 'local';
     if (!integrated) {
+      const chargeTitle = item.due_date
+        ? `Gerar cobrança no Asaas com vencimento em ${formatDate(item.due_date)}.`
+        : 'Gerar cobrança no Asaas com vencimento hoje. Depois disso, o pagamento será atualizado somente pelos eventos do Asaas.';
       return <span className="project-payments__actions">
-        {item.status === 'pending' && item.due_date && !item.virtual && (
+        {item.status === 'pending' && (
           <button type="button" className="panel-iconbtn fees__billing-icon"
-            aria-label={`Gerar cobrança — ${label}`} title="Gerar cobrança"
+            aria-label={`Gerar cobrança — ${label}`} title={chargeTitle}
             disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}>
             <ReceiptText size={14} />
           </button>
@@ -215,7 +229,10 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
       </>}
       {item.sync_status === 'failed' && !item.asaas_payment_id && (
         <button type="button" className="panel-iconbtn fees__billing-icon"
-          aria-label={`Tentar gerar cobrança novamente — ${label}`} title="Tentar novamente"
+          aria-label={`Tentar gerar cobrança novamente — ${label}`}
+          title={item.due_date
+            ? `Tentar novamente com vencimento em ${formatDate(item.due_date)}.`
+            : 'Tentar novamente com vencimento hoje.'}
           disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}><ReceiptText size={14} /></button>
       )}
       {item.sync_status === 'synced' && item.status === 'pending' && item.asaas_payment_id && <>
@@ -235,12 +252,19 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     if (!dateValue) return;
     setBusyId(item.id);
     try {
-      if (item.virtual) {
-        await finance.setDefaultProjectPayment(item.project_id, false, dateValue);
-      } else {
-        await finance.updateProjectPayment(item.id, { dueDate: dateValue });
-      }
-      toast('success', 'Data do pagamento adicionada.');
+      const result = item.virtual
+        ? await finance.setDefaultProjectPayment(item.project_id, false, dateValue)
+        : await finance.updateProjectPayment(item.id, { dueDate: dateValue });
+      if (result.queued) {
+        toast('success', 'Data adicionada e cobrança enviada para criação no Asaas.');
+      } else if (result.billingIssue) {
+        const messages: Record<string, string> = {
+          'asaas-nao-configurado': 'Data salva. Configure o Asaas para gerar a cobrança.',
+          'cliente-obrigatorio': 'Data salva. Associe um cliente para gerar a cobrança.',
+          'cpf-cnpj-obrigatorio': 'Data salva. Cadastre o CPF/CNPJ para gerar a cobrança.',
+        };
+        toast('error', messages[result.billingIssue] ?? 'Data salva, mas a cobrança não foi gerada.');
+      } else toast('success', 'Data do pagamento adicionada.');
       setDateEditorId(null);
       setDateValue('');
       await load();
@@ -292,6 +316,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                   <span className="fees__main">
                     <span className="fees__name">{group.projectName}</span>
                     {group.clientName && <small className="fees__client">{group.clientName}</small>}
+                    {onlyPayment?.has_payment_plan_draft && <small className="project-payments__draft">Alterações em rascunho</small>}
                   </span>
                   {group.hasStages
                     ? <span className="project-payments__progress">{group.paidCount} de {group.items.length} etapas pagas</span>
@@ -321,6 +346,8 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                           <span className="fees__main">
                             <span className="fees__name">{item.name}</span>
                             {item.description && <small className="fees__client">{item.description}</small>}
+                            {item.kind === 'installment' && <small className="project-payments__kind">Parcela programada</small>}
+                            {item.kind === 'stage' && !item.due_date && <small className="project-payments__kind">Etapa sem vencimento</small>}
                           </span>
                           {renderDate(item)}
                           <span className="costs__amount">{formatCurrencyFromCents(item.amount_cents)}</span>

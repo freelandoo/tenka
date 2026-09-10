@@ -88,13 +88,25 @@ export async function updateProject(
   await apiRequest(`/projects/${projectId}`, { method: 'PATCH', body: patch });
 }
 
-export async function archiveProject(projectId: string): Promise<void> {
-  await apiRequest(`/projects/${projectId}/archive`, { method: 'POST' });
+export type ProjectSubscriptionLifecycleAction = 'keep' | 'pause' | 'cancel';
+
+export async function archiveProject(
+  projectId: string,
+  subscriptionAction?: ProjectSubscriptionLifecycleAction,
+): Promise<void> {
+  await apiRequest(`/projects/${projectId}/archive`, {
+    method: 'POST', body: subscriptionAction ? { subscriptionAction } : {},
+  });
 }
 
 /** Finaliza: sai do board (colunas) para o histórico — sem arquivar. */
-export async function finalizeProject(projectId: string): Promise<void> {
-  await apiRequest(`/projects/${projectId}/finalize`, { method: 'POST' });
+export async function finalizeProject(
+  projectId: string,
+  subscriptionAction?: ProjectSubscriptionLifecycleAction,
+): Promise<void> {
+  await apiRequest(`/projects/${projectId}/finalize`, {
+    method: 'POST', body: subscriptionAction ? { subscriptionAction } : {},
+  });
 }
 
 /** Reabre um projeto do histórico: volta ao board na coluna Em andamento. */

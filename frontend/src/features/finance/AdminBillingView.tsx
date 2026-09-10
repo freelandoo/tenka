@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, RefreshCw, ScanSearch, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CircleCheck, RefreshCw, ScanSearch, ShieldCheck } from 'lucide-react';
 import { formatCurrencyFromCents, formatDate } from '../panel/format';
 import { useToast } from '../panel/ToastContext';
 import { subscribeRealtime } from '../../lib/api/events';
@@ -28,6 +28,7 @@ export function AdminBillingView() {
   const { toast } = useToast();
   const [overview, setOverview] = useState<finance.FinanceOverview | null>(null);
   const [reconciliation, setReconciliation] = useState<finance.ReconciliationResult | null>(null);
+  const [historicalReview, setHistoricalReview] = useState<finance.HistoricalReviewResult | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [dueDateFrom, setDueDateFrom] = useState(initialFrom);
   const [dueDateTo, setDueDateTo] = useState(initialTo);
@@ -39,6 +40,7 @@ export function AdminBillingView() {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     finance.fetchLatestReconciliation().then(setReconciliation).catch(() => {});
+    finance.fetchHistoricalReview().then(setHistoricalReview).catch(() => {});
   }, []);
   useEffect(() => subscribeRealtime(
     ['project_subscriptions', 'project_payments', 'subscription_payments'],
@@ -65,6 +67,17 @@ export function AdminBillingView() {
     } finally { setReconciling(false); }
   };
 
+  const classifyReview = async (
+    id: string,
+    classification: Exclude<finance.HistoricalReviewClassification, 'needs_review'>,
+  ) => {
+    try {
+      await finance.classifyHistoricalReview(id, classification);
+      setHistoricalReview(await finance.fetchHistoricalReview());
+      toast('success', 'Registro histórico classificado. Nenhuma cobrança foi alterada.');
+    } catch (error) { toast('error', errorMessage(error)); }
+  };
+
   return <div className="finance-admin">
     <div className="finance-admin__status">
       <div><span>Integração</span><strong>{overview?.configured ? `Asaas ${overview.environment}` : 'Asaas não configurado'}</strong></div>
@@ -76,6 +89,62 @@ export function AdminBillingView() {
       <p>Ative ou desative mensalidades na lista acima. Aqui ficam os dados técnicos e a conciliação.</p>
       <button className="panel-iconbtn" type="button" onClick={() => void load()} aria-label="Atualizar financeiro"><RefreshCw size={16} /></button>
     </div>
+
+    {overview?.queue && <section className={`cart-panel finance-queue finance-queue--${overview.queue.level}`}>
+      <header className="cart-panel__head">
+        <div>
+          <h2 className="cart-panel__title">Saúde da integração</h2>
+          <p>Operações e webhooks que exigem acompanhamento.</p>
+        </div>
+        <span className={`finance-queue__state is-${overview.queue.level}`}>
+          {overview.queue.level === 'ok'
+            ? <><CircleCheck size={15} /> Fila saudável</>
+            : <><AlertTriangle size={15} /> {overview.queue.level === 'critical' ? 'Ação necessária' : 'Atenção'}</>}
+        </span>
+      </header>
+      {overview.queue.reasons.length > 0
+        ? <ul className="finance-queue__reasons">{overview.queue.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+        : <p className="finance-queue__empty">Nenhuma operação parada ou evento pendente de revisão.</p>}
+      <div className="finance-queue__meta">
+        <span>Último webhook <strong>{overview.queue.lastWebhookAt ? new Date(overview.queue.lastWebhookAt).toLocaleString('pt-BR') : 'ainda não recebido'}</strong></span>
+        <span>Assinaturas com erro <strong>{overview.subscriptions.filter((item) => item.status === 'error').length}</strong></span>
+        <span>Operação mais antiga na fila <strong>{overview.queue.oldestPendingAt ? new Date(overview.queue.oldestPendingAt).toLocaleString('pt-BR') : 'nenhuma'}</strong></span>
+      </div>
+    </section>}
+
+    <section className="cart-panel finance-review">
+      <header className="cart-panel__head">
+        <div>
+          <h2 className="cart-panel__title">Revisão do histórico</h2>
+          <p>Classifique registros ambíguos importados. Esta ação documenta a decisão, sem baixar ou emitir cobranças.</p>
+        </div>
+        <span className={`finance-reconciliation__result${historicalReview?.items.length ? ' has-errors' : ''}`}>
+          {historicalReview?.items.length ? <AlertTriangle size={15} /> : <ShieldCheck size={15} />}
+          {historicalReview?.items.length ?? 0} pendente(s)
+        </span>
+      </header>
+      {historicalReview?.items.length ? <div className="finance-table-wrap"><table className="finance-table">
+        <thead><tr><th>Projeto/item</th><th>Competência</th><th>Valor</th><th>Vínculo Asaas</th><th>Classificar como</th></tr></thead>
+        <tbody>{historicalReview.items.map((item) => <tr key={item.id}>
+          <td><strong>{item.project_name}</strong><small>{item.kind === 'project_payment' ? item.payment_name || 'Pagamento de projeto' : 'Mensalidade'}{item.notes ? ` · ${item.notes}` : ''}</small></td>
+          <td>{item.competence.slice(0, 7)}</td>
+          <td>{formatCurrencyFromCents(item.amount_cents)}</td>
+          <td>{item.asaas_payment_id ?? 'Sem vínculo'}</td>
+          <td><select className="panel-select" aria-label={`Classificar histórico de ${item.project_name}`} defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as Exclude<finance.HistoricalReviewClassification, 'needs_review'>;
+              if (value) void classifyReview(item.id, value);
+            }}>
+            <option value="" disabled>Escolher…</option>
+            <option value="paid_confirmed">Pago confirmado</option>
+            <option value="pending_confirmed">Pendente confirmado</option>
+            <option value="overdue_confirmed">Em atraso confirmado</option>
+            <option value="future">Cobrança futura</option>
+            <option value="ignore">Ignorar no corte</option>
+          </select></td>
+        </tr>)}</tbody>
+      </table></div> : <p className="finance-queue__empty">Nenhum registro histórico aguarda classificação.</p>}
+    </section>
 
     <section className="cart-panel finance-reconciliation">
       <header className="cart-panel__head">
