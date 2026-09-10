@@ -11,14 +11,23 @@ const hoisted = vi.hoisted(() => ({
     updatePayment: vi.fn(),
     getPixQrCode: vi.fn(),
     deletePayment: vi.fn(),
+    receivePaymentInCash: vi.fn(),
   },
 }));
 
 vi.mock('../env', () => ({ hasAsaas: true, env: { asaasEnvironment: 'sandbox' } }));
-vi.mock('./asaas', () => ({ asaas: hoisted.asaas }));
+vi.mock('./asaas', () => ({
+  asaas: hoisted.asaas,
+  AsaasError: class AsaasError extends Error { status = 500; },
+}));
 vi.mock('../db/pool', () => ({
   getPool: () => ({ query: async (sql: string, values: unknown[] = []) => {
     hoisted.queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), values });
+    if (sql.includes('from public.payment_receipt_intents')) return { rows: [{
+      intent_id: 'intent-1', project_id: 'project-1', asaas_payment_id: 'pay_1',
+      payment_date: '2026-09-10', amount_cents: 200_000, notify_customer: true,
+      intent_status: 'pending', target_status: 'pending',
+    }] };
     if (sql.includes('from public.project_payments pp')) return { rows: [{
       id: '77777777-7777-4777-8777-777777777777',
       project_id: 'project-1', project_name: 'Site', name: 'Entrada', description: '',
@@ -31,7 +40,10 @@ vi.mock('../db/pool', () => ({
     return { rows: [], rowCount: 1 };
   } }),
   withActor: (_actor: string | null, fn: (client: { query: unknown }) => Promise<unknown>) =>
-    fn({ query: vi.fn() }),
+    fn({ query: async (sql: string, values: unknown[] = []) => {
+      hoisted.queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), values });
+      return { rows: [], rowCount: 1 };
+    } }),
 }));
 
 import { executeOperation, type Operation } from './worker';
@@ -54,6 +66,10 @@ describe('worker de cobranças de projeto', () => {
       dueDate: '2026-10-10', invoiceUrl: 'https://sandbox.asaas.com/i/pay_1',
     });
     hoisted.asaas.getPixQrCode.mockResolvedValue({ payload: 'pix-copia-cola' });
+    hoisted.asaas.getPayment.mockResolvedValue({
+      id: 'pay_1', status: 'PENDING', billingType: 'PIX', value: 2000,
+      dueDate: '2026-10-10',
+    });
   });
 
   it('cria uma cobrança independente e grava o vínculo retornado', async () => {
@@ -86,6 +102,7 @@ describe('worker de cobranças de projeto', () => {
 
     await expect(executeOperation(operation('cancel_project_charge'))).resolves.toBe('pay_1');
 
+    expect(hoisted.asaas.getPayment).toHaveBeenCalledWith('pay_1');
     expect(hoisted.asaas.deletePayment).toHaveBeenCalledWith('pay_1');
     expect(hoisted.queries.some((query) =>
       query.sql.includes("set status = 'cancelled'") && query.values[0] === '77777777-7777-4777-8777-777777777777',
@@ -110,5 +127,20 @@ describe('worker de cobranças de projeto', () => {
       query.sql.includes("set sync_status = 'synced'") && query.values[0] === '77777777-7777-4777-8777-777777777777');
     expect(finalUpdate?.sql).not.toContain('amount_cents');
     expect(finalUpdate?.sql).not.toContain('due_date');
+  });
+
+  it('processa a baixa pela intenção durável e consulta o Asaas antes do POST', async () => {
+    hoisted.asaasPaymentId = 'pay_1';
+    hoisted.asaas.receivePaymentInCash.mockResolvedValue({ id: 'pay_1', status: 'RECEIVED' });
+    const receipt = operation('receive_project_payment_in_cash');
+    receipt.request_payload = { intentId: 'intent-1' };
+    receipt.requested_by = 'actor-1';
+
+    await expect(executeOperation(receipt)).resolves.toBe('pay_1');
+
+    expect(hoisted.asaas.getPayment).toHaveBeenCalledWith('pay_1');
+    expect(hoisted.asaas.receivePaymentInCash).toHaveBeenCalledWith('pay_1', {
+      paymentDate: '2026-09-10', value: 2000, notifyCustomer: true,
+    });
   });
 });

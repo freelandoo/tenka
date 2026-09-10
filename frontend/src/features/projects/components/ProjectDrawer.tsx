@@ -91,11 +91,15 @@ export function ProjectDrawer({
   ) => {
     setBusy(true);
     try {
+      const archiveResult = action === 'finalize'
+        ? null
+        : await service.archiveProject(project.id, subscriptionAction);
       if (action === 'finalize') await service.finalizeProject(project.id, subscriptionAction);
-      else await service.archiveProject(project.id, subscriptionAction);
       toast('success', action === 'finalize'
         ? `Projeto "${project.name}" finalizado e movido para o histórico.`
-        : `Projeto "${project.name}" arquivado.`);
+        : archiveResult?.cleanupPending
+          ? `Arquivamento de "${project.name}" iniciado. O projeto continua visível até o Asaas confirmar os cancelamentos.`
+          : `Projeto "${project.name}" arquivado.`);
       setLifecycleAction(null);
       onChanged();
       onClose();
@@ -193,6 +197,14 @@ export function ProjectDrawer({
         </button>
       </header>
 
+      {project.archive_requested_at && (
+        <p className="finance-warning" role="status">
+          {project.financial_cleanup_status === 'attention'
+            ? `Arquivamento requer atenção: ${project.financial_cleanup_error ?? 'há uma operação financeira pendente de revisão.'}`
+            : 'Arquivamento em andamento. O projeto só sairá do painel depois que o Asaas confirmar o encerramento das cobranças abertas.'}
+        </p>
+      )}
+
       {isAdmin && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <button
@@ -239,11 +251,11 @@ export function ProjectDrawer({
             <button
               type="button"
               className="panel-btn panel-btn--ghost panel-btn--sm"
-              disabled={busy}
+              disabled={busy || Boolean(project.archive_requested_at)}
               onClick={() => requestLifecycle('archive')}
             >
               <Archive size={14} aria-hidden="true" />
-              Arquivar
+              {project.archive_requested_at ? 'Arquivando…' : 'Arquivar'}
             </button>
           )}
         </div>
@@ -443,13 +455,13 @@ export function ProjectDrawer({
           </h2>
           <p>A decisão afeta somente as cobranças recorrentes. Os pagamentos já registrados continuam no histórico.</p>
         </div>
-        <button type="button" className="project-lifecycle__choice" disabled={busy}
+        {lifecycleAction === 'finalize' && <button type="button" className="project-lifecycle__choice" disabled={busy}
           onClick={() => void changeLifecycle(lifecycleAction, 'keep')}>
           <strong>Manter ativa</strong><span>A assinatura continua gerando as próximas mensalidades.</span>
-        </button>
+        </button>}
         <button type="button" className="project-lifecycle__choice" disabled={busy}
           onClick={() => void changeLifecycle(lifecycleAction, 'pause')}>
-          <strong>Pausar</strong><span>Interrompe cobranças futuras; cobranças já emitidas permanecem abertas.</span>
+          <strong>Pausar</strong><span>Interrompe cobranças futuras. Ao arquivar, cobranças já emitidas e abertas também são canceladas.</span>
         </button>
         <button type="button" className="project-lifecycle__choice is-danger" disabled={busy}
           onClick={() => void changeLifecycle(lifecycleAction, 'cancel')}>

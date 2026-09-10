@@ -79,7 +79,7 @@ beforeEach(() => {
     payment: payment({ virtual: false, due_date: '2026-09-09', sync_status: 'queued' }),
     queued: true, billingIssue: null, dueDate: '2026-09-09',
   });
-  registerOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
+  registerOutside.mockResolvedValue({ queued: true, intentId: 'intent-1', awaitingWebhook: true });
 });
 
 describe('ProjectPaymentsList', () => {
@@ -88,7 +88,7 @@ describe('ProjectPaymentsList', () => {
     render(<ProjectPaymentsList isAdmin />);
 
     const button = await screen.findByRole('button', {
-      name: 'Marcar como pago — Site Braslar',
+      name: 'Registrar pagamento — Site Braslar',
     });
     const row = screen.getByText('Site Braslar').closest('li') as HTMLElement;
     expect(within(row).getByText('Pendente')).toBeInTheDocument();
@@ -97,7 +97,11 @@ describe('ProjectPaymentsList', () => {
     expect(within(row).getByRole('button', { name: 'Dividir valor — Site Braslar' })).toBeInTheDocument();
 
     fireEvent.click(button);
-    await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith('project-1', true));
+    expect(await screen.findByRole('heading', { name: 'Registrar pagamento' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
+    await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith(
+      'project-1', true, undefined, expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    ));
   });
 
   it('recolhe as etapas, não permite pagar o total e reabre cada etapa individualmente', async () => {
@@ -117,6 +121,7 @@ describe('ProjectPaymentsList', () => {
     fireEvent.click(screen.getByRole('button', {
       name: 'Reabrir pagamento — Site Braslar — Etapa 1 de 2 · Entrada',
     }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reabrir pagamento' }));
     await waitFor(() => expect(updatePayment).toHaveBeenCalledWith('stage-1', { status: 'pending' }));
   });
 

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Banknote, Copy, ExternalLink, LoaderCircle } from 'lucide-react';
+import { Banknote, Copy, ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 import { cents, formatCurrencyFromCents } from '../../panel/format';
 import {
   fetchSubscriptionPayments,
   registerSubscriptionPaymentOutside,
+  cancelSubscriptionPayment,
 } from '../services/projectsService';
 import { useToast } from '../../panel/ToastContext';
 import { subscribeRealtime } from '../../../lib/api/events';
@@ -74,6 +75,9 @@ export function SubscriptionList({
   const [confirmingReceipt, setConfirmingReceipt] = useState<
     { project: BoardProject; payment: SubscriptionPaymentRow } | null
   >(null);
+  const [confirmingCancel, setConfirmingCancel] = useState<
+    { project: BoardProject; payment: SubscriptionPaymentRow } | null
+  >(null);
   const [payments, setPayments] = useState<SubscriptionPaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState(false);
@@ -139,14 +143,22 @@ export function SubscriptionList({
   }, [linhas]);
 
   const paymentsByProject = useMemo(
-    () => new Map(payments.map((payment) => [payment.project_id, payment])),
+    () => {
+      const grouped = new Map<string, SubscriptionPaymentRow[]>();
+      for (const payment of payments) {
+        const rows = grouped.get(payment.project_id) ?? [];
+        rows.push(payment);
+        grouped.set(payment.project_id, rows);
+      }
+      return grouped;
+    },
     [payments],
   );
 
-  const registerOutside = async (project: BoardProject, paymentDate: string) => {
-    setBusyPaymentId(project.id);
+  const registerOutside = async (payment: SubscriptionPaymentRow, paymentDate: string) => {
+    setBusyPaymentId(payment.id);
     try {
-      await registerSubscriptionPaymentOutside(project.id, competence, paymentDate);
+      await registerSubscriptionPaymentOutside(payment.id, paymentDate);
       toast('success', 'Pagamento registrado no Asaas. Aguardando confirmação pelo webhook.');
       setConfirmingReceipt(null);
       if (currentCompetence.current === competence) await loadPayments();
@@ -164,6 +176,18 @@ export function SubscriptionList({
     } catch {
       toast('error', 'Não foi possível copiar o link da cobrança.');
     }
+  };
+
+  const cancelCharge = async (payment: SubscriptionPaymentRow, reason: string) => {
+    setBusyPaymentId(payment.id);
+    try {
+      await cancelSubscriptionPayment(payment.id, reason);
+      toast('success', 'Cancelamento da cobrança mensal enviado ao Asaas.');
+      setConfirmingCancel(null);
+      await loadPayments();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao cancelar a cobrança mensal.');
+    } finally { setBusyPaymentId(null); }
   };
 
   const openSubscriptionManagement = async (project: BoardProject) => {
@@ -245,13 +269,7 @@ export function SubscriptionList({
       )}
       <ul className="costs__list">
         {linhas.map((p) => {
-          const payment = paymentsByProject.get(p.id);
-          const canRegisterOutside = Boolean(
-            isAdmin &&
-            payment?.asaas_payment_id &&
-            payment.source === 'asaas' &&
-            ['pending', 'overdue', 'failed'].includes(payment.status),
-          );
+          const projectPayments = paymentsByProject.get(p.id) ?? [];
           return (
             <li key={p.id} className={`fees__row${p.subscription_active ? '' : ' is-off'}`}>
               <span className="fees__main">
@@ -264,39 +282,40 @@ export function SubscriptionList({
                 <small>/mês</small>
               </span>
               <span className="fees__billing">
-                {(payment?.payment_url || (canRegisterOutside && payment)) && (
-                  <span className="fees__billing-actions">
-                    {payment?.payment_url && (
-                      <>
-                        <a className="panel-iconbtn fees__billing-icon" href={payment.payment_url}
-                          target="_blank" rel="noreferrer" aria-label="Abrir cobrança"
-                          title="Abrir cobrança">
-                          <ExternalLink size={14} />
-                        </a>
-                        <button type="button" className="panel-iconbtn fees__billing-icon"
-                          aria-label="Copiar link" title="Copiar link"
-                          onClick={() => void copyLink(payment.payment_url!)}>
-                          <Copy size={14} />
-                        </button>
-                      </>
-                    )}
-                    {canRegisterOutside && payment && (
+                {projectPayments.length > 0 ? projectPayments.map((currentPayment, index) => {
+                  const canRegisterOutside = Boolean(
+                    isAdmin && currentPayment.asaas_payment_id && currentPayment.source === 'asaas'
+                    && ['pending', 'overdue', 'failed'].includes(currentPayment.status),
+                  );
+                  return <span className="fees__billing-actions" key={currentPayment.id}>
+                    {projectPayments.length > 1 && <small>Cobrança {index + 1}</small>}
+                    {currentPayment.payment_url && <>
+                      <a className="panel-iconbtn fees__billing-icon" href={currentPayment.payment_url}
+                        target="_blank" rel="noreferrer" aria-label="Abrir cobrança"
+                        title="Abrir cobrança"><ExternalLink size={14} /></a>
                       <button type="button" className="panel-iconbtn fees__billing-icon"
-                        aria-label="Registrar pagamento por fora" title="Registrar pagamento por fora"
-                        disabled={busyPaymentId === p.id}
-                        onClick={() => setConfirmingReceipt({ project: p, payment })}>
-                        <Banknote size={14} />
-                      </button>
-                    )}
-                  </span>
-                )}
-                <span className={`finance-badge finance-badge--${payment?.status ?? 'not-issued'}`}>
-                  {paymentsLoading
-                    ? 'Consultando'
-                    : payment
-                      ? PAYMENT_STATUS[payment.status]
-                      : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
-                </span>
+                        aria-label="Copiar link" title="Copiar link"
+                        onClick={() => void copyLink(currentPayment.payment_url!)}><Copy size={14} /></button>
+                    </>}
+                    {canRegisterOutside && <button type="button" className="panel-iconbtn fees__billing-icon"
+                      aria-label="Registrar pagamento por fora" title="Registrar pagamento por fora"
+                      disabled={busyPaymentId === currentPayment.id}
+                      onClick={() => setConfirmingReceipt({ project: p, payment: currentPayment })}>
+                      <Banknote size={14} />
+                    </button>}
+                    {canRegisterOutside && <button type="button" className="panel-iconbtn fees__billing-icon"
+                      aria-label="Cancelar cobrança mensal" title="Cancelar esta cobrança no Asaas"
+                      disabled={busyPaymentId === currentPayment.id}
+                      onClick={() => setConfirmingCancel({ project: p, payment: currentPayment })}>
+                      <Trash2 size={14} />
+                    </button>}
+                    <span className={`finance-badge finance-badge--${currentPayment.status}`}>
+                      {PAYMENT_STATUS[currentPayment.status]}
+                    </span>
+                  </span>;
+                }) : <span className="finance-badge finance-badge--not-issued">
+                  {paymentsLoading ? 'Consultando' : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
+                </span>}
               </span>
               {isAdmin ? (
                 <button
@@ -441,9 +460,27 @@ export function SubscriptionList({
           dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
           warning="A Tenka não desfaz uma baixa manual: reverter exige o painel do Asaas. Seu nome fica no histórico do projeto."
           confirmLabel="Registrar pagamento"
-          busy={busyPaymentId === confirmingReceipt.project.id}
-          onConfirm={(date) => void registerOutside(confirmingReceipt.project, date)}
+          busy={busyPaymentId === confirmingReceipt.payment.id}
+          onConfirm={(date) => void registerOutside(confirmingReceipt.payment, date)}
           onCancel={() => setConfirmingReceipt(null)}
+        />
+      )}
+
+      {confirmingCancel && (
+        <ConfirmDialog
+          title="Cancelar cobrança mensal"
+          description="Cancela somente esta cobrança no Asaas. As demais cobranças e a recorrência continuam ativas."
+          details={[
+            { label: 'Projeto', value: confirmingCancel.project.name },
+            { label: 'Valor', value: formatCurrencyFromCents(confirmingCancel.payment.amount_cents) },
+          ]}
+          textField={{ label: 'Motivo do cancelamento', placeholder: 'Ex.: cobrança duplicada', minLength: 3 }}
+          warning="O motivo e seu nome ficam registrados no histórico do projeto."
+          tone="danger"
+          confirmLabel="Cancelar cobrança"
+          busy={busyPaymentId === confirmingCancel.payment.id}
+          onConfirm={(_date, reason) => void cancelCharge(confirmingCancel.payment, reason)}
+          onCancel={() => setConfirmingCancel(null)}
         />
       )}
     </div>

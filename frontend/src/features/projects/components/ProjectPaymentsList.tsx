@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Banknote, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, Plus, ReceiptText, Trash2, X } from 'lucide-react';
+import { Banknote, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, Plus, ReceiptText, RotateCcw, Trash2, X } from 'lucide-react';
 import { subscribeRealtime } from '../../../lib/api/events';
 import type { ProjectPaymentRow } from '../../../lib/supabase/database.types';
 import * as finance from '../../finance/financeService';
@@ -35,6 +35,8 @@ const STATUS_LABEL: Record<ProjectPaymentRow['status'], string> = {
 /** Ação pendente de confirmação — nenhuma delas tem desfazer na Tenka. */
 type PendingConfirm =
   | { kind: 'receipt'; item: ProjectPaymentRow }
+  | { kind: 'localReceipt'; item: ProjectPaymentRow }
+  | { kind: 'reopen'; item: ProjectPaymentRow }
   | { kind: 'cancel'; item: ProjectPaymentRow };
 
 function localIsoDate(): string {
@@ -128,22 +130,34 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     });
   };
 
-  const togglePaid = async (item: ProjectPaymentRow) => {
-    const paid = item.status === 'paid';
+  const registerLocal = async (item: ProjectPaymentRow, paymentDate: string) => {
     setBusyId(item.id);
     try {
       if (item.virtual) {
-        await finance.setDefaultProjectPayment(item.project_id, true);
+        await finance.setDefaultProjectPayment(item.project_id, true, undefined, paymentDate);
       } else {
-        await finance.updateProjectPayment(item.id, { status: paid ? 'pending' : 'paid' });
+        await finance.updateProjectPayment(item.id, { status: 'paid', paymentDate });
       }
-      toast('success', paid ? 'Pagamento reaberto.' : 'Pagamento confirmado.');
+      toast('success', 'Pagamento local registrado. Nenhuma cobrança do Asaas foi alterada.');
+      setConfirming(null);
       await load();
     } catch (caught) {
       toast('error', caught instanceof Error ? caught.message : 'Não foi possível atualizar o pagamento.');
     } finally {
       setBusyId(null);
     }
+  };
+
+  const reopenLocal = async (item: ProjectPaymentRow) => {
+    setBusyId(item.id);
+    try {
+      await finance.updateProjectPayment(item.id, { status: 'pending' });
+      toast('success', 'Pagamento local reaberto.');
+      setConfirming(null);
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível reabrir o pagamento.');
+    } finally { setBusyId(null); }
   };
 
   const generateCharge = async (item: ProjectPaymentRow) => {
@@ -180,10 +194,10 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     } finally { setBusyId(null); }
   };
 
-  const cancelCharge = async (item: ProjectPaymentRow) => {
+  const cancelCharge = async (item: ProjectPaymentRow, reason: string) => {
     setBusyId(item.id);
     try {
-      await finance.cancelProjectCharge(item.id);
+      await finance.cancelProjectCharge(item.id, reason);
       toast('success', 'Cancelamento enviado ao Asaas.');
       setConfirming(null);
       await load();
@@ -216,11 +230,14 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
             <ReceiptText size={14} />
           </button>
         )}
-        <button type="button" className={`fees__paid${item.status === 'paid' ? ' is-paid' : ''}`}
-          disabled={!isAdmin || !['pending', 'paid'].includes(item.status) || busy}
-          aria-pressed={item.status === 'paid'}
-          aria-label={`${item.status === 'paid' ? 'Reabrir pagamento' : 'Marcar como pago'} — ${label}`}
-          onClick={() => void togglePaid(item)}>Pago</button>
+        {item.status === 'pending' && <button type="button" className="panel-iconbtn fees__billing-icon"
+          disabled={!isAdmin || busy} aria-label={`Registrar pagamento — ${label}`}
+          title="Registrar pagamento feito fora da Tenka; não altera nenhuma cobrança no Asaas."
+          onClick={() => setConfirming({ kind: 'localReceipt', item })}><Banknote size={14} /></button>}
+        {item.status === 'paid' && <button type="button" className="panel-iconbtn fees__billing-icon"
+          disabled={!isAdmin || busy} aria-label={`Reabrir pagamento — ${label}`}
+          title="Reabrir pagamento local"
+          onClick={() => setConfirming({ kind: 'reopen', item })}><RotateCcw size={14} /></button>}
       </span>;
     }
     return <span className="project-payments__actions">
@@ -404,6 +421,36 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
         />
       )}
 
+      {confirming?.kind === 'localReceipt' && (
+        <ConfirmDialog
+          title="Registrar pagamento"
+          description="Registra uma baixa somente na Tenka. Esta opção não cria, paga nem cancela cobrança no Asaas e não envia aviso ao cliente."
+          details={[
+            { label: 'Lançamento', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
+          warning="Use esta opção apenas quando não existir cobrança sincronizada no Asaas. Seu nome e a data ficam no histórico do projeto."
+          confirmLabel="Registrar pagamento"
+          busy={busyId === confirming.item.id}
+          onConfirm={(date) => void registerLocal(confirming.item, date)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === 'reopen' && (
+        <ConfirmDialog
+          title="Reabrir pagamento local"
+          description="Remove a confirmação local e devolve o lançamento para pendente. Nenhuma cobrança do Asaas será alterada."
+          details={[{ label: 'Lançamento', value: confirming.item.name }]}
+          confirmLabel="Reabrir pagamento"
+          busy={busyId === confirming.item.id}
+          onConfirm={() => void reopenLocal(confirming.item)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
       {confirming?.kind === 'cancel' && (
         <ConfirmDialog
           title="Cancelar cobrança no Asaas"
@@ -419,9 +466,10 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
             { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
           ]}
           tone="danger"
+          textField={{ label: 'Motivo do cancelamento', placeholder: 'Ex.: cobrança duplicada', minLength: 3 }}
           confirmLabel="Cancelar cobrança"
           busy={busyId === confirming.item.id}
-          onConfirm={() => void cancelCharge(confirming.item)}
+          onConfirm={(_date, reason) => void cancelCharge(confirming.item, reason)}
           onCancel={() => setConfirming(null)}
         />
       )}

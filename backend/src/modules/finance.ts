@@ -76,6 +76,7 @@ const paymentPatchSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().trim().max(2000).optional(),
   receiptUrl: z.string().trim().max(1000).optional(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 }).refine((value) => Object.values(value).some((item) => item !== undefined), {
   message: 'nothing-to-update',
 });
@@ -83,6 +84,7 @@ const paymentPatchSchema = z.object({
 const defaultPaymentSchema = z.object({
   paid: z.boolean(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   generateCharge: z.boolean().default(false),
 });
 
@@ -92,12 +94,7 @@ const projectExternalPaymentSchema = z.object({
 
 const subscriptionCancelSchema = z.object({ confirmation: z.string().trim().min(1).max(200) });
 
-/**
- * Janela da reserva da baixa manual. Depois dela a linha volta a aceitar uma
- * tentativa: o processo pode ter morrido entre a reserva e a chamada ao Asaas,
- * e uma reserva eterna deixaria a cobrança sem saída.
- */
-const RECEIPT_CLAIM_MS = 5 * 60_000;
+const cancelChargeSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
 const reconciliationSchema = z.object({
   dueDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -1003,16 +1000,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const result = await withActor(req.userId!, async (client) => {
       const previous = await client.query<{
         project_id: string; status: string; name: string; due_date: string | null;
+        amount_cents: number;
         sync_status: string; financial_plan_status: string; client_id: string | null;
         cpf_cnpj: string | null;
+        archive_requested_at: string | null;
       }>(
-        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.sync_status,
-                p.financial_plan_status, p.client_id, c.cpf_cnpj
+        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.amount_cents, pp.sync_status,
+                p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
            join public.projects p on p.id = pp.project_id
            left join public.clients c on c.id = p.client_id and c.archived_at is null
           where pp.id = $1 for update of pp`, [id]);
       if (!previous.rows[0]) return { rows: [], queued: false, billingIssue: null };
+      if (previous.rows[0].archive_requested_at) return 'archiving' as const;
       if (blocksDirectIntegratedPaymentChange({
         status: previous.rows[0].status,
         dueDate: previous.rows[0].due_date,
@@ -1025,15 +1025,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           set status = coalesce($2, status),
               paid_at = case
                 when $2 is null then paid_at
-                when $2 = 'paid' then coalesce(paid_at, now())
+                when $2 = 'paid' then coalesce($7::date::timestamptz, paid_at, now())
                 else null
               end,
+              payment_date = case
+                when $2 = 'paid' then coalesce($7::date, payment_date,
+                  timezone('America/Sao_Paulo', current_timestamp)::date)
+                when $2 is not null then null else payment_date end,
               notes = coalesce($3, notes), receipt_url = coalesce($4, receipt_url),
               due_date = case when $5 then $6::date else due_date end
         where id = $1 returning *`,
         [id, parsed.data.status ?? null, parsed.data.notes ?? null,
           parsed.data.receiptUrl ?? null, parsed.data.dueDate !== undefined,
-          parsed.data.dueDate ?? null],
+          parsed.data.dueDate ?? null, parsed.data.paymentDate ?? null],
       );
       let queued = false;
       let billingIssue: string | null = null;
@@ -1061,13 +1065,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       }
       await client.query(
         `insert into public.project_activity (project_id, actor_id, action, metadata)
-         values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
-        [previous.rows[0].project_id, req.userId, JSON.stringify({
+         values ($1,$2,$3,$4::jsonb)`,
+        [previous.rows[0].project_id, req.userId,
+          parsed.data.status === 'paid' && previous.rows[0].status !== 'paid'
+            ? 'pagamento_baixa_local' : 'pagamento_projeto_atualizado',
+          JSON.stringify({
+          source: 'tenka-local',
           paymentName: previous.rows[0].name,
+          amountCents: Number(previous.rows[0].amount_cents),
           from: previous.rows[0].status,
           to: parsed.data.status ?? previous.rows[0].status,
           previousDueDate: previous.rows[0].due_date,
           dueDate: parsed.data.dueDate ?? previous.rows[0].due_date,
+          paymentDate: parsed.data.paymentDate ?? null,
         })],
       );
       return { rows: updated.rows, queued, billingIssue };
@@ -1075,6 +1085,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (result === 'integrated-payment') {
       return reply.code(409).send({ error: 'pagamento-sincronizado-deve-ser-registrado-no-asaas' });
     }
+    if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (!result.rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (result.queued) financeWorker.kick();
     return reply.send({
@@ -1089,9 +1100,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const payment = await client.query<{
         project_id: string; due_date: string | null; status: string; sync_status: string;
         financial_plan_status: string; client_id: string | null; cpf_cnpj: string | null;
+        archive_requested_at: string | null;
       }>(
         `select pp.project_id, pp.due_date, pp.status, pp.sync_status,
-                p.financial_plan_status, p.client_id, c.cpf_cnpj
+                p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
            join public.projects p on p.id = pp.project_id
            left join public.clients c on c.id = p.client_id and c.archived_at is null
@@ -1100,6 +1112,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       );
       const row = payment.rows[0];
       if (!row) return 'missing' as const;
+      if (row.archive_requested_at) return 'archiving' as const;
       if (!row.client_id) return 'client' as const;
       if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
       if (row.financial_plan_status !== 'active' || row.status !== 'pending') return 'not-pending' as const;
@@ -1120,6 +1133,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       missing: [404, 'pagamento-inexistente'], client: [409, 'cliente-obrigatorio'],
       document: [409, 'cpf-cnpj-obrigatorio'],
       'not-pending': [409, 'pagamento-nao-esta-pendente'],
+      archiving: [409, 'projeto-em-arquivamento'],
       'already-synced': [409, 'cobranca-ja-sincronizada-ou-em-processamento'],
     };
     if (typeof result === 'string') {
@@ -1133,6 +1147,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   app.post('/project-payments/:id/cancel-charge', adminOnly, async (req, reply) => {
     if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const { id } = req.params as { id: string };
+    const parsed = cancelChargeSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'motivo-obrigatorio' });
     const result = await withActor(req.userId!, async (client) => {
       const payment = await client.query<{ project_id: string; status: string; asaas_payment_id: string | null }>(
         'select project_id, status, asaas_payment_id from public.project_payments where id = $1 for update', [id]);
@@ -1140,7 +1156,16 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (!row) return 'missing' as const;
       if (row.status === 'paid') return 'paid' as const;
       if (!row.asaas_payment_id) return 'local' as const;
-      const queued = await queueProjectPaymentOperation(client, row.project_id, id, 'cancel_project_charge');
+      const receipt = await client.query(
+        `select 1 from public.payment_receipt_intents
+          where project_payment_id = $1
+            and status in ('pending','submitted','uncertain')`,
+        [id],
+      );
+      if (receipt.rows[0]) return 'receipt-in-progress' as const;
+      const queued = await queueProjectPaymentOperation(
+        client, row.project_id, id, 'cancel_project_charge', {}, parsed.data.reason,
+      );
       if (queued) await client.query(
         "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
       return queued ? 'queued' as const : 'duplicate' as const;
@@ -1148,16 +1173,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (result === 'paid') return reply.code(409).send({ error: 'pagamento-ja-realizado' });
     if (result === 'local') return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    if (result === 'receipt-in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
     if (result === 'duplicate') return reply.code(409).send({ error: 'cancelamento-ja-em-processamento' });
     financeWorker.kick();
     return reply.code(202).send({ queued: true });
   });
 
-  // Baixa manual: a Tenka manda o Asaas dar a cobrança por recebida e espera o
-  // webhook confirmar. Duas coisas acontecem antes da chamada — a linha é
-  // reservada, para dois cliques não virarem duas baixas, e a intenção é
-  // registrada na trilha do projeto, porque a chave de API é uma só e o Asaas
-  // não sabe qual admin apertou o botão.
+  // A intenção e o ator são persistidos antes da chamada externa. O worker
+  // consulta o Asaas antes de tentar/repetir; somente o webhook liquida a linha.
   app.post('/project-payments/:id/receive-in-cash', adminOnly, async (req, reply) => {
     if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const { id } = req.params as { id: string };
@@ -1167,55 +1190,72 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const { rows } = await client.query<{
         project_id: string; name: string; amount_cents: number;
         asaas_payment_id: string | null; status: string; sync_status: string;
-        external_receipt_pending_at: string | null;
+        archive_requested_at: string | null;
       }>(
-        `select project_id, name, amount_cents, asaas_payment_id, status, sync_status,
-                external_receipt_pending_at
-           from public.project_payments where id = $1 for update`,
+        `select pp.project_id, pp.name, pp.amount_cents, pp.asaas_payment_id,
+                pp.status, pp.sync_status, p.archive_requested_at
+           from public.project_payments pp
+           join public.projects p on p.id = pp.project_id
+          where pp.id = $1 for update of pp`,
         [id],
       );
       const row = rows[0];
       if (!row) return 'missing' as const;
+      if (row.archive_requested_at) return 'archiving' as const;
       if (!row.asaas_payment_id || row.sync_status !== 'synced') return 'not-synced' as const;
       if (row.status !== 'pending') return 'not-open' as const;
-      if (row.external_receipt_pending_at
-        && Date.now() - Date.parse(row.external_receipt_pending_at) < RECEIPT_CLAIM_MS) {
+      const active = await client.query(
+        `select 1 from public.payment_receipt_intents
+          where project_payment_id = $1
+            and status in ('pending','submitted','uncertain')
+         union all
+         select 1 from public.asaas_operations
+          where project_payment_id = $1 and kind = 'cancel_project_charge'
+            and (status in ('pending','processing','uncertain')
+              or (status = 'failed' and attempts < 5))`,
+        [id],
+      );
+      if (active.rows[0]) return 'in-progress' as const;
+      const intent = await client.query<{ id: string }>(
+        `insert into public.payment_receipt_intents
+           (project_id, project_payment_id, asaas_payment_id, actor_id,
+            payment_date, amount_cents, notify_customer)
+         values ($1,$2,$3,$4,$5::date,$6,true) returning id`,
+        [row.project_id, id, row.asaas_payment_id, req.userId,
+          parsed.data.paymentDate, row.amount_cents],
+      );
+      const intentId = intent.rows[0]?.id;
+      if (!intentId) throw new Error('Falha ao registrar a intenção da baixa manual.');
+      const queued = await queueProjectPaymentOperation(
+        client, row.project_id, id, 'receive_project_payment_in_cash',
+        { intentId }, 'Pagamento recebido por fora da Tenka',
+      );
+      if (!queued) {
+        await client.query('delete from public.payment_receipt_intents where id = $1', [intentId]);
         return 'in-progress' as const;
       }
       await client.query(
         `update public.project_payments set external_receipt_pending_at = now() where id = $1`,
         [id],
       );
-      return row;
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
+        [row.project_id, req.userId, JSON.stringify({
+          scope: 'projeto', paymentName: row.name, amountCents: Number(row.amount_cents),
+          paymentDate: parsed.data.paymentDate, asaasPaymentId: row.asaas_payment_id,
+          receiptIntentId: intentId, status: 'queued',
+        })],
+      );
+      return { intentId };
     });
     if (claim === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (claim === 'not-synced') return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    if (claim === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (claim === 'not-open') return reply.code(409).send({ error: 'cobranca-nao-esta-em-aberto' });
     if (claim === 'in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
-    try {
-      const current = await asaas.getPayment(claim.asaas_payment_id!);
-      await asaas.receivePaymentInCash(claim.asaas_payment_id!, {
-        paymentDate: parsed.data.paymentDate,
-        value: current.value,
-        notifyCustomer: true,
-      });
-      await withActor(req.userId!, (client) => client.query(
-        `insert into public.project_activity (project_id, actor_id, action, metadata)
-         values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
-        [claim.project_id, req.userId, JSON.stringify({
-          scope: 'projeto', paymentName: claim.name, amountCents: claim.amount_cents,
-          paymentDate: parsed.data.paymentDate, asaasPaymentId: claim.asaas_payment_id,
-        })],
-      ));
-      return reply.code(202).send({ submitted: true, awaitingWebhook: true });
-    } catch (error) {
-      // A reserva só faz sentido enquanto a baixa está a caminho.
-      await getPool().query(
-        `update public.project_payments set external_receipt_pending_at = null where id = $1`, [id],
-      ).catch(() => {});
-      if (error instanceof AsaasError) return reply.code(502).send({ error: error.message });
-      return sendDbError(error, reply);
-    }
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true, intentId: claim.intentId, awaitingWebhook: true });
   });
 
   // Materializa o pagamento único exibido para projetos que ainda não têm
@@ -1232,7 +1272,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           `select p.value_cents, p.client_id, c.cpf_cnpj
              from public.projects p
              left join public.clients c on c.id = p.client_id and c.archived_at is null
-            where p.id = $1 and p.archived_at is null for update of p`, [id]);
+            where p.id = $1 and p.archived_at is null
+              and p.archive_requested_at is null for update of p`, [id]);
         if (!project.rows[0]) return 'missing' as const;
         const existing = await client.query(
           'select 1 from public.project_payments where project_id = $1 limit 1', [id]);
@@ -1246,12 +1287,15 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const { rows } = await client.query(
           `insert into public.project_payments
              (project_id, name, description, amount_cents, due_date, paid_at,
-              status, position, created_by)
+              payment_date, status, position, created_by)
            values ($1,'Pagamento do projeto','',$2,$3,
-                   case when $4 then now() else null end,
+                   case when $4 then coalesce($6::date::timestamptz, now()) else null end,
+                   case when $4 then coalesce($6::date,
+                     timezone('America/Sao_Paulo', current_timestamp)::date) else null end,
                    case when $4 then 'paid' else 'pending' end,0,$5)
            returning *`,
-          [id, project.rows[0].value_cents, effectiveDueDate, parsed.data.paid, req.userId],
+          [id, project.rows[0].value_cents, effectiveDueDate, parsed.data.paid, req.userId,
+            parsed.data.paymentDate ?? null],
         );
         await client.query(
           "update public.projects set financial_plan_status = 'active' where id = $1",
@@ -1259,10 +1303,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         );
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)
-           values ($1,$2,'pagamento_projeto_atualizado',$3::jsonb)`,
-          [id, req.userId, JSON.stringify({
+           values ($1,$2,$3,$4::jsonb)`,
+          [id, req.userId, parsed.data.paid ? 'pagamento_baixa_local' : 'pagamento_projeto_atualizado',
+            JSON.stringify({
+            source: 'tenka-local',
             paymentName: 'Pagamento do projeto', from: 'pending',
+            amountCents: Number(project.rows[0].value_cents),
             to: parsed.data.paid ? 'paid' : 'pending',
+            paymentDate: parsed.data.paymentDate ?? null,
           })],
         );
         let queued = false;

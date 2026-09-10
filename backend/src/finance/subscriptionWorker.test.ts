@@ -4,12 +4,15 @@ const hoisted = vi.hoisted(() => ({
   queries: [] as Array<{ sql: string; values: unknown[] }>,
   asaas: {
     updateCustomer: vi.fn(), updateSubscription: vi.fn(), updatePayment: vi.fn(),
-    deleteSubscription: vi.fn(),
+    getSubscription: vi.fn(), deleteSubscription: vi.fn(),
   },
 }));
 
 vi.mock('../env', () => ({ hasAsaas: true, env: { asaasEnvironment: 'sandbox' } }));
-vi.mock('./asaas', () => ({ asaas: hoisted.asaas }));
+vi.mock('./asaas', () => ({
+  asaas: hoisted.asaas,
+  AsaasError: class AsaasError extends Error { status = 500; },
+}));
 vi.mock('../db/pool', () => ({
   getPool: () => ({ query: async (sql: string, values: unknown[] = []) => {
     hoisted.queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), values });
@@ -44,6 +47,7 @@ describe('worker de mensalidades', () => {
     hoisted.asaas.updateSubscription.mockResolvedValue({ id: 'sub-1', status: 'ACTIVE' });
     hoisted.asaas.updatePayment.mockResolvedValue({ id: 'pay-current', status: 'PENDING' });
     hoisted.asaas.deleteSubscription.mockResolvedValue({ id: 'sub-1', deleted: true });
+    hoisted.asaas.getSubscription.mockResolvedValue({ id: 'sub-1', status: 'ACTIVE' });
   });
 
   it('aplica a edição futura na assinatura e a opção deste mês na cobrança atual', async () => {
@@ -69,6 +73,6 @@ describe('worker de mensalidades', () => {
     // numa recorrência apagada, mas fica registrado no histórico do projeto.
     expect(hoisted.queries.some((query) => query.sql.includes('asaas_subscription_id = null'))).toBe(true);
     const activity = hoisted.queries.find((query) => query.sql.includes('insert into public.project_activity'));
-    expect(String(activity?.values[1])).toContain('sub-1');
+    expect(String(activity?.values[2])).toContain('sub-1');
   });
 });

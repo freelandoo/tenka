@@ -4,6 +4,7 @@ import { SubscriptionList } from './SubscriptionList';
 import {
   fetchSubscriptionPayments,
   registerSubscriptionPaymentOutside,
+  cancelSubscriptionPayment,
 } from '../services/projectsService';
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
@@ -13,6 +14,7 @@ import type { ProjectFinance } from '../../finance/financeService';
 vi.mock('../services/projectsService', () => ({
   fetchSubscriptionPayments: vi.fn(),
   registerSubscriptionPaymentOutside: vi.fn(),
+  cancelSubscriptionPayment: vi.fn(),
 }));
 vi.mock('../../finance/financeService', () => ({
   fetchProjectFinance: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }
 
 const mockedFetchPayments = vi.mocked(fetchSubscriptionPayments);
 const mockedRegisterOutside = vi.mocked(registerSubscriptionPaymentOutside);
+const mockedCancelPayment = vi.mocked(cancelSubscriptionPayment);
 const mockedFetchFinance = vi.mocked(financeService.fetchProjectFinance);
 const mockedSaveSubscription = vi.mocked(financeService.saveSubscription);
 const mockedSubscriptionAction = vi.mocked(financeService.subscriptionAction);
@@ -280,7 +283,7 @@ describe('SubscriptionList', () => {
 
   it('registra pagamento por fora no Asaas e aguarda o webhook', async () => {
     mockedFetchPayments.mockResolvedValue([makePayment()]);
-    mockedRegisterOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
+    mockedRegisterOutside.mockResolvedValue({ queued: true, intentId: 'intent-1', awaitingWebhook: true });
     render(
       <SubscriptionList
         {...defaultProps}
@@ -297,7 +300,7 @@ describe('SubscriptionList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     await waitFor(() => expect(mockedRegisterOutside).toHaveBeenCalledWith(
-      'a', '2026-08', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      'subscription-payment-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     ));
     expect(screen.getByText('Pendente')).toBeInTheDocument();
   });
@@ -315,5 +318,26 @@ describe('SubscriptionList', () => {
 
     expect(await screen.findByText('Recebido')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pagamento por fora' })).toBeNull();
+  });
+
+  it('mantém cobranças duplicadas visíveis e cancela pelo id exato', async () => {
+    mockedFetchPayments.mockResolvedValue([
+      makePayment({ id: 'subscription-payment-1', payment_url: 'https://asaas.test/pay_1' }),
+      makePayment({ id: 'subscription-payment-2', payment_url: 'https://asaas.test/pay_2' }),
+    ]);
+    mockedCancelPayment.mockResolvedValue({ queued: true });
+    render(<SubscriptionList {...defaultProps}
+      projects={[makeProject({ id: 'a', name: 'Refibras' })]} isAdmin onChanged={vi.fn()} />);
+
+    expect(await screen.findAllByRole('link', { name: 'Abrir cobrança' })).toHaveLength(2);
+    const cancelButtons = screen.getAllByRole('button', { name: 'Cancelar cobrança mensal' });
+    fireEvent.click(cancelButtons[1]);
+    fireEvent.change(await screen.findByLabelText('Motivo do cancelamento'), {
+      target: { value: 'Cobrança duplicada' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar cobrança' }));
+    await waitFor(() => expect(mockedCancelPayment).toHaveBeenCalledWith(
+      'subscription-payment-2', 'Cobrança duplicada',
+    ));
   });
 });

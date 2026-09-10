@@ -93,8 +93,8 @@ export type ProjectSubscriptionLifecycleAction = 'keep' | 'pause' | 'cancel';
 export async function archiveProject(
   projectId: string,
   subscriptionAction?: ProjectSubscriptionLifecycleAction,
-): Promise<void> {
-  await apiRequest(`/projects/${projectId}/archive`, {
+): Promise<{ archived: boolean; cleanupPending: boolean }> {
+  return apiRequest(`/projects/${projectId}/archive`, {
     method: 'POST', body: subscriptionAction ? { subscriptionAction } : {},
   });
 }
@@ -124,13 +124,21 @@ export async function fetchSubscriptionPayments(competence: string): Promise<Sub
 
 /** Registra no Asaas um pagamento recebido fora da plataforma. */
 export async function registerSubscriptionPaymentOutside(
-  projectId: string,
-  competence: string,
+  paymentId: string,
   paymentDate: string,
-): Promise<{ submitted: true; awaitingWebhook: true }> {
-  return apiRequest(`/projects/${projectId}/subscription-payment/receive-in-cash`, {
+): Promise<{ queued: true; intentId: string; awaitingWebhook: true }> {
+  return apiRequest(`/subscription-payments/${paymentId}/receive-in-cash`, {
     method: 'POST',
-    body: { competence, paymentDate },
+    body: { paymentDate },
+  });
+}
+
+export async function cancelSubscriptionPayment(
+  paymentId: string,
+  reason: string,
+): Promise<{ queued: true }> {
+  return apiRequest(`/subscription-payments/${paymentId}/cancel`, {
+    method: 'POST', body: { reason },
   });
 }
 

@@ -223,7 +223,7 @@ export const savePaymentPlanDraft = (projectId: string, payments: PaymentPlanDra
 
 export const updateProjectPayment = (
   paymentId: string,
-  input: { status?: ProjectPaymentRow['status']; dueDate?: string | null; notes?: string; receiptUrl?: string },
+  input: { status?: ProjectPaymentRow['status']; dueDate?: string | null; notes?: string; receiptUrl?: string; paymentDate?: string },
 ) => apiRequest<{ payment: ProjectPaymentRow; queued?: boolean; billingIssue?: string | null }>(`/project-payments/${paymentId}`, {
   method: 'PATCH', body: input,
 });
@@ -231,18 +231,25 @@ export const updateProjectPayment = (
 export const createProjectCharge = (paymentId: string) =>
   apiRequest<{ queued: true; dueDate: string }>(`/project-payments/${paymentId}/charge`, { method: 'POST' });
 
-export const cancelProjectCharge = (paymentId: string) =>
-  apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, { method: 'POST' });
+export const cancelProjectCharge = (paymentId: string, reason: string) =>
+  apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, {
+    method: 'POST', body: { reason },
+  });
 
 export const registerProjectPaymentOutside = (paymentId: string, paymentDate: string) =>
-  apiRequest<{ submitted: true; awaitingWebhook: true }>(
+  apiRequest<{ queued: true; intentId: string; awaitingWebhook: true }>(
     `/project-payments/${paymentId}/receive-in-cash`,
     { method: 'POST', body: { paymentDate } },
   );
 
-export const setDefaultProjectPayment = (projectId: string, paid: boolean, dueDate?: string | null) =>
+export const setDefaultProjectPayment = (
+  projectId: string, paid: boolean, dueDate?: string | null, paymentDate?: string,
+) =>
   apiRequest<{ payment: ProjectPaymentRow; queued: boolean; billingIssue: string | null; dueDate: string | null }>(`/projects/${projectId}/project-payment`, {
-    method: 'PUT', body: { paid, ...(dueDate !== undefined ? { dueDate } : {}) },
+    method: 'PUT', body: {
+      paid, ...(dueDate !== undefined ? { dueDate } : {}),
+      ...(paymentDate ? { paymentDate } : {}),
+    },
   });
 
 export const createDefaultProjectCharge = (projectId: string) =>

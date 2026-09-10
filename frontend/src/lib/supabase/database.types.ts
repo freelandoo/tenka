@@ -83,6 +83,12 @@ export interface ProjectRow {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  archive_requested_at?: string | null;
+  archive_requested_by?: string | null;
+  archive_reason?: string | null;
+  archive_subscription_action?: 'keep' | 'pause' | 'cancel' | null;
+  financial_cleanup_status?: 'none' | 'pending' | 'attention' | 'complete';
+  financial_cleanup_error?: string | null;
 }
 
 /** Linhas da grade de diárias: o dia é planejado em cima e executado embaixo. */
@@ -227,6 +233,10 @@ export type ProjectActivityAction =
   | 'plano_pagamentos_atualizado'
   | 'pagamento_projeto_atualizado'
   | 'pagamento_baixa_manual'
+  | 'pagamento_baixa_local'
+  | 'notificacao_pagamento_solicitada'
+  | 'cobranca_cancelada'
+  | 'cobranca_asaas_evento'
   | 'cobrancas_encerradas_por_arquivamento';
 
 export interface ProjectActivityRow {
@@ -347,6 +357,8 @@ export interface SubscriptionPaymentRow {
   pix_payload: string;
   project_name?: string;
   client_name?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 /** Cliente + os agregados que a aba Leads mostra na linha (vêm do SQL). */

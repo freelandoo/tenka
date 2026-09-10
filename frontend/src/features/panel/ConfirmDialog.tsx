@@ -23,21 +23,24 @@ interface ConfirmDialogProps {
   details?: ConfirmDetail[];
   /** Quando presente, o valor confirmado sai com a data escolhida aqui. */
   dateField?: { label: string; value: string; max?: string };
+  textField?: { label: string; value?: string; placeholder?: string; minLength?: number };
   confirmLabel: string;
   tone?: 'primary' | 'danger';
   /** Aviso destacado para o que não tem volta. */
   warning?: string;
   busy?: boolean;
-  onConfirm(date: string): void;
+  onConfirm(date: string, text: string): void;
   onCancel(): void;
 }
 
 export function ConfirmDialog({
-  title, description, details = [], dateField, confirmLabel,
+  title, description, details = [], dateField, textField, confirmLabel,
   tone = 'primary', warning, busy = false, onConfirm, onCancel,
 }: ConfirmDialogProps) {
   const [date, setDate] = useState(dateField?.value ?? '');
-  const canConfirm = !busy && (!dateField || date !== '');
+  const [text, setText] = useState(textField?.value ?? '');
+  const canConfirm = !busy && (!dateField || date !== '')
+    && (!textField || text.trim().length >= (textField.minLength ?? 1));
 
   return (
     <PanelOverlay variant="modal" labelledBy="confirm-dialog-title" onClose={onCancel}>
@@ -69,6 +72,14 @@ export function ConfirmDialog({
           </label>
         )}
 
+        {textField && (
+          <label className="confirm-dialog__field">
+            <span>{textField.label}</span>
+            <textarea className="panel-input" value={text} placeholder={textField.placeholder}
+              onChange={(event) => setText(event.target.value)} />
+          </label>
+        )}
+
         {warning && (
           <p className="confirm-dialog__warning" role="note">
             <AlertTriangle size={15} aria-hidden="true" />
@@ -85,7 +96,7 @@ export function ConfirmDialog({
             type="button"
             className={`panel-btn ${tone === 'danger' ? 'panel-btn--danger' : 'panel-btn--primary'}`}
             disabled={!canConfirm}
-            onClick={() => onConfirm(date)}
+            onClick={() => onConfirm(date, text.trim())}
           >
             {busy ? 'Enviando…' : confirmLabel}
           </button>

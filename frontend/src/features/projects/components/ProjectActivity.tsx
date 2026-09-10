@@ -83,6 +83,10 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
       return `${actorName} ${meta.status === 'active' ? 'ativou' : 'salvou'} o plano de pagamentos com ${Array.isArray(meta.current) ? meta.current.length : 0} etapa(s), total de ${formatCurrencyFromCents(Number(meta.totalCents))}.`;
     case 'pagamento_projeto_atualizado':
       return `${actorName} alterou “${String(meta.paymentName ?? 'pagamento')}” de ${String(meta.from ?? '—')} para ${String(meta.to ?? '—')}.`;
+    case 'pagamento_baixa_local':
+      return `${actorName} registrou na Tenka o pagamento de “${String(meta.paymentName ?? 'pagamento')}”`
+        + `${meta.amountCents ? ` no valor de ${formatCurrencyFromCents(Number(meta.amountCents))}` : ''}`
+        + `${meta.paymentDate ? ` em ${formatDate(String(meta.paymentDate))}` : ''}. Nenhuma cobrança do Asaas foi alterada.`;
     // A baixa manual é feita no Asaas com uma chave de API única — só esta
     // linha diz qual pessoa apertou o botão.
     case 'pagamento_baixa_manual': {
@@ -93,14 +97,35 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
         + `${formatCurrencyFromCents(Number(meta.amountCents))}, recebido em `
         + `${formatDate(String(meta.paymentDate))}. Aguardando confirmação do Asaas.`;
     }
+    case 'notificacao_pagamento_solicitada':
+      return `${actorName} solicitou ao Asaas a baixa e a notificação de pagamento ao cliente. Este registro confirma a solicitação, não a entrega individual de SMS ou e-mail.`;
+    case 'cobranca_cancelada':
+      return `${actorName} cancelou no Asaas ${meta.scope === 'mensalidade' ? 'uma cobrança mensal' : `“${String(meta.paymentName ?? 'uma cobrança')}”`}`
+        + `${meta.reason ? `; motivo: ${String(meta.reason)}` : ''}.`;
+    case 'cobranca_asaas_evento': {
+      const labels: Record<string, string> = {
+        PAYMENT_CREATED: 'criou a cobrança',
+        PAYMENT_UPDATED: 'atualizou a cobrança',
+        PAYMENT_CONFIRMED: 'confirmou o pagamento',
+        PAYMENT_RECEIVED: 'confirmou o recebimento',
+        PAYMENT_OVERDUE: 'marcou a cobrança como vencida',
+        PAYMENT_VIEWED: 'registrou que a cobrança foi visualizada',
+        PAYMENT_BANK_SLIP_VIEWED: 'registrou que o boleto foi visualizado',
+        PAYMENT_DELETED: 'confirmou o cancelamento da cobrança',
+        PAYMENT_RECEIVED_IN_CASH_UNDONE: 'desfez a baixa manual',
+      };
+      return `Asaas ${labels[String(meta.eventType)] ?? `enviou o evento ${String(meta.eventType ?? 'financeiro')}`}.`;
+    }
     case 'cobrancas_encerradas_por_arquivamento': {
-      const noAsaas = Number(meta.cancelledAtProvider ?? 0);
+      const noAsaas = Number(meta.requestedAtProvider ?? meta.cancelledAtProvider ?? 0);
+      const mensais = Number(meta.requestedMonthlyAtProvider ?? 0);
       const locais = Number(meta.cancelledLocally ?? 0);
       const partes = [
-        noAsaas > 0 ? `${noAsaas} cobrança(s) cancelada(s) no Asaas` : '',
+        noAsaas > 0 ? `cancelamento de ${noAsaas} cobrança(s) solicitado ao Asaas` : '',
+        mensais > 0 ? `cancelamento de ${mensais} mensalidade(s) solicitado ao Asaas` : '',
         locais > 0 ? `${locais} pagamento(s) encerrado(s) na Tenka` : '',
       ].filter(Boolean).join(' e ');
-      return `${actorName} arquivou o projeto: ${partes}.`;
+      return `${actorName} solicitou o arquivamento do projeto: ${partes || 'nenhuma cobrança em aberto'}.`;
     }
     default:
       return `${actorName} atualizou o projeto.`;

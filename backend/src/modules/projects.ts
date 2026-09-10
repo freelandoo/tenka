@@ -14,13 +14,14 @@ import { contactStatusForProject } from '../whatsapp/repo';
 import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { nextMonthlyDueDate } from '../finance/dueDate';
-import { asaas, AsaasError } from '../finance/asaas';
 import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
 import { projectValueChangeError } from '../finance/projectValueChange';
-import { queueProjectPaymentOperation, queueSubscriptionOperation } from '../finance/queue';
-
-/** Janela da reserva da baixa manual — ver `RECEIPT_CLAIM_MS` em modules/finance. */
-const RECEIPT_CLAIM_MS = 5 * 60_000;
+import {
+  queueProjectPaymentOperation,
+  queueSubscriptionOperation,
+  queueSubscriptionPaymentOperation,
+} from '../finance/queue';
+import { tryFinalizePendingArchive } from '../finance/archiveCleanup';
 
 /**
  * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
@@ -77,12 +78,13 @@ const moveSchema = z.object({
 
 const competenceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const externalPaymentSchema = z.object({
-  competence: competenceSchema,
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
+const monthlyChargeCancelSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
 const projectLifecycleSchema = z.object({
   subscriptionAction: z.enum(['keep', 'pause', 'cancel']).optional(),
+  reason: z.string().trim().min(3).max(500).optional(),
 });
 
 function isAdmin(req: FastifyRequest): boolean {
@@ -152,7 +154,10 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         where sp.competence = ($1 || '-01')::date
           and p.archived_at is null
           and ($3 or exists (select 1 from public.project_assignees a
-                              where a.project_id = p.id and a.user_id = $2))`,
+                              where a.project_id = p.id and a.user_id = $2))
+        order by sp.project_id, sp.provider_event_at desc nulls last, sp.created_at desc`,
+      // Duplicidades históricas continuam visíveis; a cobrança mais recente
+      // vem primeiro, mas nenhuma é sobrescrita por um Map no frontend.
       [parsed.data, req.userId, isAdmin(req)],
     );
     return reply.send({
@@ -175,38 +180,62 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.post(
-    '/projects/:id/subscription-payment/receive-in-cash',
+    '/subscription-payments/:paymentId/receive-in-cash',
     adminOnly,
     async (req, reply) => {
       if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
-      const { id } = req.params as { id: string };
+      const { paymentId } = req.params as { paymentId: string };
       const parsed = externalPaymentSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-
-      // A linha é reservada antes da chamada: dois cliques simultâneos viravam
-      // duas baixas no Asaas, e a segunda voltava como erro do provedor.
       const claim = await withActor(req.userId!, async (client) => {
         const { rows } = await client.query<{
-          id: string;
+          id: string; project_id: string; competence: string;
           asaas_payment_id: string | null;
           amount_cents: number;
           status: string;
           source: string;
-          external_receipt_pending_at: string | null;
+          archive_requested_at: string | null;
         }>(
-          `select id, asaas_payment_id, amount_cents, status, source,
-                  external_receipt_pending_at
-             from public.subscription_payments
-            where project_id = $1 and competence = ($2 || '-01')::date
-            for update`,
-          [id, parsed.data.competence],
+          `select sp.id, sp.project_id, sp.competence, sp.asaas_payment_id,
+                  sp.amount_cents, sp.status, sp.source, p.archive_requested_at
+             from public.subscription_payments sp
+             join public.projects p on p.id = sp.project_id
+            where sp.id = $1 for update of sp`,
+          [paymentId],
         );
         const payment = rows[0];
         if (!payment) return 'missing' as const;
+        if (payment.archive_requested_at) return 'archiving' as const;
         if (payment.source !== 'asaas' || !payment.asaas_payment_id) return 'not-linked' as const;
         if (!['pending', 'overdue', 'failed'].includes(payment.status)) return 'not-open' as const;
-        if (payment.external_receipt_pending_at
-          && Date.now() - Date.parse(payment.external_receipt_pending_at) < RECEIPT_CLAIM_MS) {
+        const active = await client.query(
+          `select 1 from public.payment_receipt_intents
+            where subscription_payment_id = $1
+              and status in ('pending','submitted','uncertain')
+           union all
+           select 1 from public.asaas_operations
+            where subscription_payment_id = $1 and kind = 'cancel_subscription_payment'
+              and (status in ('pending','processing','uncertain')
+                or (status = 'failed' and attempts < 5))`,
+          [payment.id],
+        );
+        if (active.rows[0]) return 'in-progress' as const;
+        const intent = await client.query<{ id: string }>(
+          `insert into public.payment_receipt_intents
+             (project_id, subscription_payment_id, asaas_payment_id, actor_id,
+              payment_date, amount_cents, notify_customer)
+           values ($1,$2,$3,$4,$5::date,$6,true) returning id`,
+          [payment.project_id, payment.id, payment.asaas_payment_id, req.userId,
+            parsed.data.paymentDate, payment.amount_cents],
+        );
+        const intentId = intent.rows[0]?.id;
+        if (!intentId) throw new Error('Falha ao registrar a intenção da baixa manual.');
+        const queued = await queueSubscriptionPaymentOperation(
+          client, payment.project_id, payment.id, 'receive_subscription_payment_in_cash',
+          { intentId }, 'Pagamento recebido por fora da Tenka',
+        );
+        if (!queued) {
+          await client.query('delete from public.payment_receipt_intents where id = $1', [intentId]);
           return 'in-progress' as const;
         }
         await client.query(
@@ -214,7 +243,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
               set external_receipt_pending_at = now() where id = $1`,
           [payment.id],
         );
-        return payment;
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
+          [payment.project_id, req.userId, JSON.stringify({
+            scope: 'mensalidade', competence: payment.competence,
+            amountCents: Number(payment.amount_cents), paymentDate: parsed.data.paymentDate,
+            asaasPaymentId: payment.asaas_payment_id, receiptIntentId: intentId,
+            status: 'queued',
+          })],
+        );
+        return { intentId };
       });
       if (claim === 'missing') return reply.code(404).send({ error: 'cobranca-mensal-nao-encontrada' });
       if (claim === 'not-linked') {
@@ -223,43 +262,56 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       if (claim === 'not-open') {
         return reply.code(409).send({ error: 'cobranca-mensal-nao-esta-em-aberto' });
       }
+      if (claim === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
       if (claim === 'in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
-
-      try {
-        await asaas.receivePaymentInCash(claim.asaas_payment_id!, {
-          paymentDate: parsed.data.paymentDate,
-          value: Number(claim.amount_cents) / 100,
-          notifyCustomer: true,
-        });
-        // Não atualiza subscription_payments aqui. PAYMENT_RECEIVED precisa
-        // chegar pelo webhook para a Tenka refletir o pagamento. O que fica
-        // registrado agora é só a intenção — e quem a teve.
-        await withActor(req.userId!, (client) => client.query(
-          `insert into public.project_activity (project_id, actor_id, action, metadata)
-           values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
-          [id, req.userId, JSON.stringify({
-            scope: 'mensalidade', competence: parsed.data.competence,
-            amountCents: Number(claim.amount_cents),
-            paymentDate: parsed.data.paymentDate,
-            asaasPaymentId: claim.asaas_payment_id,
-          })],
-        ));
-        return reply.code(202).send({ submitted: true, awaitingWebhook: true });
-      } catch (error) {
-        await getPool().query(
-          `update public.subscription_payments
-              set external_receipt_pending_at = null where id = $1`, [claim.id],
-        ).catch(() => {});
-        if (error instanceof AsaasError) {
-          req.log.error({ err: error, projectId: id }, 'asaas receive in cash error');
-          // Não propaga 401/403 do provedor como se a sessão da Tenka tivesse
-          // expirado; para o painel isto é uma falha da integração externa.
-          return reply.code(502).send({ error: error.message });
-        }
-        return sendDbError(error, reply);
-      }
+      financeWorker.kick();
+      return reply.code(202).send({ queued: true, intentId: claim.intentId, awaitingWebhook: true });
     },
   );
+
+  app.post(
+    '/projects/:id/subscription-payment/receive-in-cash',
+    adminOnly,
+    async (_req, reply) => reply.code(409).send({ error: 'cobranca-mensal-exige-id' }),
+  );
+
+  app.post('/subscription-payments/:paymentId/cancel', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { paymentId } = req.params as { paymentId: string };
+    const parsed = monthlyChargeCancelSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'motivo-obrigatorio' });
+    const result = await withActor(req.userId!, async (client) => {
+      const payment = await client.query<{
+        project_id: string; source: string; status: string; asaas_payment_id: string | null;
+      }>(
+        `select project_id, source, status, asaas_payment_id
+           from public.subscription_payments where id = $1 for update`,
+        [paymentId],
+      );
+      const row = payment.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.source !== 'asaas' || !row.asaas_payment_id) return 'not-linked' as const;
+      if (!['pending', 'overdue', 'failed'].includes(row.status)) return 'not-open' as const;
+      const receipt = await client.query(
+        `select 1 from public.payment_receipt_intents
+          where subscription_payment_id = $1
+            and status in ('pending','submitted','uncertain')`,
+        [paymentId],
+      );
+      if (receipt.rows[0]) return 'receipt-in-progress' as const;
+      const queued = await queueSubscriptionPaymentOperation(
+        client, row.project_id, paymentId, 'cancel_subscription_payment', {}, parsed.data.reason,
+      );
+      return queued ? 'queued' as const : 'duplicate' as const;
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'cobranca-mensal-nao-encontrada' });
+    if (result === 'not-linked') return reply.code(409).send({ error: 'cobranca-mensal-nao-vinculada-ao-asaas' });
+    if (result === 'not-open') return reply.code(409).send({ error: 'cobranca-mensal-nao-esta-em-aberto' });
+    if (result === 'receipt-in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
+    if (result === 'duplicate') return reply.code(409).send({ error: 'cancelamento-ja-em-processamento' });
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true });
+  });
 
   // ---- Criação (admin) via RPC + update dos campos extras ------------------
   app.post('/projects', adminOnly, async (req, reply) => {
@@ -508,113 +560,191 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Arquivar / finalizar / reabrir (admin) -----------------------------
-  const stamp = (col: 'archived_at' | 'finalized_at', value: 'now' | null) =>
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = req.params as { id: string };
-      const parsed = projectLifecycleSchema.safeParse(req.body ?? {});
-      if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-      const result = await withActor(req.userId!, async (client) => {
-        const project = await client.query<{
-          name: string; subscription_id: string | null; subscription_status: string | null;
-          asaas_subscription_id: string | null;
-        }>(
-          `select p.name, ps.id as subscription_id, ps.status as subscription_status,
-                  ps.asaas_subscription_id
-             from public.projects p
-             left join public.project_subscriptions ps on ps.project_id = p.id
-            where p.id = $1 for update of p`,
-          [id],
+  app.post('/projects/:id/archive', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = projectLifecycleSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, async (client) => {
+      const project = await client.query<{
+        subscription_id: string | null; subscription_status: string | null;
+        asaas_subscription_id: string | null; archive_requested_at: string | null;
+      }>(
+        `select ps.id as subscription_id, ps.status as subscription_status,
+                ps.asaas_subscription_id, p.archive_requested_at
+           from public.projects p
+           left join public.project_subscriptions ps on ps.project_id = p.id
+          where p.id = $1 and p.archived_at is null for update of p`,
+        [id],
+      );
+      const row = project.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.archive_requested_at) return 'in-progress' as const;
+      const hasLiveSubscription = Boolean(
+        row.subscription_id && row.asaas_subscription_id
+        && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''),
+      );
+      const action = parsed.data.subscriptionAction;
+      if (hasLiveSubscription && !action) return 'action-required' as const;
+      if (hasLiveSubscription && action === 'keep') return 'keep-not-allowed' as const;
+      if (hasLiveSubscription && action !== 'keep' && !hasAsaas) return 'asaas' as const;
+      const activeReceipt = await client.query(
+        `select 1 from public.payment_receipt_intents
+          where project_id = $1 and status in ('pending','submitted','uncertain') limit 1`,
+        [id],
+      );
+      if (activeReceipt.rows[0]) return 'receipt-in-progress' as const;
+
+      const openCharges = await client.query<{ id: string }>(
+        `select id from public.project_payments
+          where project_id = $1 and status = 'pending'
+            and asaas_payment_id is not null and sync_status <> 'local'
+          order by position for update`,
+        [id],
+      );
+      if (openCharges.rows.length > 0 && !hasAsaas) return 'asaas' as const;
+      const openMonthlyCharges = await client.query<{ id: string }>(
+        `select id from public.subscription_payments
+          where project_id = $1 and asaas_payment_id is not null
+            and status in ('pending','overdue','failed')
+          order by due_date, created_at for update`,
+        [id],
+      );
+      if (openMonthlyCharges.rows.length > 0 && !hasAsaas) return 'asaas' as const;
+      await client.query(
+        `update public.projects
+            set archive_requested_at = now(), archive_requested_by = $2,
+                archive_reason = $3, archive_subscription_action = $4,
+                financial_cleanup_status = 'pending', financial_cleanup_error = null
+          where id = $1`,
+        [id, req.userId, parsed.data.reason ?? null, action ?? null],
+      );
+
+      let queuedCharges = 0;
+      for (const charge of openCharges.rows) {
+        const queued = await queueProjectPaymentOperation(
+          client, id, charge.id, 'cancel_project_charge', {},
+          parsed.data.reason ?? 'Arquivamento do projeto',
         );
-        const row = project.rows[0];
-        if (!row) return 'missing' as const;
-        const hasLiveSubscription = Boolean(
-          row.subscription_id && row.asaas_subscription_id
-          && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''),
-        );
-        const action = parsed.data.subscriptionAction;
-        if (value === 'now' && hasLiveSubscription && !action) return 'action-required' as const;
-        if (value === 'now' && hasLiveSubscription && action !== 'keep') {
-          if (!hasAsaas) return 'asaas' as const;
-          await queueSubscriptionOperation(
-            client,
-            id,
-            row.subscription_id!,
-            action === 'pause' ? 'pause_subscription' : 'cancel_subscription',
-          );
-        }
-        // Arquivar tira o projeto da visão financeira. Uma cobrança de etapa
-        // deixada em aberto continuaria chegando ao cliente sem aparecer em
-        // lugar nenhum do painel, então o arquivamento a encerra junto.
-        // Finalizar não faz isso: um projeto entregue ainda tem o que receber.
-        let cancelledCharges = 0;
-        let cancelledLocally = 0;
-        if (col === 'archived_at' && value === 'now') {
-          const openCharges = await client.query<{ id: string }>(
-            `select id from public.project_payments
-              where project_id = $1 and status = 'pending'
-                and asaas_payment_id is not null and sync_status <> 'local'
-              order by position
-              for update`,
-            [id],
-          );
-          if (openCharges.rows.length > 0 && !hasAsaas) return 'asaas' as const;
-          for (const charge of openCharges.rows) {
-            const queued = await queueProjectPaymentOperation(
-              client, id, charge.id, 'cancel_project_charge');
-            if (!queued) continue;
-            cancelledCharges += 1;
-            await client.query(
-              `update public.project_payments
-                  set sync_status = 'queued', sync_error = null where id = $1`,
-              [charge.id],
-            );
-          }
-          // As que nunca saíram daqui não têm o que cancelar no provedor.
-          const localOpen = await client.query(
-            `update public.project_payments
-                set status = 'cancelled'
-              where project_id = $1 and status = 'pending' and asaas_payment_id is null`,
-            [id],
-          );
-          cancelledLocally = localOpen.rowCount ?? 0;
-          if (cancelledCharges > 0 || cancelledLocally > 0) {
-            await client.query(
-              `insert into public.project_activity (project_id, actor_id, action, metadata)
-               values ($1,$2,'cobrancas_encerradas_por_arquivamento',$3::jsonb)`,
-              [id, req.userId, JSON.stringify({
-                cancelledAtProvider: cancelledCharges, cancelledLocally,
-              })],
-            );
-          }
-        }
+        if (!queued) continue;
+        queuedCharges += 1;
         await client.query(
-          `update public.projects set ${col} = ${value === 'now' ? 'now()' : 'null'} where id = $1`,
-          [id],
+          `update public.project_payments
+              set sync_status = 'queued', sync_error = null where id = $1`,
+          [charge.id],
         );
-        return {
-          queued: (value === 'now' && hasLiveSubscription && action !== 'keep') || cancelledCharges > 0,
-          cancelledCharges,
-          cancelledLocally,
-        };
-      });
-      if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
-      if (result === 'action-required') {
-        return reply.code(409).send({
-          error: 'acao-da-assinatura-obrigatoria',
-          message: 'Escolha se a assinatura deve continuar, ser pausada ou ser cancelada.',
-        });
       }
-      if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
-      if (result.queued) financeWorker.kick();
-      return reply.send({
-        ok: true, queued: result.queued,
-        cancelledCharges: result.cancelledCharges,
-        cancelledLocally: result.cancelledLocally,
-      });
-    };
-  app.post('/projects/:id/archive', adminOnly, stamp('archived_at', 'now'));
-  app.post('/projects/:id/finalize', adminOnly, stamp('finalized_at', 'now'));
-  app.post('/projects/:id/reopen', adminOnly, stamp('finalized_at', null));
+      const localOpen = await client.query(
+        `update public.project_payments set status = 'cancelled'
+          where project_id = $1 and status = 'pending' and asaas_payment_id is null`,
+        [id],
+      );
+      const cancelledLocally = localOpen.rowCount ?? 0;
+      let queuedMonthlyCharges = 0;
+      // Cancelar a assinatura já encerra as cobranças abertas no mesmo worker.
+      // Ao pausar (ou ao arquivar uma assinatura já inativa), cada cobrança
+      // emitida precisa de seu próprio cancelamento exato.
+      if (action !== 'cancel') for (const charge of openMonthlyCharges.rows) {
+        const queued = await queueSubscriptionPaymentOperation(
+          client, id, charge.id, 'cancel_subscription_payment', {},
+          parsed.data.reason ?? 'Arquivamento do projeto',
+        );
+        if (queued) queuedMonthlyCharges += 1;
+      }
+      let subscriptionQueued = false;
+      if (hasLiveSubscription && action !== 'keep') {
+        subscriptionQueued = await queueSubscriptionOperation(
+          client, id, row.subscription_id!,
+          action === 'pause' ? 'pause_subscription' : 'cancel_subscription', {},
+          parsed.data.reason ?? 'Arquivamento do projeto',
+        );
+      }
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'cobrancas_encerradas_por_arquivamento',$3::jsonb)`,
+        [id, req.userId, JSON.stringify({
+          requestedAtProvider: queuedCharges, cancelledLocally,
+          requestedMonthlyAtProvider: action === 'cancel'
+            ? openMonthlyCharges.rows.length : queuedMonthlyCharges,
+          subscriptionAction: action ?? null, reason: parsed.data.reason ?? null,
+          status: 'pending',
+        })],
+      );
+      return {
+        queued: queuedCharges > 0 || queuedMonthlyCharges > 0 || subscriptionQueued,
+        queuedCharges, queuedMonthlyCharges, cancelledLocally,
+      };
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
+    if (result === 'in-progress') return reply.code(409).send({ error: 'arquivamento-em-andamento' });
+    if (result === 'action-required') return reply.code(409).send({
+      error: 'acao-da-assinatura-obrigatoria',
+      message: 'Escolha se a assinatura deve continuar, ser pausada ou ser cancelada.',
+    });
+    if (result === 'keep-not-allowed') return reply.code(409).send({
+      error: 'assinatura-ativa-impede-arquivamento',
+      message: 'Finalize o projeto para manter a mensalidade ativa. Para arquivar, pause ou cancele a assinatura.',
+    });
+    if (result === 'receipt-in-progress') return reply.code(409).send({
+      error: 'baixa-manual-em-andamento',
+      message: 'Aguarde a confirmação ou revisão da baixa manual antes de arquivar.',
+    });
+    if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const archived = await tryFinalizePendingArchive(id);
+    if (result.queued) financeWorker.kick();
+    return reply.send({
+      ok: true, archived, cleanupPending: !archived,
+      queuedCharges: result.queuedCharges, cancelledLocally: result.cancelledLocally,
+      queuedMonthlyCharges: result.queuedMonthlyCharges,
+    });
+  });
+
+  app.post('/projects/:id/finalize', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = projectLifecycleSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, async (client) => {
+      const found = await client.query<{
+        subscription_id: string | null; subscription_status: string | null;
+        asaas_subscription_id: string | null;
+      }>(
+        `select ps.id as subscription_id, ps.status as subscription_status,
+                ps.asaas_subscription_id
+           from public.projects p
+           left join public.project_subscriptions ps on ps.project_id = p.id
+          where p.id = $1 for update of p`,
+        [id],
+      );
+      const row = found.rows[0];
+      if (!row) return 'missing' as const;
+      const live = Boolean(row.subscription_id && row.asaas_subscription_id
+        && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''));
+      if (live && !parsed.data.subscriptionAction) return 'action-required' as const;
+      let queued = false;
+      if (live && parsed.data.subscriptionAction !== 'keep') {
+        if (!hasAsaas) return 'asaas' as const;
+        queued = await queueSubscriptionOperation(
+          client, id, row.subscription_id!,
+          parsed.data.subscriptionAction === 'pause' ? 'pause_subscription' : 'cancel_subscription',
+          {}, parsed.data.reason ?? 'Finalização do projeto',
+        );
+      }
+      await client.query('update public.projects set finalized_at = now() where id = $1', [id]);
+      return { queued };
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
+    if (result === 'action-required') return reply.code(409).send({ error: 'acao-da-assinatura-obrigatoria' });
+    if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    if (result.queued) financeWorker.kick();
+    return reply.send({ ok: true, queued: result.queued });
+  });
+  app.post('/projects/:id/reopen', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, (client) => client.query(
+      'update public.projects set finalized_at = null where id = $1 returning id', [id],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
+    return reply.send({ ok: true });
+  });
 
   // ---- Responsáveis (admin) -----------------------------------------------
   app.post('/projects/:id/assignees', adminOnly, async (req, reply) => {
