@@ -123,6 +123,15 @@ function sameIntegratedStructure(current: ProtectedPlanRow, desired: PlanRowInpu
 }
 
 /**
+ * Estados em que o dinheiro já se moveu. A linha vira história: nem o painel
+ * nem o Asaas podem reescrevê-la. Estorno e chargeback entram aqui porque o
+ * pagamento aconteceu — o que veio depois foi a devolução, não um desfazer.
+ */
+const SETTLED_ROW_STATUSES = new Set([
+  'paid', 'refunded', 'refund_requested', 'chargeback',
+]);
+
+/**
  * Uma cobrança pendente já sincronizada pode mudar somente valor/vencimento.
  * Exclusão e mudanças estruturais exigem cancelamento; alterações enquanto
  * outra sincronização está em voo são recusadas para não perder intenção.
@@ -140,7 +149,13 @@ export function integratedPlanUpdates(
     const incoming = desiredById.get(row.id);
     const changedOrRemoved = !incoming || !sameFinancialRow(row, incoming);
     if (!changedOrRemoved) continue;
-    if (row.status === 'paid') return { error: 'linha-paga-imutavel', updates: [] };
+    if (SETTLED_ROW_STATUSES.has(row.status)) {
+      return { error: 'linha-paga-imutavel', updates: [] };
+    }
+    // Cancelada não existe mais no Asaas — e história não tranca o plano.
+    // Sem esta saída, cancelar uma cobrança congelava a etapa: não dava para
+    // remover, editar nem reemitir, e ela seguia ocupando parte do contrato.
+    if (row.status === 'cancelled') continue;
     if (row.syncStatus === 'local') continue;
     if (row.syncStatus !== 'synced' || !incoming || !sameIntegratedStructure(row, incoming)) {
       return { error: 'linha-sincronizada-imutavel', updates: [] };

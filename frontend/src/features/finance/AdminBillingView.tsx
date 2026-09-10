@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CircleCheck, RefreshCw, ScanSearch, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CircleCheck, RefreshCw, RotateCw, ScanSearch, ShieldCheck, XCircle } from 'lucide-react';
 import { formatCurrencyFromCents, formatDate } from '../panel/format';
 import { useToast } from '../panel/ToastContext';
 import { subscribeRealtime } from '../../lib/api/events';
@@ -30,6 +30,7 @@ export function AdminBillingView() {
   const [reconciliation, setReconciliation] = useState<finance.ReconciliationResult | null>(null);
   const [historicalReview, setHistoricalReview] = useState<finance.HistoricalReviewResult | null>(null);
   const [reconciling, setReconciling] = useState(false);
+  const [attention, setAttention] = useState<finance.AttentionQueue | null>(null);
   const [dueDateFrom, setDueDateFrom] = useState(initialFrom);
   const [dueDateTo, setDueDateTo] = useState(initialTo);
   const load = useCallback(async () => {
@@ -38,10 +39,15 @@ export function AdminBillingView() {
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
+  const loadAttention = useCallback(() => {
+    finance.fetchAttentionQueue().then(setAttention).catch(() => {});
+  }, []);
+
   useEffect(() => {
     finance.fetchLatestReconciliation().then(setReconciliation).catch(() => {});
     finance.fetchHistoricalReview().then(setHistoricalReview).catch(() => {});
-  }, []);
+    loadAttention();
+  }, [loadAttention]);
   useEffect(() => subscribeRealtime(
     ['project_subscriptions', 'project_payments', 'subscription_payments'],
     () => void load(),
@@ -65,6 +71,32 @@ export function AdminBillingView() {
     } catch (error) {
       toast('error', errorMessage(error));
     } finally { setReconciling(false); }
+  };
+
+  /**
+   * Reprocessar devolve o item à fila; encerrar exige justificativa porque é
+   * uma decisão de não tratar, e ela precisa ficar registrada com um dono.
+   */
+  const resolveAttention = async (
+    action: 'retry' | 'discard',
+    target: 'event' | 'operation',
+    id: string,
+  ) => {
+    let notes = '';
+    if (action === 'discard') {
+      notes = (window.prompt('Por que este item não será tratado?') ?? '').trim();
+      if (notes.length < 3) return;
+    }
+    try {
+      if (target === 'event') {
+        if (action === 'retry') await finance.retryWebhookEvent(id);
+        else await finance.discardWebhookEvent(id, notes);
+      } else if (action === 'retry') await finance.retryFinanceOperation(id);
+      else await finance.discardFinanceOperation(id, notes);
+      toast('success', action === 'retry' ? 'Item devolvido à fila.' : 'Item encerrado.');
+      loadAttention();
+      void load();
+    } catch (error) { toast('error', errorMessage(error)); }
   };
 
   const classifyReview = async (
@@ -111,6 +143,79 @@ export function AdminBillingView() {
         <span>Operação mais antiga na fila <strong>{overview.queue.oldestPendingAt ? new Date(overview.queue.oldestPendingAt).toLocaleString('pt-BR') : 'nenhuma'}</strong></span>
       </div>
     </section>}
+
+    {(attention?.events.length || attention?.operations.length) ? (
+      <section className="cart-panel finance-attention">
+        <header className="cart-panel__head">
+          <div>
+            <h2 className="cart-panel__title">Fila de atenção</h2>
+            <p>O que parou sozinho e não volta a andar sem uma decisão.</p>
+          </div>
+          <button className="panel-iconbtn" type="button" onClick={loadAttention}
+            aria-label="Atualizar fila de atenção"><RefreshCw size={16} /></button>
+        </header>
+
+        {attention.operations.length > 0 && (
+          <div className="finance-attention__group">
+            <h4>Operações que desistiram</h4>
+            {attention.operations.map((item) => (
+              <div key={item.id} className="finance-attention__item">
+                <div>
+                  <strong>{item.project_name}{item.payment_name ? ` — ${item.payment_name}` : ''}</strong>
+                  <small>
+                    {item.kind} · {item.status === 'uncertain' ? 'resultado indefinido' : `${item.attempts} tentativa(s)`}
+                    {item.last_error ? ` · ${item.last_error}` : ''}
+                  </small>
+                </div>
+                <span className="finance-attention__actions">
+                  <button type="button" className="panel-iconbtn" title="Reprocessar"
+                    aria-label={`Reprocessar operação de ${item.project_name}`}
+                    onClick={() => void resolveAttention('retry', 'operation', item.id)}>
+                    <RotateCw size={14} />
+                  </button>
+                  <button type="button" className="panel-iconbtn" title="Encerrar sem tratar"
+                    aria-label={`Encerrar operação de ${item.project_name}`}
+                    onClick={() => void resolveAttention('discard', 'operation', item.id)}>
+                    <XCircle size={14} />
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {attention.events.length > 0 && (
+          <div className="finance-attention__group">
+            <h4>Webhooks sem alvo reconhecido</h4>
+            {attention.events.map((item) => (
+              <div key={item.id} className="finance-attention__item">
+                <div>
+                  <strong>{item.event_type}</strong>
+                  <small>
+                    {new Date(item.received_at).toLocaleString('pt-BR')}
+                    {item.payment_value ? ` · R$ ${item.payment_value}` : ''}
+                    {item.external_reference ? ` · ref ${item.external_reference}` : ' · sem referência'}
+                    {item.last_error ? ` · ${item.last_error}` : ''}
+                  </small>
+                </div>
+                <span className="finance-attention__actions">
+                  <button type="button" className="panel-iconbtn" title="Reprocessar"
+                    aria-label={`Reprocessar webhook ${item.event_type}`}
+                    onClick={() => void resolveAttention('retry', 'event', item.id)}>
+                    <RotateCw size={14} />
+                  </button>
+                  <button type="button" className="panel-iconbtn" title="Encerrar sem tratar"
+                    aria-label={`Encerrar webhook ${item.event_type}`}
+                    onClick={() => void resolveAttention('discard', 'event', item.id)}>
+                    <XCircle size={14} />
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    ) : null}
 
     <section className="cart-panel finance-review">
       <header className="cart-panel__head">

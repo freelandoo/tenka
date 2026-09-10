@@ -18,6 +18,7 @@ import { webhookRoutes } from './modules/webhooks';
 import { meetingRoutes } from './modules/meetings';
 import { financeRoutes } from './modules/finance';
 import { financeWorker } from './finance/worker';
+import { reconciliationJob } from './finance/reconciliationJob';
 import { realtimeBus } from './realtime/bus';
 
 const app = Fastify({
@@ -62,19 +63,26 @@ async function main(): Promise<void> {
     message: 'API do TENKA — esqueleto (fase F1). Rotas de domínio chegam nas próximas fases.',
   }));
 
+  const startFinanceJobs = () => {
+    financeWorker.start();
+    reconciliationJob.start((err) => {
+      app.log.error({ err }, 'Falha na conciliação automática do Asaas');
+    });
+  };
+
   // Sobe primeiro (health verde), depois aplica migrations em segundo plano.
   await app.listen({ host: '0.0.0.0', port: env.port });
 
   if (hasDatabase && env.runMigrationsOnBoot) {
     runMigrations()
-      .then(() => financeWorker.start())
+      .then(() => startFinanceJobs())
       .catch((err) => {
         app.log.error({ err }, 'Falha ao aplicar migrations no boot');
       });
   } else if (!hasDatabase) {
     app.log.warn('DATABASE_URL ausente — servidor no ar, mas sem banco.');
   } else {
-    financeWorker.start();
+    startFinanceJobs();
   }
 
   // Realtime (SSE): conexão dedicada em LISTEN. Independe das migrations —
@@ -92,6 +100,7 @@ for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     app.log.info(`${sig} recebido — encerrando.`);
     await realtimeBus.stop().catch(() => {});
     financeWorker.stop();
+    reconciliationJob.stop();
     await app.close().catch(() => {});
     await closeDb().catch(() => {});
     process.exit(0);

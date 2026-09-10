@@ -1,7 +1,9 @@
+import { useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { CarteiraView } from '../../../features/projects/components/CarteiraView';
 import { useAdminBoardData } from '../../../features/admin/useAdminBoardData';
 import { AdminBillingView } from '../../../features/finance/AdminBillingView';
+import { FinanceQueueAlert } from '../../../features/finance/FinanceQueueAlert';
 
 /**
  * Financeiro — a Carteira como seção da Administração.
@@ -12,6 +14,10 @@ import { AdminBillingView } from '../../../features/finance/AdminBillingView';
  */
 export default function AdminFinancePage() {
   const { status, projects, profiles, refresh } = useAdminBoardData();
+  // O painel técnico continua recolhido por padrão; o alerta é que passou a
+  // conseguir abri-lo, porque é dentro dele que estão os botões de resolver.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
 
   return (
     <>
@@ -45,13 +51,24 @@ export default function AdminFinancePage() {
 
       {status === 'ready' && (
         <>
+          <FinanceQueueAlert onOpenDetails={() => {
+            setDetailsOpen(true);
+            requestAnimationFrame(() => {
+              detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }} />
           <CarteiraView
             projects={projects}
             profiles={profiles}
             isAdmin
             onProjectsChanged={() => void refresh()}
           />
-          <details className="finance-admin__details">
+          <details
+            ref={detailsRef}
+            className="finance-admin__details"
+            open={detailsOpen}
+            onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+          >
             <summary>Integração, assinaturas e últimas mensalidades</summary>
             <AdminBillingView />
           </details>

@@ -10,6 +10,7 @@ import {
 import { useToast } from '../../panel/ToastContext';
 import { subscribeRealtime } from '../../../lib/api/events';
 import { PanelOverlay } from '../../panel/PanelOverlay';
+import { ConfirmDialog } from '../../panel/ConfirmDialog';
 import * as financeService from '../../finance/financeService';
 import type { ProjectFinance } from '../../finance/financeService';
 
@@ -70,6 +71,9 @@ export function SubscriptionList({
 }: SubscriptionListProps) {
   const { toast } = useToast();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
+  const [confirmingReceipt, setConfirmingReceipt] = useState<
+    { project: BoardProject; payment: SubscriptionPaymentRow } | null
+  >(null);
   const [payments, setPayments] = useState<SubscriptionPaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState(false);
@@ -139,16 +143,12 @@ export function SubscriptionList({
     [payments],
   );
 
-  const registerOutside = async (project: BoardProject, payment: SubscriptionPaymentRow) => {
-    const accepted = window.confirm(
-      `Registrar no Asaas o pagamento de ${formatCurrencyFromCents(payment.amount_cents)} ` +
-      `referente a ${competenceLabel}? A Tenka só mostrará como pago após receber o webhook.`,
-    );
-    if (!accepted) return;
+  const registerOutside = async (project: BoardProject, paymentDate: string) => {
     setBusyPaymentId(project.id);
     try {
-      await registerSubscriptionPaymentOutside(project.id, competence, localIsoDate());
+      await registerSubscriptionPaymentOutside(project.id, competence, paymentDate);
       toast('success', 'Pagamento registrado no Asaas. Aguardando confirmação pelo webhook.');
+      setConfirmingReceipt(null);
       if (currentCompetence.current === competence) await loadPayments();
     } catch (error) {
       toast('error', error instanceof Error ? error.message : 'Falha ao registrar o pagamento no Asaas.');
@@ -284,7 +284,7 @@ export function SubscriptionList({
                       <button type="button" className="panel-iconbtn fees__billing-icon"
                         aria-label="Registrar pagamento por fora" title="Registrar pagamento por fora"
                         disabled={busyPaymentId === p.id}
-                        onClick={() => void registerOutside(p, payment)}>
+                        onClick={() => setConfirmingReceipt({ project: p, payment })}>
                         <Banknote size={14} />
                       </button>
                     )}
@@ -421,6 +421,30 @@ export function SubscriptionList({
             )}
           </div>
         </PanelOverlay>
+      )}
+
+      {confirmingReceipt && (
+        <ConfirmDialog
+          title="Registrar pagamento por fora"
+          description={<>
+            O Asaas vai dar a mensalidade por recebida e avisar o cliente. A Tenka
+            só mostra como paga depois que o webhook confirmar.
+          </>}
+          details={[
+            { label: 'Projeto', value: confirmingReceipt.project.name },
+            { label: 'Competência', value: competenceLabel },
+            {
+              label: 'Valor',
+              value: formatCurrencyFromCents(confirmingReceipt.payment.amount_cents),
+            },
+          ]}
+          dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
+          warning="A Tenka não desfaz uma baixa manual: reverter exige o painel do Asaas. Seu nome fica no histórico do projeto."
+          confirmLabel="Registrar pagamento"
+          busy={busyPaymentId === confirmingReceipt.project.id}
+          onConfirm={(date) => void registerOutside(confirmingReceipt.project, date)}
+          onCancel={() => setConfirmingReceipt(null)}
+        />
       )}
     </div>
   );

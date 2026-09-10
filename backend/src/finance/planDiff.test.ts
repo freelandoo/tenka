@@ -143,3 +143,32 @@ describe('protecao de linhas financeiras', () => {
     ])).toBe('linha-sincronizada-imutavel');
   });
 });
+
+
+describe('integratedPlanUpdates — linha cancelada', () => {
+  const cancelled = {
+    id: 'row-cancelada', position: 0, name: 'Entrada', description: '',
+    amountCents: 50_000, dueDate: '2026-10-01', kind: 'stage' as const,
+    installmentGroupId: null, installmentNumber: null, installmentCount: null,
+    groupLabel: '', status: 'cancelled', syncStatus: 'synced',
+  };
+
+  it('deixa sair do plano: a cobrança não existe mais no Asaas', () => {
+    expect(integratedPlanUpdates([cancelled], [])).toEqual({ error: null, updates: [] });
+  });
+
+  it('deixa reescrever sem enfileirar atualização no provedor', () => {
+    const result = integratedPlanUpdates([cancelled], [{
+      id: 'row-cancelada', name: 'Entrada revisada', description: '',
+      amountCents: 60_000, dueDate: '2026-11-01',
+    }]);
+    expect(result).toEqual({ error: null, updates: [] });
+  });
+
+  it('continua protegendo estorno e chargeback como história', () => {
+    for (const status of ['paid', 'refunded', 'refund_requested', 'chargeback']) {
+      expect(integratedPlanUpdates([{ ...cancelled, status }], []).error)
+        .toBe('linha-paga-imutavel');
+    }
+  });
+});

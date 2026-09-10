@@ -75,6 +75,10 @@ export const env = {
   /** Token definido no webhook do Asaas e recebido em `asaas-access-token`. */
   asaasWebhookToken: (process.env.ASAAS_WEBHOOK_TOKEN ?? '').trim(),
   asaasTimeoutMs: Math.max(1_000, Number(process.env.ASAAS_TIMEOUT_MS ?? 15_000)),
+  /** Intervalo da conciliação automática, em horas. Zero desliga o job. */
+  financeReconciliationHours: Math.max(
+    0, Number(process.env.FINANCE_RECONCILIATION_HOURS ?? 6),
+  ),
 } as const;
 
 export const hasDatabase = env.databaseUrl.length > 0;

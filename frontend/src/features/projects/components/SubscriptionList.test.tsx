@@ -281,7 +281,6 @@ describe('SubscriptionList', () => {
   it('registra pagamento por fora no Asaas e aguarda o webhook', async () => {
     mockedFetchPayments.mockResolvedValue([makePayment()]);
     mockedRegisterOutside.mockResolvedValue({ submitted: true, awaitingWebhook: true });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(
       <SubscriptionList
         {...defaultProps}
@@ -292,6 +291,11 @@ describe('SubscriptionList', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Registrar pagamento por fora' }));
+    expect(await screen.findByRole('heading', { name: 'Registrar pagamento por fora' }))
+      .toBeInTheDocument();
+    expect(mockedRegisterOutside).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     await waitFor(() => expect(mockedRegisterOutside).toHaveBeenCalledWith(
       'a', '2026-08', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     ));

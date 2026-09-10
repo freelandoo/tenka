@@ -76,6 +76,7 @@ export interface AsaasPayment {
   bankSlipUrl?: string;
   externalReference?: string;
   subscription?: string;
+  deleted?: boolean;
 }
 
 export interface AsaasPixQrCode {
@@ -139,9 +140,13 @@ export const asaas = {
   },
   async findPayment(externalReference: string): Promise<AsaasPayment | null> {
     const page = await request<AsaasPage<AsaasPayment>>(
-      `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=1`,
+      `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=10`,
     );
-    return page.data[0] ?? null;
+    // Esta busca é a proteção contra cobrança duplicada: o worker a consulta
+    // antes de criar. Uma cobrança cancelada continua listada, e reaproveitá-la
+    // devolveria um boleto morto ao cliente — como já acontece em
+    // `findSubscription`, a apagada é ignorada e o worker emite outra.
+    return page.data.find((payment) => !payment.deleted) ?? null;
   },
   getPayment(id: string) {
     return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`);

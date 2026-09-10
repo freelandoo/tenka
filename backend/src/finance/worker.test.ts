@@ -82,7 +82,8 @@ vi.mock('../db/pool', () => ({
     fn(hoisted.db.pool),
 }));
 
-import { runFinanceWorker } from './worker';
+import { runFinanceWorker, uncertainOutcome } from './worker';
+import { AsaasError } from './asaas';
 
 // ---------------------------------------------------------------------------
 // Duplo de banco
@@ -513,5 +514,23 @@ describe('worker financeiro — pagamentos de projeto', () => {
 
     expect(hoisted.db.event().status).toBe('needs_review');
     expect(hoisted.db.event().attempts).toBe(1);
+  });
+});
+
+describe('uncertainOutcome', () => {
+  it('não desiste no primeiro ruído de rede: a retentativa costuma resolver', () => {
+    expect(uncertainOutcome(new AsaasError('timeout', 504), 1)).toBe(false);
+    expect(uncertainOutcome(new AsaasError('timeout', 504), 2)).toBe(false);
+  });
+
+  it('para de insistir quando o provedor falha do lado dele três vezes', () => {
+    expect(uncertainOutcome(new AsaasError('timeout', 504), 3)).toBe(true);
+    expect(uncertainOutcome(new AsaasError('indisponível', 503), 4)).toBe(true);
+  });
+
+  it('erro de regra do Asaas não é resultado indefinido — ele foi recusado', () => {
+    expect(uncertainOutcome(new AsaasError('CPF inválido', 400), 5)).toBe(false);
+    expect(uncertainOutcome(new AsaasError('não encontrado', 404), 5)).toBe(false);
+    expect(uncertainOutcome(new Error('falha local'), 5)).toBe(false);
   });
 });

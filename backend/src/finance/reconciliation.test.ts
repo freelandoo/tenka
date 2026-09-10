@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { compareFinancialPayment, reconcileFinancialPayments } from './reconciliation';
+import { compareFinancialPayment, reconcileFinancialPayments,
+  projectPaymentStatusFromProvider,
+} from './reconciliation';
 
 const local = {
   kind: 'project_payment' as const, projectId: 'project-1', asaasPaymentId: 'pay-1',
@@ -40,5 +42,27 @@ describe('conciliação financeira', () => {
     expect(rows[0]).toEqual(expect.objectContaining({
       kind: 'subscription', projectId: 'project-2', divergence: 'missing_local',
     }));
+  });
+});
+
+
+describe('projectPaymentStatusFromProvider', () => {
+  it('trata recebido e confirmado como pago', () => {
+    expect(projectPaymentStatusFromProvider('RECEIVED')).toBe('paid');
+    expect(projectPaymentStatusFromProvider('RECEIVED_IN_CASH')).toBe('paid');
+    expect(projectPaymentStatusFromProvider('CONFIRMED')).toBe('paid');
+  });
+
+  it('separa estorno e chargeback de cancelamento', () => {
+    expect(projectPaymentStatusFromProvider('REFUNDED')).toBe('refunded');
+    expect(projectPaymentStatusFromProvider('PARTIALLY_REFUNDED')).toBe('refunded');
+    expect(projectPaymentStatusFromProvider('REFUND_REQUESTED')).toBe('refund_requested');
+    expect(projectPaymentStatusFromProvider('CHARGEBACK_REQUESTED')).toBe('chargeback');
+    expect(projectPaymentStatusFromProvider('DELETED')).toBe('cancelled');
+  });
+
+  it('mantém em aberto o que ainda não se resolveu', () => {
+    expect(projectPaymentStatusFromProvider('PENDING')).toBe('pending');
+    expect(projectPaymentStatusFromProvider('OVERDUE')).toBe('pending');
   });
 });

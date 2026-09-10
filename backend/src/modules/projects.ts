@@ -17,7 +17,10 @@ import { nextMonthlyDueDate } from '../finance/dueDate';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
 import { projectValueChangeError } from '../finance/projectValueChange';
-import { queueSubscriptionOperation } from '../finance/queue';
+import { queueProjectPaymentOperation, queueSubscriptionOperation } from '../finance/queue';
+
+/** Janela da reserva da baixa manual — ver `RECEIPT_CLAIM_MS` em modules/finance. */
+const RECEIPT_CLAIM_MS = 5 * 60_000;
 
 /**
  * Observação = registro de mensagem. `channel` diz por onde ela saiu; `registro`
@@ -180,36 +183,73 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       const parsed = externalPaymentSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
 
-      const { rows } = await getPool().query<{
-        asaas_payment_id: string | null;
-        amount_cents: number;
-        status: string;
-        source: string;
-      }>(
-        `select asaas_payment_id, amount_cents, status, source
-           from public.subscription_payments
-          where project_id = $1 and competence = ($2 || '-01')::date`,
-        [id, parsed.data.competence],
-      );
-      const payment = rows[0];
-      if (!payment) return reply.code(404).send({ error: 'cobranca-mensal-nao-encontrada' });
-      if (payment.source !== 'asaas' || !payment.asaas_payment_id) {
+      // A linha é reservada antes da chamada: dois cliques simultâneos viravam
+      // duas baixas no Asaas, e a segunda voltava como erro do provedor.
+      const claim = await withActor(req.userId!, async (client) => {
+        const { rows } = await client.query<{
+          id: string;
+          asaas_payment_id: string | null;
+          amount_cents: number;
+          status: string;
+          source: string;
+          external_receipt_pending_at: string | null;
+        }>(
+          `select id, asaas_payment_id, amount_cents, status, source,
+                  external_receipt_pending_at
+             from public.subscription_payments
+            where project_id = $1 and competence = ($2 || '-01')::date
+            for update`,
+          [id, parsed.data.competence],
+        );
+        const payment = rows[0];
+        if (!payment) return 'missing' as const;
+        if (payment.source !== 'asaas' || !payment.asaas_payment_id) return 'not-linked' as const;
+        if (!['pending', 'overdue', 'failed'].includes(payment.status)) return 'not-open' as const;
+        if (payment.external_receipt_pending_at
+          && Date.now() - Date.parse(payment.external_receipt_pending_at) < RECEIPT_CLAIM_MS) {
+          return 'in-progress' as const;
+        }
+        await client.query(
+          `update public.subscription_payments
+              set external_receipt_pending_at = now() where id = $1`,
+          [payment.id],
+        );
+        return payment;
+      });
+      if (claim === 'missing') return reply.code(404).send({ error: 'cobranca-mensal-nao-encontrada' });
+      if (claim === 'not-linked') {
         return reply.code(409).send({ error: 'cobranca-mensal-nao-vinculada-ao-asaas' });
       }
-      if (!['pending', 'overdue', 'failed'].includes(payment.status)) {
+      if (claim === 'not-open') {
         return reply.code(409).send({ error: 'cobranca-mensal-nao-esta-em-aberto' });
       }
+      if (claim === 'in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
 
       try {
-        await asaas.receivePaymentInCash(payment.asaas_payment_id, {
+        await asaas.receivePaymentInCash(claim.asaas_payment_id!, {
           paymentDate: parsed.data.paymentDate,
-          value: Number(payment.amount_cents) / 100,
+          value: Number(claim.amount_cents) / 100,
           notifyCustomer: true,
         });
         // Não atualiza subscription_payments aqui. PAYMENT_RECEIVED precisa
-        // chegar pelo webhook para a Tenka refletir o pagamento.
+        // chegar pelo webhook para a Tenka refletir o pagamento. O que fica
+        // registrado agora é só a intenção — e quem a teve.
+        await withActor(req.userId!, (client) => client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            scope: 'mensalidade', competence: parsed.data.competence,
+            amountCents: Number(claim.amount_cents),
+            paymentDate: parsed.data.paymentDate,
+            asaasPaymentId: claim.asaas_payment_id,
+          })],
+        ));
         return reply.code(202).send({ submitted: true, awaitingWebhook: true });
       } catch (error) {
+        await getPool().query(
+          `update public.subscription_payments
+              set external_receipt_pending_at = null where id = $1`, [claim.id],
+        ).catch(() => {});
         if (error instanceof AsaasError) {
           req.log.error({ err: error, projectId: id }, 'asaas receive in cash error');
           // Não propaga 401/403 do provedor como se a sessão da Tenka tivesse
@@ -502,11 +542,60 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             action === 'pause' ? 'pause_subscription' : 'cancel_subscription',
           );
         }
+        // Arquivar tira o projeto da visão financeira. Uma cobrança de etapa
+        // deixada em aberto continuaria chegando ao cliente sem aparecer em
+        // lugar nenhum do painel, então o arquivamento a encerra junto.
+        // Finalizar não faz isso: um projeto entregue ainda tem o que receber.
+        let cancelledCharges = 0;
+        let cancelledLocally = 0;
+        if (col === 'archived_at' && value === 'now') {
+          const openCharges = await client.query<{ id: string }>(
+            `select id from public.project_payments
+              where project_id = $1 and status = 'pending'
+                and asaas_payment_id is not null and sync_status <> 'local'
+              order by position
+              for update`,
+            [id],
+          );
+          if (openCharges.rows.length > 0 && !hasAsaas) return 'asaas' as const;
+          for (const charge of openCharges.rows) {
+            const queued = await queueProjectPaymentOperation(
+              client, id, charge.id, 'cancel_project_charge');
+            if (!queued) continue;
+            cancelledCharges += 1;
+            await client.query(
+              `update public.project_payments
+                  set sync_status = 'queued', sync_error = null where id = $1`,
+              [charge.id],
+            );
+          }
+          // As que nunca saíram daqui não têm o que cancelar no provedor.
+          const localOpen = await client.query(
+            `update public.project_payments
+                set status = 'cancelled'
+              where project_id = $1 and status = 'pending' and asaas_payment_id is null`,
+            [id],
+          );
+          cancelledLocally = localOpen.rowCount ?? 0;
+          if (cancelledCharges > 0 || cancelledLocally > 0) {
+            await client.query(
+              `insert into public.project_activity (project_id, actor_id, action, metadata)
+               values ($1,$2,'cobrancas_encerradas_por_arquivamento',$3::jsonb)`,
+              [id, req.userId, JSON.stringify({
+                cancelledAtProvider: cancelledCharges, cancelledLocally,
+              })],
+            );
+          }
+        }
         await client.query(
           `update public.projects set ${col} = ${value === 'now' ? 'now()' : 'null'} where id = $1`,
           [id],
         );
-        return { queued: value === 'now' && hasLiveSubscription && action !== 'keep' };
+        return {
+          queued: (value === 'now' && hasLiveSubscription && action !== 'keep') || cancelledCharges > 0,
+          cancelledCharges,
+          cancelledLocally,
+        };
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'action-required') {
@@ -517,7 +606,11 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       }
       if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
       if (result.queued) financeWorker.kick();
-      return reply.send({ ok: true, queued: result.queued });
+      return reply.send({
+        ok: true, queued: result.queued,
+        cancelledCharges: result.cancelledCharges,
+        cancelledLocally: result.cancelledLocally,
+      });
     };
   app.post('/projects/:id/archive', adminOnly, stamp('archived_at', 'now'));
   app.post('/projects/:id/finalize', adminOnly, stamp('finalized_at', 'now'));

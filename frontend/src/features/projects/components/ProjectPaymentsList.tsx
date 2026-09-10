@@ -6,6 +6,7 @@ import * as finance from '../../finance/financeService';
 import { cents, formatCurrencyFromCents, formatDate } from '../../panel/format';
 import { useToast } from '../../panel/ToastContext';
 import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
+import { ConfirmDialog } from '../../panel/ConfirmDialog';
 
 interface ProjectPaymentsListProps {
   isAdmin: boolean;
@@ -26,7 +27,15 @@ const STATUS_LABEL: Record<ProjectPaymentRow['status'], string> = {
   pending: 'Pendente',
   paid: 'Pago',
   cancelled: 'Cancelado',
+  refunded: 'Estornado',
+  refund_requested: 'Estorno pedido',
+  chargeback: 'Chargeback',
 };
+
+/** Ação pendente de confirmação — nenhuma delas tem desfazer na Tenka. */
+type PendingConfirm =
+  | { kind: 'receipt'; item: ProjectPaymentRow }
+  | { kind: 'cancel'; item: ProjectPaymentRow };
 
 function localIsoDate(): string {
   const now = new Date();
@@ -43,6 +52,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [dateEditorId, setDateEditorId] = useState<string | null>(null);
   const [dateValue, setDateValue] = useState('');
+  const [confirming, setConfirming] = useState<PendingConfirm | null>(null);
   const [planEditor, setPlanEditor] = useState<{
     project: { id: string; name: string; value_cents: number };
     appendStage: boolean;
@@ -158,16 +168,12 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     } finally { setBusyId(null); }
   };
 
-  const registerOutside = async (item: ProjectPaymentRow) => {
-    const accepted = window.confirm(
-      `Registrar no Asaas o pagamento de ${formatCurrencyFromCents(item.amount_cents)}? ` +
-      'A Tenka só mostrará como pago depois do webhook.',
-    );
-    if (!accepted) return;
+  const registerOutside = async (item: ProjectPaymentRow, paymentDate: string) => {
     setBusyId(item.id);
     try {
-      await finance.registerProjectPaymentOutside(item.id, localIsoDate());
+      await finance.registerProjectPaymentOutside(item.id, paymentDate);
       toast('success', 'Pagamento registrado no Asaas. Aguardando confirmação pelo webhook.');
+      setConfirming(null);
       await load();
     } catch (caught) {
       toast('error', caught instanceof Error ? caught.message : 'Não foi possível registrar o pagamento.');
@@ -175,11 +181,11 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   };
 
   const cancelCharge = async (item: ProjectPaymentRow) => {
-    if (!window.confirm(`Cancelar a cobrança "${item.name}" no Asaas? O histórico será preservado.`)) return;
     setBusyId(item.id);
     try {
       await finance.cancelProjectCharge(item.id);
       toast('success', 'Cancelamento enviado ao Asaas.');
+      setConfirming(null);
       await load();
     } catch (caught) {
       toast('error', caught instanceof Error ? caught.message : 'Não foi possível cancelar a cobrança.');
@@ -238,11 +244,13 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
       {item.sync_status === 'synced' && item.status === 'pending' && item.asaas_payment_id && <>
         <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Registrar pagamento por fora — ${label}`} title="Registrar pagamento por fora"
-          disabled={!isAdmin || busy} onClick={() => void registerOutside(item)}><Banknote size={14} /></button>
+          disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'receipt', item })}><Banknote size={14} /></button>
         <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Cancelar cobrança — ${label}`} title="Cancelar cobrança"
-          disabled={!isAdmin || busy} onClick={() => void cancelCharge(item)}><Trash2 size={14} /></button>
+          disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'cancel', item })}><Trash2 size={14} /></button>
       </>}
+      {item.provider_status === 'OVERDUE' && item.status === 'pending'
+        && <small className="finance-warning" title="O Asaas marcou esta cobrança como vencida.">Vencida</small>}
       {item.sync_status === 'queued' && <small className="finance-warning">Sincronizando</small>}
       {item.sync_status === 'failed' && <small className="finance-warning" title={item.sync_error ?? ''}>Falha</small>}
     </span>;
@@ -373,6 +381,49 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
 
       {planEditor && (
         <ProjectPaymentPlanDrawer project={planEditor.project} appendStage={planEditor.appendStage} onBack={() => setPlanEditor(null)} onClose={() => setPlanEditor(null)} onSaved={() => { setPlanEditor(null); void load(); }} />
+      )}
+
+      {confirming?.kind === 'receipt' && (
+        <ConfirmDialog
+          title="Registrar pagamento por fora"
+          description={<>
+            O Asaas vai dar esta cobrança por recebida e avisar o cliente. A Tenka
+            só mostra como paga depois que o webhook confirmar.
+          </>}
+          details={[
+            { label: 'Cobrança', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
+          warning="A Tenka não desfaz uma baixa manual: reverter exige o painel do Asaas. Seu nome fica no histórico do projeto."
+          confirmLabel="Registrar pagamento"
+          busy={busyId === confirming.item.id}
+          onConfirm={(date) => void registerOutside(confirming.item, date)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === 'cancel' && (
+        <ConfirmDialog
+          title="Cancelar cobrança no Asaas"
+          description={<>
+            A cobrança é apagada no Asaas e o cliente para de recebê-la. A etapa
+            fica registrada como cancelada, mas volta a ficar livre no plano: o
+            valor dela deixa de ocupar o contrato e você pode removê-la ou
+            substituí-la por uma nova etapa no editor do plano.
+          </>}
+          details={[
+            { label: 'Cobrança', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          tone="danger"
+          confirmLabel="Cancelar cobrança"
+          busy={busyId === confirming.item.id}
+          onConfirm={() => void cancelCharge(confirming.item)}
+          onCancel={() => setConfirming(null)}
+        />
       )}
     </>
   );

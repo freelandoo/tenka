@@ -225,7 +225,9 @@ export type ProjectActivityAction =
   | 'projeto_arquivado'
   | 'assinatura_configurada'
   | 'plano_pagamentos_atualizado'
-  | 'pagamento_projeto_atualizado';
+  | 'pagamento_projeto_atualizado'
+  | 'pagamento_baixa_manual'
+  | 'cobrancas_encerradas_por_arquivamento';
 
 export interface ProjectActivityRow {
   id: string;
@@ -290,7 +292,10 @@ export interface ProjectPaymentRow {
   amount_cents: number;
   due_date: string | null;
   paid_at: string | null;
-  status: 'draft' | 'pending' | 'paid' | 'cancelled';
+  // 'refunded'/'chargeback' vêm do Asaas e não são um cancelamento: o dinheiro
+  // entrou e voltou. A linha continua distribuída no contrato.
+  status: 'draft' | 'pending' | 'paid' | 'cancelled'
+    | 'refunded' | 'refund_requested' | 'chargeback';
   position: number;
   notes: string;
   receipt_url: string;

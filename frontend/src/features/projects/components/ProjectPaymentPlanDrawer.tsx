@@ -10,6 +10,7 @@ import {
   type InstallmentInterval,
 } from '../../finance/installments';
 import type { BoardProject } from '../services/projectsService';
+import type { ProjectPaymentRow } from '../../../lib/supabase/database.types';
 
 type PaymentKind = 'stage' | 'installment';
 
@@ -20,7 +21,7 @@ interface DraftRow {
   description: string;
   amount: string;
   dueDate: string;
-  status: 'draft' | 'pending' | 'paid' | 'cancelled';
+  status: ProjectPaymentRow['status'];
   syncStatus: 'local' | 'queued' | 'synced' | 'failed';
   kind: PaymentKind;
   installmentGroupId: string | null;
@@ -341,8 +342,14 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     {loading ? <p className="panel-field__hint">Carregando plano…</p> : <>
       <div className="finance-plan">
         {rows.map((row, index) => {
-          const structuralImmutable = row.status === 'paid' || row.syncStatus !== 'local';
-          const financialImmutable = row.status === 'paid' || !['local', 'synced'].includes(row.syncStatus);
+          // Espelha a regra do backend: onde o dinheiro se moveu a linha é
+          // história e não se reescreve; cancelada também é história, mas sem
+          // cobrança viva no Asaas — pode sair do plano e liberar o valor.
+          const settled = ['paid', 'refunded', 'refund_requested', 'chargeback'].includes(row.status);
+          const cancelled = row.status === 'cancelled';
+          const structuralImmutable = settled || (!cancelled && row.syncStatus !== 'local');
+          const financialImmutable = settled || cancelled
+            || !['local', 'synced'].includes(row.syncStatus);
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
           return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">

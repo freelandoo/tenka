@@ -6,23 +6,56 @@ import type {
   SubscriptionPaymentRow,
 } from '../../lib/supabase/database.types';
 
+export interface FinanceQueueHealth {
+  level: 'ok' | 'attention' | 'critical';
+  reasons: string[];
+  stalledOperations: number;
+  exhaustedOperations: number;
+  uncertainOperations: number;
+  needsReviewEvents: number;
+  stalledEvents: number;
+  oldestPendingAt: string | null;
+  lastWebhookAt: string | null;
+}
+
 export interface FinanceOverview {
   configured: boolean;
   environment: 'sandbox' | 'production';
   subscriptions: ProjectSubscriptionRow[];
   subscriptionPayments: SubscriptionPaymentRow[];
   projectPayments: ProjectPaymentRow[];
-  queue?: {
-    level: 'ok' | 'attention' | 'critical';
-    reasons: string[];
-    stalledOperations: number;
-    exhaustedOperations: number;
-    uncertainOperations: number;
-    needsReviewEvents: number;
-    stalledEvents: number;
-    oldestPendingAt: string | null;
-    lastWebhookAt: string | null;
-  };
+  queue?: FinanceQueueHealth;
+}
+
+/** Um webhook que chegou sem alvo reconhecido e parou esperando decisão. */
+export interface AttentionEvent {
+  id: string;
+  provider_event_id: string;
+  event_type: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  received_at: string;
+  payment_id: string | null;
+  payment_value: string | null;
+  external_reference: string | null;
+}
+
+/** Uma operação que desistiu de tentar, ou cujo resultado ficou indefinido. */
+export interface AttentionOperation {
+  id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  project_name: string;
+  payment_name: string | null;
+}
+
+export interface AttentionQueue {
+  events: AttentionEvent[];
+  operations: AttentionOperation[];
 }
 
 export interface ProjectFinance {
@@ -217,3 +250,25 @@ export const createDefaultProjectCharge = (projectId: string) =>
     `/projects/${projectId}/project-payment`,
     { method: 'PUT', body: { paid: false, generateCharge: true } },
   );
+
+export const fetchFinanceQueue = () =>
+  apiRequest<{ queue: FinanceQueueHealth }>('/admin/finance/queue').then((data) => data.queue);
+
+export const fetchAttentionQueue = () =>
+  apiRequest<AttentionQueue>('/admin/finance/queue/attention');
+
+export const retryWebhookEvent = (id: string) =>
+  apiRequest<{ queued: true }>(`/admin/finance/webhook-events/${id}/retry`, { method: 'POST' });
+
+export const discardWebhookEvent = (id: string, notes: string) =>
+  apiRequest<{ discarded: true }>(`/admin/finance/webhook-events/${id}/discard`, {
+    method: 'POST', body: { notes },
+  });
+
+export const retryFinanceOperation = (id: string) =>
+  apiRequest<{ queued: true }>(`/admin/finance/operations/${id}/retry`, { method: 'POST' });
+
+export const discardFinanceOperation = (id: string, notes: string) =>
+  apiRequest<{ discarded: true }>(`/admin/finance/operations/${id}/discard`, {
+    method: 'POST', body: { notes },
+  });

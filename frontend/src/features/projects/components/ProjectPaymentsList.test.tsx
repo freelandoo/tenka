@@ -197,9 +197,42 @@ describe('ProjectPaymentsList', () => {
     expect(screen.queryByRole('button', { name: 'Marcar como pago — Site Braslar' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento por fora — Site Braslar' }));
 
+    // O modal existe justamente para a baixa não sair no primeiro clique.
+    expect(await screen.findByRole('heading', { name: 'Registrar pagamento por fora' }))
+      .toBeInTheDocument();
+    expect(registerOutside).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     await waitFor(() => expect(registerOutside).toHaveBeenCalledWith(
       'payment-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     ));
     expect(updatePayment).not.toHaveBeenCalled();
+  });
+
+  it('desiste da baixa manual quando a confirmação é cancelada', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({
+      sync_status: 'synced', asaas_payment_id: 'pay_asaas_1',
+      payment_url: 'https://sandbox.asaas.com/i/pay_asaas_1',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar pagamento por fora — Site Braslar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() => expect(
+      screen.queryByRole('heading', { name: 'Registrar pagamento por fora' }),
+    ).toBeNull());
+    expect(registerOutside).not.toHaveBeenCalled();
+  });
+
+  it('mostra que a cobrança está vencida no Asaas', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({
+      sync_status: 'synced', asaas_payment_id: 'pay_asaas_1',
+      payment_url: 'https://sandbox.asaas.com/i/pay_asaas_1',
+      provider_status: 'OVERDUE',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    expect(await screen.findByText('Vencida')).toBeInTheDocument();
   });
 });

@@ -83,6 +83,25 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
       return `${actorName} ${meta.status === 'active' ? 'ativou' : 'salvou'} o plano de pagamentos com ${Array.isArray(meta.current) ? meta.current.length : 0} etapa(s), total de ${formatCurrencyFromCents(Number(meta.totalCents))}.`;
     case 'pagamento_projeto_atualizado':
       return `${actorName} alterou “${String(meta.paymentName ?? 'pagamento')}” de ${String(meta.from ?? '—')} para ${String(meta.to ?? '—')}.`;
+    // A baixa manual é feita no Asaas com uma chave de API única — só esta
+    // linha diz qual pessoa apertou o botão.
+    case 'pagamento_baixa_manual': {
+      const alvo = meta.scope === 'mensalidade'
+        ? `a mensalidade de ${String(meta.competence ?? '—')}`
+        : `“${String(meta.paymentName ?? 'pagamento')}”`;
+      return `${actorName} registrou pagamento por fora de ${alvo} no valor de `
+        + `${formatCurrencyFromCents(Number(meta.amountCents))}, recebido em `
+        + `${formatDate(String(meta.paymentDate))}. Aguardando confirmação do Asaas.`;
+    }
+    case 'cobrancas_encerradas_por_arquivamento': {
+      const noAsaas = Number(meta.cancelledAtProvider ?? 0);
+      const locais = Number(meta.cancelledLocally ?? 0);
+      const partes = [
+        noAsaas > 0 ? `${noAsaas} cobrança(s) cancelada(s) no Asaas` : '',
+        locais > 0 ? `${locais} pagamento(s) encerrado(s) na Tenka` : '',
+      ].filter(Boolean).join(' e ');
+      return `${actorName} arquivou o projeto: ${partes}.`;
+    }
     default:
       return `${actorName} atualizou o projeto.`;
   }

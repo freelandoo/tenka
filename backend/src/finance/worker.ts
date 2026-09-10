@@ -1,6 +1,6 @@
 import { getPool, withActor } from '../db/pool';
 import { hasAsaas } from '../env';
-import { asaas } from './asaas';
+import { asaas, AsaasError } from './asaas';
 import { isOpenSubscriptionPayment } from './subscriptionCancel';
 import { projectPaymentStatusFromProvider } from './reconciliation';
 import { competenceFromDueDate, paymentStatus } from './status';
@@ -47,6 +47,7 @@ interface ProjectPaymentContext {
   external_reference: string | null;
   asaas_payment_id: string | null;
   financial_plan_status: string;
+  archived_at: string | null;
   client_id: string | null;
   client_name: string;
   client_email: string;
@@ -139,6 +140,7 @@ async function projectPaymentContext(operation: Operation): Promise<ProjectPayme
     `select pp.id, pp.project_id, p.name as project_name, pp.name, pp.description,
             pp.amount_cents, pp.due_date, pp.status, pp.billing_type, pp.sync_status,
             pp.external_reference, pp.asaas_payment_id, p.financial_plan_status,
+            p.archived_at,
             p.client_id, coalesce(c.name, p.client_name) as client_name,
             coalesce(c.email, p.client_email) as client_email,
             coalesce(c.phone, p.client_phone) as client_phone,
@@ -197,6 +199,9 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   if (operation.kind !== 'create_project_charge') {
     throw new Error('Operação de pagamento de projeto ainda não suportada.');
   }
+  // Um projeto arquivado sai da visão financeira. Emitir a cobrança agora
+  // mandaria um boleto que ninguém no painel conseguiria ver nem cancelar.
+  if (ctx.archived_at) throw new Error('O projeto foi arquivado antes da cobrança sair.');
   if (ctx.financial_plan_status !== 'active' || ctx.status !== 'pending') {
     throw new Error('O plano e o pagamento precisam estar ativos e pendentes.');
   }
@@ -376,6 +381,21 @@ export async function executeOperation(operation: Operation): Promise<string | n
   return ctx.asaas_subscription_id;
 }
 
+/**
+ * Quando o resultado no provedor deixa de ser conhecido.
+ *
+ * Um timeout ou um 5xx não dizem se a chamada foi aplicada do outro lado. Uma
+ * vez isso é ruído de rede e a retentativa resolve — as criações são dedupadas
+ * por `externalReference` e as demais operações podem ser reaplicadas. Repetido
+ * três vezes, insistir sozinho parou de convergir: a operação sai do laço
+ * automático, o painel acende e alguém decide. Era o estado `uncertain` que o
+ * schema já previa, a fila já tratava como em voo e ninguém nunca escrevia.
+ */
+export function uncertainOutcome(error: unknown, attempts: number): boolean {
+  if (attempts < 3) return false;
+  return error instanceof AsaasError && (error.status >= 500 || error.status === 504);
+}
+
 async function finishOperation(operation: Operation): Promise<void> {
   try {
     const externalId = await executeOperation(operation);
@@ -388,13 +408,14 @@ async function finishOperation(operation: Operation): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.';
     const retryMinutes = Math.min(60, 2 ** Math.min(operation.attempts, 5));
+    const nextStatus = uncertainOutcome(error, operation.attempts) ? 'uncertain' : 'failed';
     await withActor(null, async (client) => {
       await client.query(
         `update public.asaas_operations
-            set status = 'failed', last_error = $2,
+            set status = $4, last_error = $2,
                 run_after = now() + ($3 * interval '1 minute')
           where id = $1`,
-        [operation.id, message, retryMinutes],
+        [operation.id, message, retryMinutes, nextStatus],
       );
       await client.query(
         operation.project_payment_id
@@ -468,8 +489,13 @@ async function processProjectPaymentWebhook(
             provider_status = $11,
             sync_status = 'synced',
             sync_error = null,
-            paid_at = case when $4 = 'paid'
-                     then coalesce($13::date,$12::date)::timestamptz else null end,
+            external_receipt_pending_at = null,
+            -- Estorno e chargeback preservam a data do recebimento: o dinheiro
+            -- entrou e voltou, e apagar isso reescreveria a história da etapa.
+            paid_at = case
+                     when $4 = 'paid' then coalesce($13::date,$12::date)::timestamptz
+                     when $4 in ('refunded','refund_requested','chargeback') then paid_at
+                     else null end,
             payment_date = coalesce($13::date,$12::date),
             provider_event_at = $14::timestamptz
       where id = $1
@@ -531,9 +557,15 @@ async function processSubscriptionPaymentWebhook(
        payment_url = excluded.payment_url,
        billing_type = excluded.billing_type,
        provider_status = excluded.provider_status,
-       paid_at = excluded.paid_at,
+       -- Um estorno não apaga o recebimento: o dinheiro entrou e depois
+       -- voltou. A mesma regra vale para a cobrança de etapa.
+       paid_at = case
+                 when excluded.status in ('refunded','refund_requested','chargeback')
+                 then subscription_payments.paid_at else excluded.paid_at end,
        confirmed_at = excluded.confirmed_at,
-       received_at = excluded.received_at,
+       received_at = case
+                     when excluded.status in ('refunded','refund_requested','chargeback')
+                     then subscription_payments.received_at else excluded.received_at end,
        cancelled_at = excluded.cancelled_at,
        source = 'asaas',
        payment_date = excluded.payment_date,
@@ -542,7 +574,8 @@ async function processSubscriptionPaymentWebhook(
        provider_event_at = excluded.provider_event_at,
        original_due_date = excluded.original_due_date,
        bank_slip_url = excluded.bank_slip_url,
-       pix_payload = excluded.pix_payload
+       pix_payload = excluded.pix_payload,
+       external_receipt_pending_at = null
      where subscription_payments.provider_event_at is null
         or excluded.provider_event_at >= subscription_payments.provider_event_at`,
     [linked.project_id, linked.id, competenceFromDueDate(dueDate), Number(payment.value ?? 0),

@@ -37,12 +37,29 @@ export interface ReconciliationRow {
 
 const PROJECT_PAYMENT_REFERENCE = /^project-payment:([0-9a-f-]{36})$/i;
 
+/**
+ * Estado local de uma cobrança de etapa a partir do estado do Asaas.
+ *
+ * Estorno e chargeback tinham o mesmo destino de um cancelamento — e o efeito
+ * era apagar da Tenka o fato de que o dinheiro entrou e voltou. Um estorno
+ * parcial chegava a zerar a etapa inteira. Agora cada um tem estado próprio:
+ * a linha continua contando como distribuída no contrato, o `paid_at` fica de
+ * pé e o painel consegue mostrar que houve devolução.
+ */
 export function projectPaymentStatusFromProvider(providerStatus: string): string {
   const mapped = paymentStatus(providerStatus);
   if (mapped === 'received' || mapped === 'confirmed') return 'paid';
-  if (['cancelled', 'refunded', 'chargeback'].includes(mapped)) return 'cancelled';
+  if (mapped === 'refunded') return 'refunded';
+  if (mapped === 'refund_requested') return 'refund_requested';
+  if (mapped === 'chargeback') return 'chargeback';
+  if (mapped === 'cancelled') return 'cancelled';
   return 'pending';
 }
+
+/** Estados em que o dinheiro chegou a entrar, mesmo que depois tenha voltado. */
+export const PROJECT_PAYMENT_SETTLED = new Set([
+  'paid', 'refunded', 'refund_requested', 'chargeback',
+]);
 
 function expectedLocalStatus(kind: ReconciliationKind, providerStatus: string): string {
   return kind === 'project_payment'

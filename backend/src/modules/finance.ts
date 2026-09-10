@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { adminOnly } from '../auth/middleware';
 import { getPool, withActor } from '../db/pool';
@@ -12,13 +13,14 @@ import { validateInstallmentGroups } from '../finance/installments';
 import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
-import { reconcileFinancialPayments, type LocalFinancialPayment } from '../finance/reconciliation';
+import { runReconciliation } from '../finance/reconciliationRun';
 import {
   queueProjectPaymentOperation,
   queueSubscriptionOperation as queueOperation,
 } from '../finance/queue';
 import { queueAlert } from '../finance/queueHealth';
 import { subscriptionChangePreview } from '../finance/subscriptionPreview';
+import { asaasEventDate } from '../finance/asaasDate';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -90,12 +92,22 @@ const projectExternalPaymentSchema = z.object({
 
 const subscriptionCancelSchema = z.object({ confirmation: z.string().trim().min(1).max(200) });
 
+/**
+ * Janela da reserva da baixa manual. Depois dela a linha volta a aceitar uma
+ * tentativa: o processo pode ter morrido entre a reserva e a chamada ao Asaas,
+ * e uma reserva eterna deixaria a cobrança sem saída.
+ */
+const RECEIPT_CLAIM_MS = 5 * 60_000;
+
 const reconciliationSchema = z.object({
   dueDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 }).refine((value) => value.dueDateFrom <= value.dueDateTo, {
   message: 'invalid-range',
 });
+
+// Encerrar um item da fila é decisão, não limpeza: a justificativa é obrigatória.
+const discardSchema = z.object({ notes: z.string().trim().min(3).max(2000) });
 
 const historicalReviewSchema = z.object({
   classification: z.enum([
@@ -105,15 +117,16 @@ const historicalReviewSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
-async function listAsaasPaymentsForReconciliation(dueDateFrom: string, dueDateTo: string) {
-  const payments = [];
-  const limit = 100;
-  for (let offset = 0; offset < 10_000; offset += limit) {
-    const page = await asaas.listPayments({ dueDateFrom, dueDateTo, offset, limit });
-    payments.push(...page.data);
-    if (!page.hasMore && page.data.length < limit) break;
-  }
-  return payments;
+/**
+ * Comparação do token do webhook sem vazar o ponto da divergência no tempo de
+ * resposta. O tamanho ainda é observável — é o preço de `timingSafeEqual`, que
+ * exige buffers do mesmo tamanho — e não ajuda quem não tem o segredo.
+ */
+function sameWebhookToken(received: unknown, expected: string): boolean {
+  if (typeof received !== 'string' || expected === '') return false;
+  const a = Buffer.from(received, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 type CurrentMonthlyPayment = {
@@ -138,6 +151,51 @@ async function currentMonthlyPayment(
     [projectId],
   );
   return result.rows[0] ?? null;
+}
+
+/**
+ * Saúde da fila do Asaas.
+ *
+ * Fica separada do overview porque tem dois consumidores com pesos diferentes:
+ * o painel completo, que já carrega tudo, e o alerta no topo do Financeiro, que
+ * precisa aparecer sem arrastar junto trezentas linhas de cobrança.
+ */
+async function financeQueueHealth() {
+  const { rows } = await getPool().query<{
+    stalled_operations: string; exhausted_operations: string;
+    uncertain_operations: string; needs_review_events: string; stalled_events: string;
+    oldest_pending_at: string | null; last_webhook_at: string | null;
+  }>(
+    `select
+       (select count(*) from public.asaas_operations
+         where status in ('pending', 'processing')
+           and created_at < now() - interval '15 minutes')::text as stalled_operations,
+       (select count(*) from public.asaas_operations
+         where status = 'failed' and attempts >= 5)::text as exhausted_operations,
+       (select count(*) from public.asaas_operations
+         where status = 'uncertain')::text as uncertain_operations,
+       (select count(*) from public.asaas_webhook_events
+         where status = 'needs_review')::text as needs_review_events,
+       (select count(*) from public.asaas_webhook_events
+         where status in ('pending', 'failed')
+           and received_at < now() - interval '15 minutes')::text as stalled_events,
+       (select min(created_at) from public.asaas_operations
+         where status in ('pending', 'processing'))::text as oldest_pending_at,
+       (select max(received_at) from public.asaas_webhook_events)::text as last_webhook_at`,
+  );
+  const counts = {
+    stalledOperations: Number(rows[0]?.stalled_operations ?? 0),
+    exhaustedOperations: Number(rows[0]?.exhausted_operations ?? 0),
+    uncertainOperations: Number(rows[0]?.uncertain_operations ?? 0),
+    needsReviewEvents: Number(rows[0]?.needs_review_events ?? 0),
+    stalledEvents: Number(rows[0]?.stalled_events ?? 0),
+  };
+  return {
+    ...counts,
+    ...queueAlert(counts),
+    oldestPendingAt: rows[0]?.oldest_pending_at ?? null,
+    lastWebhookAt: rows[0]?.last_webhook_at ?? null,
+  };
 }
 
 export async function financeRoutes(app: FastifyInstance): Promise<void> {
@@ -209,52 +267,20 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                    coalesce(due_date, created_at::date), lower(project_name)
           limit 300`,
       ),
-      // Fila parada é invisível por natureza: ninguém espera o Asaas na tela.
-      // Estes contadores são o que faz o painel avisar antes do cliente.
-      getPool().query<{
-        stalled_operations: string; exhausted_operations: string;
-        uncertain_operations: string; needs_review_events: string; stalled_events: string;
-        oldest_pending_at: string | null; last_webhook_at: string | null;
-      }>(
-        `select
-           (select count(*) from public.asaas_operations
-             where status in ('pending', 'processing')
-               and created_at < now() - interval '15 minutes')::text as stalled_operations,
-           (select count(*) from public.asaas_operations
-             where status = 'failed' and attempts >= 5)::text as exhausted_operations,
-           (select count(*) from public.asaas_operations
-             where status = 'uncertain')::text as uncertain_operations,
-           (select count(*) from public.asaas_webhook_events
-             where status = 'needs_review')::text as needs_review_events,
-           (select count(*) from public.asaas_webhook_events
-             where status in ('pending', 'failed')
-               and received_at < now() - interval '15 minutes')::text as stalled_events,
-           (select min(created_at) from public.asaas_operations
-             where status in ('pending', 'processing'))::text as oldest_pending_at,
-           (select max(received_at) from public.asaas_webhook_events)::text as last_webhook_at`,
-      ),
+      financeQueueHealth(),
     ]);
-    const counts = {
-      stalledOperations: Number(queue.rows[0]?.stalled_operations ?? 0),
-      exhaustedOperations: Number(queue.rows[0]?.exhausted_operations ?? 0),
-      uncertainOperations: Number(queue.rows[0]?.uncertain_operations ?? 0),
-      needsReviewEvents: Number(queue.rows[0]?.needs_review_events ?? 0),
-      stalledEvents: Number(queue.rows[0]?.stalled_events ?? 0),
-    };
     return reply.send({
       configured: hasAsaas,
       environment: env.asaasEnvironment,
       subscriptions: subscriptions.rows,
       subscriptionPayments: payments.rows,
       projectPayments: plans.rows,
-      queue: {
-        ...counts,
-        ...queueAlert(counts),
-        oldestPendingAt: queue.rows[0]?.oldest_pending_at ?? null,
-        lastWebhookAt: queue.rows[0]?.last_webhook_at ?? null,
-      },
+      queue,
     });
   });
+
+  app.get('/admin/finance/queue', adminOnly, async (_req, reply) =>
+    reply.send({ queue: await financeQueueHealth() }));
 
   app.get('/admin/finance/reconciliation/latest', adminOnly, async (_req, reply) => {
     const { rows } = await getPool().query(
@@ -281,68 +307,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = reconciliationSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     try {
-      const [providerPayments, projectRows, subscriptionRows, subscriptions] = await Promise.all([
-        listAsaasPaymentsForReconciliation(parsed.data.dueDateFrom, parsed.data.dueDateTo),
-        getPool().query<{
-          project_id: string; asaas_payment_id: string; status: string;
-          amount_cents: number; due_date: string | null;
-        }>(
-          `select project_id, asaas_payment_id, status, amount_cents, due_date
-             from public.project_payments
-            where asaas_payment_id is not null
-              and due_date between $1::date and $2::date`,
-          [parsed.data.dueDateFrom, parsed.data.dueDateTo],
-        ),
-        getPool().query<{
-          project_id: string; asaas_payment_id: string; status: string;
-          amount_cents: number; due_date: string | null;
-        }>(
-          `select project_id, asaas_payment_id, status, amount_cents, due_date
-             from public.subscription_payments
-            where source = 'asaas' and asaas_payment_id is not null
-              and due_date between $1::date and $2::date`,
-          [parsed.data.dueDateFrom, parsed.data.dueDateTo],
-        ),
-        getPool().query<{ asaas_subscription_id: string; project_id: string }>(
-          `select asaas_subscription_id, project_id from public.project_subscriptions
-            where asaas_subscription_id is not null`,
-        ),
-      ]);
-      const localPayments: LocalFinancialPayment[] = [
-        ...projectRows.rows.map((row) => ({
-          kind: 'project_payment' as const, projectId: row.project_id,
-          asaasPaymentId: row.asaas_payment_id, status: row.status,
-          amountCents: row.amount_cents, dueDate: row.due_date,
-        })),
-        ...subscriptionRows.rows.map((row) => ({
-          kind: 'subscription' as const, projectId: row.project_id,
-          asaasPaymentId: row.asaas_payment_id, status: row.status,
-          amountCents: row.amount_cents, dueDate: row.due_date,
-        })),
-      ];
-      const subscriptionProjects = new Map(
-        subscriptions.rows.map((row) => [row.asaas_subscription_id, row.project_id]),
+      const summary = await runReconciliation(
+        parsed.data.dueDateFrom, parsed.data.dueDateTo, req.userId!,
       );
-      const result = reconcileFinancialPayments(localPayments, providerPayments, subscriptionProjects);
-      const ranAt = new Date().toISOString();
-      await withActor(req.userId!, async (client) => {
-        for (const row of result) {
-          await client.query(
-            `insert into public.finance_reconciliation_snapshot
-               (ran_at,kind,project_id,asaas_payment_id,local_status,provider_status,
-                local_amount_cents,provider_amount_cents,divergence,details)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)`,
-            [ranAt, row.kind, row.projectId, row.asaasPaymentId, row.localStatus,
-              row.providerStatus, row.localAmountCents, row.providerAmountCents,
-              row.divergence, JSON.stringify(row.details)],
-          );
-        }
-      });
-      const divergences = result.filter((row) => row.divergence !== 'none').length;
-      return reply.send({
-        ranAt, rows: result, total: result.length, divergences,
-        reconciled: result.length - divergences,
-      });
+      return reply.send(summary);
     } catch (error) {
       if (error instanceof AsaasError) return reply.code(502).send({ error: error.message });
       return sendDbError(error, reply);
@@ -421,6 +389,125 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     ));
     if (!result.rows[0]) return reply.code(404).send({ error: 'revisao-inexistente' });
     return reply.send({ item: result.rows[0] });
+  });
+
+  /**
+   * Fila de atenção: o que parou e precisa de gente.
+   *
+   * O overview já contava esses casos, mas contar não resolve — um webhook em
+   * `needs_review` nunca mais era reprocessado e uma operação que gastou as
+   * cinco tentativas ficava acesa no alerta para sempre. Aqui eles aparecem
+   * com o erro que os travou e com as duas saídas possíveis: tentar de novo ou
+   * encerrar com uma justificativa registrada.
+   */
+  app.get('/admin/finance/queue/attention', adminOnly, async (_req, reply) => {
+    const [events, operations] = await Promise.all([
+      getPool().query(
+        `select id, provider_event_id, event_type, status, attempts, last_error,
+                received_at, event_at, payment_id, subscription_id,
+                payload -> 'payment' ->> 'value' as payment_value,
+                payload -> 'payment' ->> 'externalReference' as external_reference
+           from public.asaas_webhook_events
+          where status = 'needs_review'
+          order by received_at desc limit 100`,
+      ),
+      getPool().query(
+        `select ao.id, ao.kind, ao.status, ao.attempts, ao.last_error, ao.created_at,
+                ao.project_id, ao.project_payment_id, ao.subscription_id,
+                p.name as project_name, pp.name as payment_name
+           from public.asaas_operations ao
+           join public.projects p on p.id = ao.project_id
+           left join public.project_payments pp on pp.id = ao.project_payment_id
+          where ao.status = 'uncertain'
+             or (ao.status = 'failed' and ao.attempts >= 5)
+          order by ao.created_at desc limit 100`,
+      ),
+    ]);
+    return reply.send({ events: events.rows, operations: operations.rows });
+  });
+
+  app.post('/admin/finance/webhook-events/:id/retry', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    // As tentativas voltam a zero: o motivo da falha costuma ser externo (o
+    // alvo ainda não existia) e já foi resolvido antes de alguém clicar aqui.
+    const result = await withActor(req.userId!, (client) => client.query(
+      `update public.asaas_webhook_events
+          set status = 'pending', attempts = 0, run_after = now(), last_error = null,
+              reviewed_by = $2, reviewed_at = now()
+        where id = $1 and status in ('needs_review', 'failed', 'discarded')
+        returning id`,
+      [id, req.userId],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'evento-inexistente' });
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true });
+  });
+
+  app.post('/admin/finance/webhook-events/:id/discard', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = discardSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, (client) => client.query(
+      `update public.asaas_webhook_events
+          set status = 'discarded', reviewed_by = $2, reviewed_at = now(), review_notes = $3
+        where id = $1 and status in ('needs_review', 'failed')
+        returning id`,
+      [id, req.userId, parsed.data.notes],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'evento-inexistente' });
+    return reply.send({ discarded: true });
+  });
+
+  app.post('/admin/finance/operations/:id/retry', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, async (client) => {
+      const { rows } = await client.query<{
+        id: string; project_payment_id: string | null; subscription_id: string | null;
+      }>(
+        `update public.asaas_operations
+            set status = 'pending', attempts = 0, run_after = now(), last_error = null,
+                reviewed_by = $2, reviewed_at = now()
+          where id = $1 and (status = 'uncertain' or status = 'failed' or status = 'discarded')
+          returning id, project_payment_id, subscription_id`,
+        [id, req.userId],
+      );
+      const row = rows[0];
+      if (!row) return null;
+      // A linha ficou marcada como falha na tela. Se a operação voltou para a
+      // fila, o estado visível precisa voltar junto.
+      if (row.project_payment_id) {
+        await client.query(
+          `update public.project_payments
+              set sync_status = 'queued', sync_error = null where id = $1`,
+          [row.project_payment_id],
+        );
+      } else if (row.subscription_id) {
+        await client.query(
+          `update public.project_subscriptions set sync_error = null where id = $1`,
+          [row.subscription_id],
+        );
+      }
+      return row;
+    });
+    if (!result) return reply.code(404).send({ error: 'operacao-inexistente' });
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true });
+  });
+
+  app.post('/admin/finance/operations/:id/discard', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = discardSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, (client) => client.query(
+      `update public.asaas_operations
+          set status = 'discarded', reviewed_by = $2, reviewed_at = now(), review_notes = $3
+        where id = $1 and (status = 'uncertain' or status = 'failed')
+        returning id`,
+      [id, req.userId, parsed.data.notes],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'operacao-inexistente' });
+    return reply.send({ discarded: true });
   });
 
   app.put('/projects/:id/payment-plan/draft', adminOnly, async (req, reply) => {
@@ -720,7 +807,15 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                   installment_group_id, installment_number, installment_count, group_label,
                   sync_status
              from public.project_payments where project_id = $1 order by position`, [id]);
-        const total = parsed.data.payments.reduce((sum, item) => sum + item.amountCents, 0);
+        // Uma linha cancelada continua no plano como história, mas não ocupa
+        // mais parte do contrato — é a mesma regra do `distributed_cents` que
+        // valida a mudança do valor do projeto. Sem isso, cancelar uma cobrança
+        // deixava o valor dela preso e o plano nunca mais fechava.
+        const cancelledIds = new Set(
+          previousPlan.rows.filter((row) => row.status === 'cancelled').map((row) => row.id),
+        );
+        const total = parsed.data.payments.reduce(
+          (sum, item) => (item.id && cancelledIds.has(item.id) ? sum : sum + item.amountCents), 0);
         const totalError = projectPlanTotalError(parsed.data.status, total, rows[0].value_cents);
         if (totalError) return totalError;
 
@@ -782,7 +877,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                     amount_cents = case when sync_status = 'local' then $4 else amount_cents end,
                     due_date = case when sync_status = 'local' then $5 else due_date end,
                     status = case
-                      when sync_status = 'local' and status <> 'paid' then $6
+                      when sync_status = 'local'
+                       and status not in ('paid','cancelled','refunded',
+                                          'refund_requested','chargeback') then $6
                       else status
                     end,
                     position = $7,
@@ -1056,29 +1153,66 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(202).send({ queued: true });
   });
 
+  // Baixa manual: a Tenka manda o Asaas dar a cobrança por recebida e espera o
+  // webhook confirmar. Duas coisas acontecem antes da chamada — a linha é
+  // reservada, para dois cliques não virarem duas baixas, e a intenção é
+  // registrada na trilha do projeto, porque a chave de API é uma só e o Asaas
+  // não sabe qual admin apertou o botão.
   app.post('/project-payments/:id/receive-in-cash', adminOnly, async (req, reply) => {
     if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const { id } = req.params as { id: string };
     const parsed = projectExternalPaymentSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-    const { rows } = await getPool().query<{
-      asaas_payment_id: string | null; status: string; sync_status: string;
-    }>('select asaas_payment_id, status, sync_status from public.project_payments where id = $1', [id]);
-    const local = rows[0];
-    if (!local) return reply.code(404).send({ error: 'pagamento-inexistente' });
-    if (!local.asaas_payment_id || local.sync_status !== 'synced') {
-      return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
-    }
-    if (local.status !== 'pending') return reply.code(409).send({ error: 'cobranca-nao-esta-em-aberto' });
+    const claim = await withActor(req.userId!, async (client) => {
+      const { rows } = await client.query<{
+        project_id: string; name: string; amount_cents: number;
+        asaas_payment_id: string | null; status: string; sync_status: string;
+        external_receipt_pending_at: string | null;
+      }>(
+        `select project_id, name, amount_cents, asaas_payment_id, status, sync_status,
+                external_receipt_pending_at
+           from public.project_payments where id = $1 for update`,
+        [id],
+      );
+      const row = rows[0];
+      if (!row) return 'missing' as const;
+      if (!row.asaas_payment_id || row.sync_status !== 'synced') return 'not-synced' as const;
+      if (row.status !== 'pending') return 'not-open' as const;
+      if (row.external_receipt_pending_at
+        && Date.now() - Date.parse(row.external_receipt_pending_at) < RECEIPT_CLAIM_MS) {
+        return 'in-progress' as const;
+      }
+      await client.query(
+        `update public.project_payments set external_receipt_pending_at = now() where id = $1`,
+        [id],
+      );
+      return row;
+    });
+    if (claim === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (claim === 'not-synced') return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    if (claim === 'not-open') return reply.code(409).send({ error: 'cobranca-nao-esta-em-aberto' });
+    if (claim === 'in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
     try {
-      const current = await asaas.getPayment(local.asaas_payment_id);
-      await asaas.receivePaymentInCash(local.asaas_payment_id, {
+      const current = await asaas.getPayment(claim.asaas_payment_id!);
+      await asaas.receivePaymentInCash(claim.asaas_payment_id!, {
         paymentDate: parsed.data.paymentDate,
         value: current.value,
         notifyCustomer: true,
       });
+      await withActor(req.userId!, (client) => client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'pagamento_baixa_manual',$3::jsonb)`,
+        [claim.project_id, req.userId, JSON.stringify({
+          scope: 'projeto', paymentName: claim.name, amountCents: claim.amount_cents,
+          paymentDate: parsed.data.paymentDate, asaasPaymentId: claim.asaas_payment_id,
+        })],
+      ));
       return reply.code(202).send({ submitted: true, awaitingWebhook: true });
     } catch (error) {
+      // A reserva só faz sentido enquanto a baixa está a caminho.
+      await getPool().query(
+        `update public.project_payments set external_receipt_pending_at = null where id = $1`, [id],
+      ).catch(() => {});
       if (error instanceof AsaasError) return reply.code(502).send({ error: error.message });
       return sendDbError(error, reply);
     }
@@ -1164,8 +1298,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   // Webhook público: autenticado pelo token que o próprio Asaas envia.
   app.post('/webhooks/asaas', async (req, reply) => {
     if (!env.asaasWebhookToken) return reply.code(503).send({ error: 'webhook-nao-configurado' });
-    const received = req.headers['asaas-access-token'];
-    if (received !== env.asaasWebhookToken) return reply.code(401).send({ error: 'token-invalido' });
+    if (!sameWebhookToken(req.headers['asaas-access-token'], env.asaasWebhookToken)) {
+      return reply.code(401).send({ error: 'token-invalido' });
+    }
     const body = (req.body ?? {}) as Record<string, unknown>;
     const eventId = typeof body.id === 'string' ? body.id : '';
     const eventType = typeof body.event === 'string' ? body.event : '';
@@ -1173,10 +1308,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const payment = body.payment && typeof body.payment === 'object'
       ? body.payment as Record<string, unknown>
       : null;
-    const rawEventAt = typeof body.dateCreated === 'string' ? body.dateCreated : '';
-    const eventAt = rawEventAt && !Number.isNaN(Date.parse(rawEventAt))
-      ? new Date(rawEventAt).toISOString()
-      : new Date().toISOString();
+    const eventAt = asaasEventDate(typeof body.dateCreated === 'string' ? body.dateCreated : '');
     await getPool().query(
       `insert into public.asaas_webhook_events
          (provider_event_id,event_type,payload,payment_id,subscription_id,event_at)
