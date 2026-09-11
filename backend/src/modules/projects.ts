@@ -155,7 +155,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           and p.archived_at is null
           and ($3 or exists (select 1 from public.project_assignees a
                               where a.project_id = p.id and a.user_id = $2))
-        order by sp.project_id, sp.provider_event_at desc nulls last, sp.created_at desc`,
+        order by sp.project_id, sp.provider_event_at desc nulls last,
+                 sp.updated_at desc, sp.id desc`,
       // Duplicidades históricas continuam visíveis; a cobrança mais recente
       // vem primeiro, mas nenhuma é sobrescrita por um Map no frontend.
       [parsed.data, req.userId, isAdmin(req)],
