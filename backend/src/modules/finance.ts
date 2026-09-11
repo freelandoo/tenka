@@ -6,11 +6,10 @@ import { getPool, withActor } from '../db/pool';
 import { env, hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
-import { nextMonthlyDueDate } from '../finance/dueDate';
+import { followingMonthlyDueDate, nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
 import { integratedPlanUpdates, planDiff } from '../finance/planDiff';
 import { validateInstallmentGroups } from '../finance/installments';
-import { requiresPaidCompetenceConfirmation } from '../finance/activationGuard';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
 import { runReconciliation } from '../finance/reconciliationRun';
@@ -578,7 +577,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           return 'current-payment-not-synced' as const;
         }
         const isStartingCycle = parsed.data.activate && previous?.status !== 'active';
-        const nextDueDate = isStartingCycle
+        let nextDueDate = isStartingCycle
           ? nextMonthlyDueDate(parsed.data.dueDay)
           : parsed.data.nextDueDate ?? preview.next.dueDate;
         if (isStartingCycle) {
@@ -589,10 +588,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                 and status in ('confirmed', 'received', 'legacy_paid')`,
             [id, nextDueDate],
           );
-          if (requiresPaidCompetenceConfirmation(
-            settled.rows.map((row) => row.status),
-            parsed.data.confirmPaidCompetence,
-          )) return 'paid-competence' as const;
+          // Nunca reabre nem cobra uma competência já quitada. Ao ativar no
+          // próprio dia depois de uma baixa manual, a recorrência começa no mês seguinte.
+          if (settled.rows.length > 0) {
+            nextDueDate = followingMonthlyDueDate(nextDueDate, parsed.data.dueDay);
+          }
         }
         const billingType = parsed.data.billingType ?? previous?.billing_type ?? 'UNDEFINED';
         // A referência externa é um parâmetro separado do project_id para o
@@ -650,12 +650,6 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         return subscription;
       });
       if (!result) return reply.code(404).send({ error: 'projeto-inexistente' });
-      if (result === 'paid-competence') {
-        return reply.code(409).send({
-          error: 'competencia-ja-liquidada',
-          message: 'A competência do próximo vencimento já possui pagamento liquidado.',
-        });
-      }
       if (result === 'current-payment-not-synced') {
         return reply.code(409).send({ error: 'cobranca-atual-nao-sincronizada' });
       }

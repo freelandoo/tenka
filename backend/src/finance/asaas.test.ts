@@ -56,6 +56,31 @@ describe('cliente Asaas', () => {
     }));
   });
 
+  it('consulta e padroniza notificações do cliente em lote', async () => {
+    const notification = {
+      id: 'not_1', customer: 'cus_1', enabled: false,
+      emailEnabledForCustomer: false, smsEnabledForCustomer: false,
+      phoneCallEnabledForCustomer: true, whatsappEnabledForCustomer: true,
+      event: 'PAYMENT_CREATED',
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [notification] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ notifications: [notification] }), { status: 200 }));
+
+    await asaas.listCustomerNotifications('cus_1');
+    await asaas.updateCustomerNotifications('cus_1', [{
+      id: 'not_1', enabled: true, emailEnabledForCustomer: true,
+      smsEnabledForCustomer: true, phoneCallEnabledForCustomer: false,
+      whatsappEnabledForCustomer: false,
+    }]);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('/customers/cus_1/notifications');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://api-sandbox.asaas.com/v3/notifications/batch',
+      expect.objectContaining({ method: 'PUT', body: expect.stringContaining('not_1') }),
+    );
+  });
+
   it('consulta por referência e remove cobrança pelo id', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }))

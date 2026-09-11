@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, Menu, MoreVertical, Settings, X } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
@@ -6,6 +6,8 @@ import { NotificationsProvider } from '../features/notifications/NotificationsCo
 import { NotificationBell } from '../features/notifications/NotificationBell';
 import { AssignmentModal } from '../features/notifications/AssignmentModal';
 import { initials } from '../features/panel/format';
+import { fetchClientAttention } from '../features/clients/clientsService';
+import { subscribeRealtime } from '../lib/api/events';
 import { PANEL_ROLE_LABELS } from '../lib/supabase/database.types';
 import { panelNavFor } from './panelNav';
 
@@ -117,8 +119,28 @@ function AccountMenu() {
 export default function PanelLayout() {
   const { role, isStaff } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [clientsMissingDocument, setClientsMissingDocument] = useState(0);
   const location = useLocation();
   const groups = panelNavFor(role);
+
+  const loadClientAttention = useCallback(async () => {
+    if (role !== 'admin') {
+      setClientsMissingDocument(0);
+      return;
+    }
+    try {
+      const attention = await fetchClientAttention();
+      setClientsMissingDocument(attention.missingDocumentCount);
+    } catch {
+      // O aviso é auxiliar: uma falha aqui não bloqueia a navegação do painel.
+    }
+  }, [role]);
+
+  useEffect(() => {
+    void loadClientAttention();
+    if (role !== 'admin') return;
+    return subscribeRealtime(['clients'], () => void loadClientAttention());
+  }, [loadClientAttention, role]);
 
   // Navegou (inclusive pelo próprio menu): a gaveta do mobile fecha.
   useEffect(() => setMenuOpen(false), [location.pathname]);
@@ -139,11 +161,18 @@ export default function PanelLayout() {
           <button
             type="button"
             className="panel-iconbtn panel-sidebar__toggle"
-            aria-label={menuOpen ? 'Fechar navegação' : 'Abrir navegação'}
+            aria-label={`${menuOpen ? 'Fechar navegação' : 'Abrir navegação'}${
+              clientsMissingDocument > 0
+                ? `; ${clientsMissingDocument} cliente${clientsMissingDocument === 1 ? '' : 's'} sem CPF ou CNPJ`
+                : ''
+            }`}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
           >
             <Menu size={20} aria-hidden="true" />
+            {clientsMissingDocument > 0 && (
+              <span className="client-attention-dot client-attention-dot--menu" aria-hidden="true" />
+            )}
           </button>
 
           {/* O logo SAI do painel para a home do site (o showroom dos três
@@ -186,12 +215,30 @@ export default function PanelLayout() {
                 aria-label={group.label ?? 'Navegação principal'}
               >
                 {group.label && <p className="panel-sidebar__label">{group.label}</p>}
-                {group.items.map(({ to, label, icon: Icon, end }) => (
-                  <NavLink key={to} to={to} end={end} className="panel-sidebar__link">
-                    <Icon size={16} aria-hidden="true" />
-                    {label}
-                  </NavLink>
-                ))}
+                {group.items.map(({ to, label, icon: Icon, end }) => {
+                  const hasClientAttention = to === '/painel/admin/clientes' && clientsMissingDocument > 0;
+                  return (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={end}
+                      className="panel-sidebar__link"
+                      aria-label={hasClientAttention
+                        ? `${label}, ${clientsMissingDocument} cliente${clientsMissingDocument === 1 ? '' : 's'} sem CPF ou CNPJ`
+                        : undefined}
+                    >
+                      <Icon size={16} aria-hidden="true" />
+                      <span className="panel-sidebar__link-label">{label}</span>
+                      {hasClientAttention && (
+                        <span
+                          className="client-attention-dot"
+                          title={`${clientsMissingDocument} cliente${clientsMissingDocument === 1 ? '' : 's'} sem CPF/CNPJ`}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </NavLink>
+                  );
+                })}
               </nav>
             ))}
           </aside>

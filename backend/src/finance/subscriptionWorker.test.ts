@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const hoisted = vi.hoisted(() => ({
   queries: [] as Array<{ sql: string; values: unknown[] }>,
   asaas: {
-    updateCustomer: vi.fn(), updateSubscription: vi.fn(), updatePayment: vi.fn(),
+    updateCustomer: vi.fn(), listCustomerNotifications: vi.fn(),
+    updateCustomerNotifications: vi.fn(), updateSubscription: vi.fn(), updatePayment: vi.fn(),
     getSubscription: vi.fn(), deleteSubscription: vi.fn(),
   },
 }));
@@ -44,6 +45,12 @@ describe('worker de mensalidades', () => {
     hoisted.queries.length = 0;
     vi.clearAllMocks();
     hoisted.asaas.updateCustomer.mockResolvedValue({ id: 'cus-1' });
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
+      id: 'not-1', customer: 'cus-1', enabled: true,
+      emailEnabledForCustomer: true, smsEnabledForCustomer: true,
+      phoneCallEnabledForCustomer: false, whatsappEnabledForCustomer: false,
+      event: 'PAYMENT_CREATED',
+    }] });
     hoisted.asaas.updateSubscription.mockResolvedValue({ id: 'sub-1', status: 'ACTIVE' });
     hoisted.asaas.updatePayment.mockResolvedValue({ id: 'pay-current', status: 'PENDING' });
     hoisted.asaas.deleteSubscription.mockResolvedValue({ id: 'sub-1', deleted: true });

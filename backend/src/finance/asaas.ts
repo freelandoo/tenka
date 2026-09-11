@@ -85,6 +85,18 @@ export interface AsaasPixQrCode {
   expirationDate: string;
 }
 
+export interface AsaasNotification {
+  id: string;
+  customer: string;
+  enabled: boolean;
+  emailEnabledForCustomer: boolean;
+  smsEnabledForCustomer: boolean;
+  phoneCallEnabledForCustomer: boolean;
+  whatsappEnabledForCustomer: boolean;
+  event: string;
+  scheduleOffset?: number;
+}
+
 export interface AsaasPage<T> {
   data: T[];
   hasMore?: boolean;
@@ -104,6 +116,26 @@ export const asaas = {
   updateCustomer(id: string, input: { name: string; cpfCnpj: string; email?: string; mobilePhone?: string; externalReference: string }) {
     return request<AsaasCustomer>(`/customers/${encodeURIComponent(id)}`, {
       method: 'PUT', body: JSON.stringify(input),
+    });
+  },
+  listCustomerNotifications(id: string) {
+    return request<AsaasPage<AsaasNotification>>(
+      `/customers/${encodeURIComponent(id)}/notifications`,
+    );
+  },
+  updateCustomerNotifications(
+    customer: string,
+    notifications: Array<{
+      id: string;
+      enabled: boolean;
+      emailEnabledForCustomer: boolean;
+      smsEnabledForCustomer: boolean;
+      phoneCallEnabledForCustomer: boolean;
+      whatsappEnabledForCustomer: boolean;
+    }>,
+  ) {
+    return request<{ notifications: AsaasNotification[] }>('/notifications/batch', {
+      method: 'PUT', body: JSON.stringify({ customer, notifications }),
     });
   },
   async findSubscription(externalReference: string): Promise<AsaasSubscription | null> {

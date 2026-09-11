@@ -32,6 +32,16 @@ function isAdmin(req: FastifyRequest): boolean {
 }
 
 export async function clientRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/clients/attention', adminOnly, async (_req, reply) => {
+    const { rows } = await getPool().query<{ missing_document_count: number }>(
+      `select count(*)::int as missing_document_count
+         from public.clients
+        where archived_at is null
+          and nullif(btrim(cpf_cnpj), '') is null`,
+    );
+    return reply.send({ missingDocumentCount: rows[0]?.missing_document_count ?? 0 });
+  });
+
   /**
    * Lista os clientes visíveis com o agregado que a aba Leads mostra na linha:
    * quantos projetos, soma dos valores e soma das mensalidades ATIVAS.

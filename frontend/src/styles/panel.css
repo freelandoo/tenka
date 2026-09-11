@@ -991,12 +991,31 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 
 .leads__client {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 14.5px;
   font-weight: 600;
   color: var(--panel-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.client-attention-dot {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef5350;
+  box-shadow: 0 0 0 0 rgba(239, 83, 80, 0.35);
+  animation: client-attention-pulse 2.4s ease-out infinite;
+}
+
+@keyframes client-attention-pulse {
+  0%, 55%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, 0.3); opacity: 0.92; }
+  75% { box-shadow: 0 0 0 4px rgba(239, 83, 80, 0); opacity: 1; }
 }
 
 .leads__contact { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -2677,6 +2696,12 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 .client-contact span { display: inline-flex; align-items: center; gap: 5px; }
 
+#client-drawer-title { display: flex; align-items: center; gap: 8px; }
+.panel-field--attention > label { color: #ff8a87; }
+.panel-field--attention > label .client-attention-dot { margin-left: 7px; }
+.panel-field--attention > .panel-input { border-color: rgba(239, 83, 80, 0.62); }
+.panel-field--attention > .panel-input:focus { box-shadow: 0 0 0 3px rgba(239, 83, 80, 0.11); }
+
 .client-tabs {
   display: flex;
   gap: 4px;
@@ -3276,6 +3301,12 @@ a.fees__billing-icon { text-decoration: none; }
   color: var(--panel-text-dim);
   text-decoration: none;
   transition: color 140ms ease, background-color 140ms ease;
+}
+.panel-sidebar__link-label { flex: 1; }
+.client-attention-dot--menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
 }
 .panel-sidebar__link:hover { color: var(--panel-text); background: rgba(255, 255, 255, 0.05); }
 .panel-sidebar__link[aria-current='page'] {

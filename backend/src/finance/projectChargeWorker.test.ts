@@ -5,6 +5,8 @@ const hoisted = vi.hoisted(() => ({
   asaasPaymentId: null as string | null,
   asaas: {
     updateCustomer: vi.fn(),
+    listCustomerNotifications: vi.fn(),
+    updateCustomerNotifications: vi.fn(),
     findPayment: vi.fn(),
     getPayment: vi.fn(),
     createPayment: vi.fn(),
@@ -60,6 +62,12 @@ describe('worker de cobranças de projeto', () => {
     hoisted.asaasPaymentId = null;
     vi.clearAllMocks();
     hoisted.asaas.updateCustomer.mockResolvedValue({ id: 'cus_1' });
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
+      id: 'not_1', customer: 'cus_1', enabled: true,
+      emailEnabledForCustomer: true, smsEnabledForCustomer: true,
+      phoneCallEnabledForCustomer: false, whatsappEnabledForCustomer: false,
+      event: 'PAYMENT_CREATED',
+    }] });
     hoisted.asaas.findPayment.mockResolvedValue(null);
     hoisted.asaas.createPayment.mockResolvedValue({
       id: 'pay_1', status: 'PENDING', billingType: 'PIX', value: 2000,
@@ -80,9 +88,39 @@ describe('worker de cobranças de projeto', () => {
       externalReference: 'project-payment:77777777-7777-4777-8777-777777777777',
     }));
     expect(hoisted.asaas.getPixQrCode).toHaveBeenCalledWith('pay_1');
+    expect(hoisted.asaas.listCustomerNotifications).toHaveBeenCalledWith('cus_1');
+    expect(hoisted.asaas.updateCustomerNotifications).not.toHaveBeenCalled();
     expect(hoisted.queries.some((query) =>
       query.sql.startsWith('update public.project_payments') && query.values.includes('pay_1'),
     )).toBe(true);
+  });
+
+  it('corrige canais do cliente antes de emitir a cobrança', async () => {
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
+      id: 'not_1', customer: 'cus_1', enabled: false,
+      emailEnabledForCustomer: false, smsEnabledForCustomer: false,
+      phoneCallEnabledForCustomer: true, whatsappEnabledForCustomer: true,
+      event: 'PAYMENT_CREATED',
+    }] });
+    hoisted.asaas.updateCustomerNotifications.mockResolvedValue({ notifications: [] });
+
+    await executeOperation(operation('create_project_charge'));
+
+    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
+      id: 'not_1', enabled: true, emailEnabledForCustomer: true,
+      smsEnabledForCustomer: true, phoneCallEnabledForCustomer: false,
+      whatsappEnabledForCustomer: false,
+    }]);
+    expect(hoisted.asaas.createPayment).toHaveBeenCalled();
+  });
+
+  it('bloqueia a emissão quando o Asaas não retorna configuração de avisos', async () => {
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [] });
+
+    await expect(executeOperation(operation('create_project_charge')))
+      .rejects.toThrow('cobrança não emitida');
+
+    expect(hoisted.asaas.createPayment).not.toHaveBeenCalled();
   });
 
   it('reaproveita cobrança existente pela referência e não duplica', async () => {

@@ -228,7 +228,25 @@ class FakeDb {
 
   private paymentQuery(sql: string, values: unknown[]): { rows: unknown[]; rowCount: number } {
     if (sql.startsWith('select')) {
+      if (sql.includes('where asaas_payment_id = $1')) {
+        const rows = this.payments.filter((row) => row.asaas_payment_id === values[0]);
+        return { rows, rowCount: rows.length };
+      }
       return { rows: [...this.payments], rowCount: this.payments.length };
+    }
+    if (sql.startsWith('update public.subscription_payments target')) {
+      const [projectId, subscriptionId, competence, paymentId, dueDate, value] = values;
+      if (this.payments.some((row) => row.asaas_payment_id === paymentId)) {
+        return { rows: [], rowCount: 0 };
+      }
+      const candidate = this.payments.find((row) =>
+        row.project_id === projectId && row.competence === competence && row.due_date === dueDate &&
+        row.amount_cents === Math.round(Number(value) * 100) && row.asaas_payment_id === null &&
+        row.source === 'manual' && ['pending', 'overdue', 'failed'].includes(row.status));
+      if (!candidate) return { rows: [], rowCount: 0 };
+      candidate.asaas_payment_id = String(paymentId);
+      candidate.subscription_id = String(subscriptionId);
+      return { rows: [], rowCount: 1 };
     }
     if (!sql.includes('insert into')) return { rows: [], rowCount: 0 };
 
@@ -374,6 +392,22 @@ describe('worker financeiro — caminho feliz', () => {
     expect(hoisted.db.paymentByAsaasId('pay_1')).toHaveLength(1);
     expect(hoisted.db.payments[0]?.status).toBe('received');
     expect(hoisted.db.events.map((row) => row.status)).toEqual(['done', 'done']);
+  });
+
+  it('adota a competência manual pendente ao receber a cobrança do Asaas', async () => {
+    hoisted.db.seedPayment({
+      project_id: 'p1', competence: '2026-09-01', due_date: '2026-09-10',
+      amount_cents: 29_990, source: 'manual', asaas_payment_id: null,
+    });
+    hoisted.db.seedEvent(paymentEvent(), 'evt_adocao');
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.payments).toHaveLength(1);
+    expect(hoisted.db.payments[0]).toMatchObject({
+      asaas_payment_id: 'pay_1', source: 'asaas', status: 'pending',
+    });
+    expect(hoisted.db.event('evt_adocao').status).toBe('done');
   });
 
   it('conclui sem gravar nada um evento que não carrega cobrança', async () => {

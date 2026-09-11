@@ -12,6 +12,10 @@ export async function fetchClients(): Promise<ClientWithTotals[]> {
   return data.clients;
 }
 
+export async function fetchClientAttention(): Promise<{ missingDocumentCount: number }> {
+  return apiRequest<{ missingDocumentCount: number }>('/clients/attention');
+}
+
 export interface ClientInput {
   name: string;
   phone?: string;

@@ -6,6 +6,7 @@ import { formatCurrencyFromCents } from '../panel/format';
 import { subscribeRealtime } from '../../lib/api/events';
 import * as service from './clientsService';
 import { ClientDrawer } from './ClientDrawer';
+import { isClientDocumentMissing } from './clientHealth';
 
 interface LeadsViewProps {
   projects: BoardProject[];
@@ -113,6 +114,7 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
           </div>
 
           {filtrados.map((c) => {
+            const missingDocument = isClientDocumentMissing(c.cpf_cnpj);
             // Um único projeto com mensalidade → o botão da linha é claro.
             return (
               <div key={c.id} className="leads__row" role="row">
@@ -120,10 +122,17 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
                   type="button"
                   className="leads__open"
                   onClick={() => setAbertoId(c.id)}
-                  aria-label={`Abrir ficha de ${c.name}`}
+                  aria-label={`Abrir ficha de ${c.name}${missingDocument ? ', CPF ou CNPJ ausente' : ''}`}
                 >
                   <span className="leads__client" role="cell">
                     {c.name}
+                    {missingDocument && (
+                      <span
+                        className="client-attention-dot"
+                        title="CPF/CNPJ ausente"
+                        aria-hidden="true"
+                      />
+                    )}
                   </span>
 
                   <span className="leads__contact" role="cell">

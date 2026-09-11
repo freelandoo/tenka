@@ -7,6 +7,7 @@ import type { BoardProject } from '../projects/services/projectsService';
 
 vi.mock('./clientsService', () => ({
   fetchClients: vi.fn(),
+  fetchClientAttention: vi.fn(),
   fetchCosts: vi.fn(),
   createCost: vi.fn(),
   updateCost: vi.fn(),
@@ -31,6 +32,7 @@ function makeClient(over: Partial<ClientWithTotals> = {}): ClientWithTotals {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     archived_at: null,
+    cpf_cnpj: '123.456.789-09',
     project_count: 2,
     total_value_cents: 500000,
     active_fee_cents: 90000,
@@ -150,5 +152,21 @@ describe('LeadsView', () => {
     fireEvent.change(screen.getByLabelText('Buscar clientes'), { target: { value: 'beta.com' } });
     expect(screen.getByText('Beta Ltda')).toBeInTheDocument();
     expect(screen.queryByText('Alex Rodrigues')).toBeNull();
+  });
+
+  it('sinaliza CPF/CNPJ ausente e abre o cadastro diretamente no campo inválido', async () => {
+    mocked.fetchClients.mockResolvedValue([makeClient({ cpf_cnpj: '' })]);
+    render(
+      <LeadsView projects={[makeProject()]} profiles={profiles} isAdmin onProjectsChanged={vi.fn()} />,
+    );
+
+    const open = await screen.findByRole('button', {
+      name: 'Abrir ficha de Alex Rodrigues, CPF ou CNPJ ausente',
+    });
+    expect(open.querySelector('[title="CPF/CNPJ ausente"]')).not.toBeNull();
+
+    fireEvent.click(open);
+    expect(screen.getByRole('tab', { name: /Cadastro/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('CPF/CNPJ')).toHaveAttribute('aria-invalid', 'true');
   });
 });

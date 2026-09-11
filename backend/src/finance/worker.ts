@@ -282,6 +282,23 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext):
   const customer = ctx.asaas_customer_id
     ? await asaas.updateCustomer(ctx.asaas_customer_id, input)
     : (await asaas.findCustomer(externalReference)) ?? (await asaas.createCustomer(input));
+  const currentNotifications = await asaas.listCustomerNotifications(customer.id);
+  if (currentNotifications.data.length === 0) {
+    throw new Error('O Asaas não retornou as notificações do cliente; cobrança não emitida.');
+  }
+  const notifications = currentNotifications.data.map((notification) => ({
+    id: notification.id,
+    enabled: true,
+    emailEnabledForCustomer: true,
+    smsEnabledForCustomer: true,
+    phoneCallEnabledForCustomer: false,
+    whatsappEnabledForCustomer: false,
+  }));
+  const needsUpdate = currentNotifications.data.some((notification) =>
+    !notification.enabled || !notification.emailEnabledForCustomer ||
+    !notification.smsEnabledForCustomer || notification.phoneCallEnabledForCustomer ||
+    notification.whatsappEnabledForCustomer);
+  if (needsUpdate) await asaas.updateCustomerNotifications(customer.id, notifications);
   await getPool().query(
     `update public.clients
         set asaas_customer_id = $2, asaas_customer_synced_at = now(),
@@ -825,6 +842,34 @@ async function processSubscriptionPaymentWebhook(
     );
     linked = subscription.rows[0] ?? null;
     if (!linked) throw new Error(`Assinatura do webhook ainda não vinculada: ${subscriptionRef}.`);
+  }
+  if (!exactPayment.rows[0]) {
+    // A tela pode ter criado uma competência pendente antes da emissão no Asaas.
+    // Adota exatamente uma linha compatível para o webhook não duplicar o mês.
+    await getPool().query(
+      `update public.subscription_payments target
+          set asaas_payment_id = $4, subscription_id = $2
+        where target.id = (
+          select candidate.id
+            from public.subscription_payments candidate
+           where candidate.project_id = $1
+             and candidate.competence = $3::date
+             and candidate.due_date = $5::date
+             and candidate.amount_cents = round(($6::numeric) * 100)::bigint
+             and candidate.asaas_payment_id is null
+             and candidate.source = 'manual'
+             and candidate.status in ('pending','overdue','failed')
+           order by candidate.updated_at desc, candidate.id
+           for update skip locked
+           limit 1
+        )
+          and not exists (
+            select 1 from public.subscription_payments duplicate
+             where duplicate.asaas_payment_id = $4
+          )`,
+      [linked.project_id, linked.id, competenceFromDueDate(dueDate), String(payment.id),
+        dueDate, Number(payment.value ?? 0)],
+    );
   }
   const applied = await getPool().query(
     `insert into public.subscription_payments

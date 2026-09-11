@@ -24,6 +24,7 @@ import { useToast } from '../panel/ToastContext';
 import { subscribeRealtime } from '../../lib/api/events';
 import * as service from './clientsService';
 import { CostList } from './CostList';
+import { isClientDocumentMissing } from './clientHealth';
 
 interface ClientDrawerProps {
   client: ClientWithTotals;
@@ -50,7 +51,8 @@ export function ClientDrawer({
   onClose,
   onChanged,
 }: ClientDrawerProps) {
-  const [tab, setTab] = useState<Tab>('projetos');
+  const missingDocument = isClientDocumentMissing(client.cpf_cnpj);
+  const [tab, setTab] = useState<Tab>(missingDocument ? 'cadastro' : 'projetos');
 
   const meus = useMemo(
     () =>
@@ -69,6 +71,9 @@ export function ClientDrawer({
           </p>
           <h2 id="client-drawer-title" style={{ wordBreak: 'break-word' }}>
             {client.name}
+            {missingDocument && (
+              <span className="client-attention-dot" title="CPF/CNPJ ausente" aria-hidden="true" />
+            )}
           </h2>
           <div className="client-contact">
             {client.phone && (
@@ -111,6 +116,9 @@ export function ClientDrawer({
         >
           <UserRound size={14} aria-hidden="true" />
           Cadastro
+          {missingDocument && (
+            <span className="client-attention-dot" title="CPF/CNPJ ausente" aria-hidden="true" />
+          )}
         </button>
       </div>
 
@@ -308,11 +316,17 @@ function ClientForm({
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div className="panel-field">
-        <label htmlFor={`cli-document-${client.id}`}>CPF/CNPJ</label>
+      <div className={`panel-field${isClientDocumentMissing(cpfCnpj) ? ' panel-field--attention' : ''}`}>
+        <label htmlFor={`cli-document-${client.id}`}>
+          CPF/CNPJ
+          {isClientDocumentMissing(cpfCnpj) && (
+            <span className="client-attention-dot" title="CPF/CNPJ ausente" aria-hidden="true" />
+          )}
+        </label>
         <input
           id={`cli-document-${client.id}`}
           className="panel-input"
+          aria-invalid={isClientDocumentMissing(cpfCnpj)}
           value={cpfCnpj}
           disabled={!isAdmin}
           inputMode="numeric"

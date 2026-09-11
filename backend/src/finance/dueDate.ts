@@ -30,3 +30,17 @@ export function nextMonthlyDueDate(
   const targetDay = Math.min(dueDay, new Date(Date.UTC(year, month, 0)).getUTCDate());
   return `${year}-${String(month).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
 }
+
+/** Avança um vencimento civil exatamente um mês, respeitando meses curtos. */
+export function followingMonthlyDueDate(dueDate: string, dueDay: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dueDate);
+  if (!match) throw new Error('Vencimento mensal inválido.');
+  let year = Number(match[1]);
+  let month = Number(match[2]) + 1;
+  if (month === 13) {
+    month = 1;
+    year += 1;
+  }
+  const targetDay = Math.min(dueDay, new Date(Date.UTC(year, month, 0)).getUTCDate());
+  return `${year}-${String(month).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+}
