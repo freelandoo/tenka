@@ -9,7 +9,17 @@ import type { BoardProject } from '../projects/services/projectsService';
 import { COLUMN_LABELS } from '../projects/hooks/useKanban';
 import { COMPANY_LABELS } from '../projects/companies';
 import { PanelOverlay } from '../panel/PanelOverlay';
-import { formatCurrencyFromCents, formatDate, formatDateTime } from '../panel/format';
+import {
+  formatCpfCnpj,
+  formatCurrencyFromCents,
+  formatDate,
+  formatDateTime,
+  formatPhoneNumber,
+  isValidCpfCnpj,
+  isValidEmail,
+  isValidPhoneNumber,
+  normalizeEmailInput,
+} from '../panel/format';
 import { useToast } from '../panel/ToastContext';
 import { subscribeRealtime } from '../../lib/api/events';
 import * as service from './clientsService';
@@ -241,27 +251,52 @@ function ClientForm({
 }) {
   const { toast } = useToast();
   const [name, setName] = useState(client.name);
-  const [phone, setPhone] = useState(client.phone);
-  const [email, setEmail] = useState(client.email);
+  const [phone, setPhone] = useState(formatPhoneNumber(client.phone));
+  const [email, setEmail] = useState(normalizeEmailInput(client.email));
   const [notes, setNotes] = useState(client.notes);
-  const [cpfCnpj, setCpfCnpj] = useState(client.cpf_cnpj ?? '');
+  const [cpfCnpj, setCpfCnpj] = useState(formatCpfCnpj(client.cpf_cnpj ?? ''));
+
+  const originalPhone = formatPhoneNumber(client.phone);
+  const originalEmail = normalizeEmailInput(client.email);
+  const originalCpfCnpj = formatCpfCnpj(client.cpf_cnpj ?? '');
   const [saving, setSaving] = useState(false);
 
   const dirty =
     name !== client.name ||
-    phone !== client.phone ||
-    email !== client.email ||
+    phone !== originalPhone ||
+    email !== originalEmail ||
     notes !== client.notes ||
-    cpfCnpj !== (client.cpf_cnpj ?? '');
+    cpfCnpj !== originalCpfCnpj;
 
   const save = async () => {
     if (!name.trim()) {
       toast('error', 'O nome do cliente não pode ficar vazio.');
       return;
     }
+    const nextPhone = formatPhoneNumber(phone);
+    const nextEmail = normalizeEmailInput(email);
+    const nextCpfCnpj = formatCpfCnpj(cpfCnpj);
+    if (nextPhone && !isValidPhoneNumber(nextPhone)) {
+      toast('error', 'Telefone inválido. Informe DDD + número.');
+      return;
+    }
+    if (nextEmail && !isValidEmail(nextEmail)) {
+      toast('error', 'E-mail inválido.');
+      return;
+    }
+    if (nextCpfCnpj && !isValidCpfCnpj(nextCpfCnpj)) {
+      toast('error', 'CPF/CNPJ inválido.');
+      return;
+    }
     setSaving(true);
     try {
-      await service.updateClient(client.id, { name: name.trim(), phone, email, notes, cpf_cnpj: cpfCnpj });
+      await service.updateClient(client.id, {
+        name: name.trim(),
+        phone: nextPhone,
+        email: nextEmail,
+        notes,
+        cpf_cnpj: nextCpfCnpj,
+      });
       toast('success', 'Cliente atualizado nos projetos dele.');
       onChanged();
     } catch (error) {
@@ -282,7 +317,7 @@ function ClientForm({
           disabled={!isAdmin}
           inputMode="numeric"
           placeholder="Necessário para cobrar pelo Asaas"
-          onChange={(e) => setCpfCnpj(e.target.value)}
+          onChange={(e) => setCpfCnpj(formatCpfCnpj(e.target.value))}
         />
       </div>
       <div className="panel-field">
@@ -302,7 +337,9 @@ function ClientForm({
           className="panel-input"
           value={phone}
           disabled={!isAdmin}
-          onChange={(e) => setPhone(e.target.value)}
+          inputMode="tel"
+          placeholder="(11) 90000-0000"
+          onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
         />
       </div>
       <div className="panel-field">
@@ -312,7 +349,9 @@ function ClientForm({
           className="panel-input"
           value={email}
           disabled={!isAdmin}
-          onChange={(e) => setEmail(e.target.value)}
+          inputMode="email"
+          placeholder="cliente@email.com"
+          onChange={(e) => setEmail(normalizeEmailInput(e.target.value))}
         />
       </div>
       <div className="panel-field">

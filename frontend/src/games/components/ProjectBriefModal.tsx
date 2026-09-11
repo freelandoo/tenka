@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { isValidEmail, normalizeEmailInput } from '../../features/panel/format';
 
 const PROJECT_TYPES = [
   'Jogo de navegador',
@@ -123,7 +124,7 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
           : 'Descreva o escopo em pelo menos uma frase (mínimo de 10 caracteres).';
       case 4: {
         if (data.name.trim().length < 2) return 'Informe seu nome.';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) return 'Informe um e-mail válido.';
+        if (!isValidEmail(data.email)) return 'Informe um e-mail válido.';
         return null;
       }
       default:
@@ -142,7 +143,10 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
       setStep(step + 1);
     } else {
       // No backend yet: the briefing is logged for now.
-      console.log('TENKA // NOVO BRIEFING DE PROJETO', data);
+      console.log('TENKA // NOVO BRIEFING DE PROJETO', {
+        ...data,
+        email: normalizeEmailInput(data.email),
+      });
       setSubmitted(true);
       // The focused submit button unmounts — keep focus inside the dialog.
       requestAnimationFrame(() => {
@@ -356,7 +360,7 @@ export function ProjectBriefModal({ open, onClose }: ProjectBriefModalProps) {
                             type="email"
                             autoComplete="email"
                             value={data.email}
-                            onChange={(event) => setData({ ...data, email: event.target.value })}
+                            onChange={(event) => setData({ ...data, email: normalizeEmailInput(event.target.value) })}
                             className={fieldClass}
                           />
                         </div>

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BUILDER_MODULES } from '../data/modules';
 import { useBuildEngine } from '../state/BuildEngineContext';
+import { formatPhoneNumber, isValidEmail, isValidPhoneNumber, normalizeEmailInput } from '../../features/panel/format';
 
 const PRODUCT_TYPES = ['Site', 'Aplicativo', 'Sistema', 'Plataforma SaaS', 'Automação', 'Ainda estou definindo'];
 const PLATFORMS = ['Web', 'Android', 'iOS', 'Desktop', 'Painel administrativo', 'Múltiplas plataformas'];
@@ -23,8 +24,11 @@ const STEP_TITLES = ['Tipo de produto', 'Problema', 'Funcionalidades', 'Platafor
 const contactSchema = z.object({
   name: z.string().min(2, 'Informe seu nome.'),
   company: z.string().optional(),
-  email: z.string().email('Informe um e-mail válido.'),
-  phone: z.string().optional(),
+  email: z.string().trim().refine(isValidEmail, 'Informe um e-mail válido.'),
+  phone: z
+    .string()
+    .optional()
+    .refine((value) => !value || isValidPhoneNumber(value), 'Informe DDD + número.'),
   message: z.string().optional(),
 });
 
@@ -57,6 +61,7 @@ export function BriefModal() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<ContactData>({ resolver: zodResolver(contactSchema) });
 
@@ -150,6 +155,11 @@ export function BriefModal() {
   };
 
   const onSubmit = (contact: ContactData) => {
+    const normalizedContact = {
+      ...contact,
+      email: normalizeEmailInput(contact.email),
+      phone: formatPhoneNumber(contact.phone ?? ''),
+    };
     // No backend yet — the briefing is logged as structured data.
     console.log('TENKA // NOVO BUILD BRIEFING', {
       productType,
@@ -157,7 +167,7 @@ export function BriefModal() {
       features,
       platforms,
       stage,
-      contact,
+      contact: normalizedContact,
     });
     setSubmitted(true);
     requestAnimationFrame(() => {
@@ -174,6 +184,19 @@ export function BriefModal() {
 
   const fieldClass =
     'w-full border border-[#0b1b33]/15 bg-[var(--tbe-bg)] px-4 py-3 text-sm text-[var(--tbe-text)] placeholder:text-[var(--tbe-text-mute)] focus:border-[var(--tbe-tq)] focus:outline-none';
+
+  const emailField = register('email', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = normalizeEmailInput(event.target.value);
+      setValue('email', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
+  });
+  const phoneField = register('phone', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = formatPhoneNumber(event.target.value);
+      setValue('phone', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
+  });
 
   return (
     <AnimatePresence>
@@ -377,7 +400,7 @@ export function BriefModal() {
                           <label htmlFor="tbe-email" className="mb-1 block text-sm text-[var(--tbe-text-2)]">
                             E-mail *
                           </label>
-                          <input id="tbe-email" type="email" autoComplete="email" {...register('email')} className={fieldClass} />
+                          <input id="tbe-email" type="email" autoComplete="email" {...emailField} className={fieldClass} />
                           {errors.email && (
                             <p role="alert" className="mt-1 text-xs text-[var(--tbe-error)]">
                               {errors.email.message}
@@ -388,7 +411,12 @@ export function BriefModal() {
                           <label htmlFor="tbe-phone" className="mb-1 block text-sm text-[var(--tbe-text-2)]">
                             Telefone
                           </label>
-                          <input id="tbe-phone" type="tel" autoComplete="tel" {...register('phone')} className={fieldClass} />
+                          <input id="tbe-phone" type="tel" autoComplete="tel" {...phoneField} className={fieldClass} />
+                          {errors.phone && (
+                            <p role="alert" className="mt-1 text-xs text-[var(--tbe-error)]">
+                              {errors.phone.message}
+                            </p>
+                          )}
                         </div>
                         <div className="sm:col-span-2">
                           <label htmlFor="tbe-message" className="mb-1 block text-sm text-[var(--tbe-text-2)]">

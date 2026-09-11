@@ -9,7 +9,13 @@ import { projectFormSchema, collectAssigneeIds, type ProjectFormValues } from '.
 import * as clientsService from '../../clients/clientsService';
 import type { ClientWithTotals } from '../../../lib/supabase/database.types';
 import { COMPANY_KEYS, COMPANY_LABELS } from '../companies';
-import { parseCurrencyToCents, formatCurrencyFromCents } from '../../panel/format';
+import {
+  formatCpfCnpj,
+  formatCurrencyFromCents,
+  formatPhoneNumber,
+  normalizeEmailInput,
+  parseCurrencyToCents,
+} from '../../panel/format';
 import { PostItColorPicker } from './PostItColorPicker';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { useToast } from '../../panel/ToastContext';
@@ -52,8 +58,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           description: project.description,
           clientId: project.client_id ?? '',
           clientName: project.client_name,
-          clientPhone: project.client_phone,
-          clientEmail: project.client_email,
+          clientPhone: formatPhoneNumber(project.client_phone),
+          clientEmail: normalizeEmailInput(project.client_email),
           clientCpfCnpj: '',
           company: project.company,
           value: project.value_cents > 0 ? formatCurrencyFromCents(project.value_cents) : '',
@@ -93,7 +99,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     let cancelled = false;
     finance.fetchProjectFinance(project.id).then((detail) => {
       if (cancelled) return;
-      setValue('clientCpfCnpj', detail.project.cpf_cnpj ?? '');
+      setValue('clientCpfCnpj', formatCpfCnpj(detail.project.cpf_cnpj ?? ''));
       if (!detail.subscription) {
         setSubscriptionIsActive(false);
         setSubscriptionBaseline({ amountCents: 0, dueDay: 0, exists: false });
@@ -128,9 +134,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   useEffect(() => {
     if (!selecionado) return;
     setValue('clientName', selecionado.name);
-    setValue('clientPhone', selecionado.phone);
-    setValue('clientEmail', selecionado.email);
-    setValue('clientCpfCnpj', selecionado.cpf_cnpj ?? '');
+    setValue('clientPhone', formatPhoneNumber(selecionado.phone));
+    setValue('clientEmail', normalizeEmailInput(selecionado.email));
+    setValue('clientCpfCnpj', formatCpfCnpj(selecionado.cpf_cnpj ?? ''));
   }, [selecionado, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
@@ -139,6 +145,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     const monthlyFeeCents = values.monthlyFee.trim() === ''
       ? 0
       : parseCurrencyToCents(values.monthlyFee) ?? 0;
+    const clientPhone = formatPhoneNumber(values.clientPhone).trim();
+    const clientEmail = normalizeEmailInput(values.clientEmail);
+    const clientCpfCnpj = formatCpfCnpj(values.clientCpfCnpj).trim();
     const assigneeIds = collectAssigneeIds(values);
 
     try {
@@ -148,24 +157,24 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       if (!resolvedClientId) {
         const created = await clientsService.createClient({
           name: values.clientName,
-          phone: values.clientPhone,
-          email: values.clientEmail,
-          cpfCnpj: values.clientCpfCnpj,
+          phone: clientPhone,
+          email: clientEmail,
+          cpfCnpj: clientCpfCnpj,
         });
         resolvedClientId = created.id;
       } else if (isEdit) {
         const clientChanged =
           !selecionado ||
           values.clientName.trim() !== selecionado.name ||
-          values.clientPhone.trim() !== selecionado.phone ||
-          values.clientEmail.trim() !== selecionado.email ||
-          values.clientCpfCnpj.trim() !== (selecionado.cpf_cnpj ?? '');
+          clientPhone !== formatPhoneNumber(selecionado.phone) ||
+          clientEmail !== normalizeEmailInput(selecionado.email) ||
+          clientCpfCnpj !== formatCpfCnpj(selecionado.cpf_cnpj ?? '');
         if (clientChanged) {
           await clientsService.updateClient(resolvedClientId, {
             name: values.clientName.trim(),
-            phone: values.clientPhone.trim(),
-            email: values.clientEmail.trim(),
-            cpf_cnpj: values.clientCpfCnpj.trim(),
+            phone: clientPhone,
+            email: clientEmail,
+            cpf_cnpj: clientCpfCnpj,
           });
         }
       }
@@ -181,9 +190,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           subscriptionActive: false,
           dueDay: values.dueDay ? Number(values.dueDay) : null,
           clientName: values.clientName,
-          clientPhone: values.clientPhone,
-          clientEmail: values.clientEmail,
-          clientCpfCnpj: values.clientCpfCnpj,
+          clientPhone,
+          clientEmail,
+          clientCpfCnpj,
           clientId: resolvedClientId,
           company: values.company,
           dueDate: values.dueDate,
@@ -197,8 +206,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           description: values.description,
           value_cents: valueCents,
           client_name: values.clientName,
-          client_phone: values.clientPhone,
-          client_email: values.clientEmail,
+          client_phone: clientPhone,
+          client_email: clientEmail,
           client_id: resolvedClientId,
           company: values.company,
           due_date: values.dueDate,
@@ -248,6 +257,25 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     } finally {
       setSubmitting(false);
     }
+  });
+
+  const clientPhoneField = register('clientPhone', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = formatPhoneNumber(event.target.value);
+      setValue('clientPhone', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
+  });
+  const clientEmailField = register('clientEmail', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = normalizeEmailInput(event.target.value);
+      setValue('clientEmail', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
+  });
+  const clientCpfCnpjField = register('clientCpfCnpj', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = formatCpfCnpj(event.target.value);
+      setValue('clientCpfCnpj', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
   });
 
   return (
@@ -357,7 +385,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 inputMode="tel"
                 placeholder="(11) 90000-0000"
                 aria-invalid={Boolean(errors.clientPhone)}
-                {...register('clientPhone')}
+                {...clientPhoneField}
               />
               {errors.clientPhone && (
                 <p className="panel-field__error">{errors.clientPhone.message}</p>
@@ -371,7 +399,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 inputMode="email"
                 placeholder="cliente@email.com"
                 aria-invalid={Boolean(errors.clientEmail)}
-                {...register('clientEmail')}
+                {...clientEmailField}
               />
               {errors.clientEmail && (
                 <p className="panel-field__error">{errors.clientEmail.message}</p>
@@ -386,7 +414,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 placeholder="000.000.000-00"
                 maxLength={20}
                 aria-invalid={Boolean(errors.clientCpfCnpj)}
-                {...register('clientCpfCnpj')}
+                {...clientCpfCnpjField}
               />
               {errors.clientCpfCnpj && (
                 <p className="panel-field__error">{errors.clientCpfCnpj.message}</p>

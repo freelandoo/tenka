@@ -5,10 +5,11 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useStage } from '../state/StageContext';
+import { isValidEmail, normalizeEmailInput } from '../../features/panel/format';
 
 const schema = z.object({
   name: z.string().min(2, 'Informe seu nome.'),
-  email: z.string().email('Informe um e-mail válido.'),
+  email: z.string().trim().refine(isValidEmail, 'Informe um e-mail válido.'),
   company: z.string().optional(),
   idea: z.string().min(12, 'Conte um pouco mais sobre a ideia.'),
 });
@@ -19,7 +20,7 @@ export function BriefModal() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [sent, setSent] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema) });
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
     if (!briefOpen) return;
@@ -46,6 +47,13 @@ export function BriefModal() {
     reset();
   };
 
+  const emailField = register('email', {
+    onChange: (event: { target: HTMLInputElement }) => {
+      event.target.value = normalizeEmailInput(event.target.value);
+      setValue('email', event.target.value, { shouldDirty: true, shouldValidate: true });
+    },
+  });
+
   const campaignSummary = [campaign.objective, campaign.formats.join(' + '), campaign.energy, campaign.platforms.join(' + ')].filter(Boolean).join(' // ');
 
   return <AnimatePresence>{briefOpen && (
@@ -58,7 +66,7 @@ export function BriefModal() {
           {briefHasConfiguration && campaignSummary && <div className="mt-6 border-l-4 border-[var(--mmx-yellow)] bg-[var(--mmx-yellow)]/[0.06] p-4"><p className="mmx-mono text-[9px] tracking-[0.25em] text-[var(--mmx-yellow)]">CONFIGURAÇÃO IMPORTADA</p><p className="mt-2 text-sm text-[var(--mmx-text-2)]">{campaignSummary}</p></div>}
           <form className="mt-7 grid gap-5 sm:grid-cols-2" onSubmit={handleSubmit(submit)} noValidate>
             <Field label="NOME *" error={errors.name?.message}><input className="mmx-field" autoComplete="name" aria-invalid={Boolean(errors.name)} {...register('name')} /></Field>
-            <Field label="E-MAIL *" error={errors.email?.message}><input className="mmx-field" type="email" autoComplete="email" aria-invalid={Boolean(errors.email)} {...register('email')} /></Field>
+            <Field label="E-MAIL *" error={errors.email?.message}><input className="mmx-field" type="email" autoComplete="email" aria-invalid={Boolean(errors.email)} {...emailField} /></Field>
             <Field label="EMPRESA"><input className="mmx-field" autoComplete="organization" {...register('company')} /></Field>
             <div className="hidden sm:block" />
             <Field label="QUAL É A IDEIA? *" error={errors.idea?.message} full><textarea className="mmx-field min-h-32 resize-y" aria-invalid={Boolean(errors.idea)} {...register('idea')} /></Field>

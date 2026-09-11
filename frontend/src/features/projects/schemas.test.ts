@@ -39,6 +39,24 @@ describe('projectFormSchema', () => {
     expect(projectFormSchema.safeParse({ ...valid, value: 'muito caro' }).success).toBe(false);
   });
 
+  it('rejeita telefone, e-mail e CPF/CNPJ inválidos', () => {
+    expect(projectFormSchema.safeParse({ ...valid, clientPhone: '99999-8888' }).success).toBe(false);
+    expect(projectFormSchema.safeParse({ ...valid, clientEmail: 'cliente@exemplo' }).success).toBe(false);
+    expect(projectFormSchema.safeParse({ ...valid, clientCpfCnpj: '123.456.789-00' }).success).toBe(false);
+  });
+
+  it('aceita telefone colado com +55 e CPF/CNPJ válidos', () => {
+    expect(projectFormSchema.safeParse({
+      ...valid,
+      clientPhone: '+55 (11) 99999-8888',
+      clientCpfCnpj: '123.456.789-09',
+    }).success).toBe(true);
+    expect(projectFormSchema.safeParse({
+      ...valid,
+      clientCpfCnpj: '11.222.333/0001-81',
+    }).success).toBe(true);
+  });
+
   it('exige vencimento quando existe mensalidade', () => {
     expect(projectFormSchema.safeParse({ ...valid, dueDay: '' }).success).toBe(false);
     expect(projectFormSchema.safeParse({ ...valid, dueDay: '32' }).success).toBe(false);

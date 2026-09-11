@@ -130,9 +130,12 @@ describe('ProjectFormModal — contato do cliente', () => {
     expect(screen.queryByLabelText('Primeiro/próximo vencimento')).toBeNull();
     expect(screen.queryByLabelText('Forma de pagamento')).toBeNull();
 
-    await user.type(phone, '(11) 99999-8888');
-    await user.type(email, 'cliente@exemplo.com');
-    await user.type(cpfCnpj, '123.456.789-00');
+    await user.type(phone, '5511999998888');
+    await user.type(email, 'Cliente@EXEMPLO.COM ');
+    await user.type(cpfCnpj, '12345678909');
+    expect(phone).toHaveValue('+55 (11) 99999-8888');
+    expect(email).toHaveValue('cliente@exemplo.com');
+    expect(cpfCnpj).toHaveValue('123.456.789-09');
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com contato');
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-10-15');
     await user.type(screen.getByLabelText('Valor mensal (R$)'), '299,90');
@@ -144,9 +147,9 @@ describe('ProjectFormModal — contato do cliente', () => {
       expect(projectsService.createProject).toHaveBeenCalledWith(
         expect.objectContaining({
           clientId: existingClient.id,
-          clientPhone: '(11) 99999-8888',
+          clientPhone: '+55 (11) 99999-8888',
           clientEmail: 'cliente@exemplo.com',
-          clientCpfCnpj: '123.456.789-00',
+          clientCpfCnpj: '123.456.789-09',
           monthlyFeeCents: 29_990,
           subscriptionActive: false,
         }),

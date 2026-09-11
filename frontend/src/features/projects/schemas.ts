@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { POSTIT_COLOR_KEYS } from './colors';
 import { COMPANY_KEYS } from './companies';
-import { parseCurrencyToCents } from '../panel/format';
+import { isValidCpfCnpj, isValidEmail, isValidPhoneNumber, parseCurrencyToCents } from '../panel/format';
 
 /** Valida "yyyy-mm-dd" vindo de <input type="date">. */
 function isValidDateString(value: string): boolean {
@@ -29,13 +29,21 @@ export const projectFormSchema = z
     .trim()
     .min(1, 'O nome do cliente é obrigatório.')
     .max(120, 'Nome do cliente longo demais.'),
-  clientPhone: z.string().trim().max(40, 'Telefone longo demais.'),
+  clientPhone: z
+    .string()
+    .trim()
+    .max(40, 'Telefone longo demais.')
+    .refine((v) => v === '' || isValidPhoneNumber(v), 'Telefone inválido. Informe DDD + número.'),
   clientEmail: z
     .string()
     .trim()
     .max(160, 'E-mail longo demais.')
-    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'E-mail inválido.'),
-  clientCpfCnpj: z.string().trim().max(20, 'CPF/CNPJ longo demais.'),
+    .refine((v) => v === '' || isValidEmail(v), 'E-mail inválido.'),
+  clientCpfCnpj: z
+    .string()
+    .trim()
+    .max(20, 'CPF/CNPJ longo demais.')
+    .refine((v) => v === '' || isValidCpfCnpj(v), 'CPF/CNPJ inválido.'),
   company: z.enum(COMPANY_KEYS, { message: 'Escolha a empresa.' }),
   /** Texto do campo de moeda; convertido para centavos ao salvar. */
   value: z
