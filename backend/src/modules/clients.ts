@@ -49,6 +49,36 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
    * O agregado sai em SQL porque o front não recebe os projetos arquivados —
    * somar no cliente daria número diferente do que a Carteira mostra.
    */
+  app.get('/clients/archived', staffOnly, async (req, reply) => {
+    const admin = isAdmin(req);
+    const { rows } = await getPool().query(
+      `select c.*,
+              count(p.id) filter (where p.id is not null)::int as project_count,
+              coalesce(sum(p.value_cents), 0)::bigint           as total_value_cents,
+              coalesce(sum(p.monthly_fee_cents)
+                       filter (where p.subscription_active), 0)::bigint
+                                                               as active_fee_cents,
+              count(p.id) filter (where p.monthly_fee_cents > 0)::int
+                                                               as fee_count,
+              count(p.id) filter (where p.subscription_active
+                                    and p.monthly_fee_cents > 0)::int
+                                                               as active_fee_count,
+              min(p.due_day)                                   as due_day
+         from public.clients c
+         left join public.projects p
+           on p.client_id = c.id and p.archived_at is null
+        where c.archived_at is not null
+          and ($2 or exists (
+                select 1 from public.projects p2
+                  join public.project_assignees a on a.project_id = p2.id
+                 where p2.client_id = c.id and a.user_id = $1))
+        group by c.id
+        order by c.archived_at desc, lower(c.name)`,
+      [req.userId, admin],
+    );
+    return reply.send({ clients: rows });
+  });
+
   app.get('/clients', staffOnly, async (req, reply) => {
     const admin = isAdmin(req);
     const { rows } = await getPool().query(
@@ -134,5 +164,18 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
     );
     if (result.rowCount === 0) return reply.code(404).send({ error: 'cliente-inexistente' });
     return reply.send({ ok: true });
+  });
+
+  app.post('/clients/:id/restore', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try {
+      const result = await withActor(req.userId!, (db) =>
+        db.query('update public.clients set archived_at = null where id = $1 and archived_at is not null', [id]),
+      );
+      if (result.rowCount === 0) return reply.code(404).send({ error: 'cliente-inexistente' });
+      return reply.send({ ok: true });
+    } catch (err) {
+      return sendDbError(err, reply);
+    }
   });
 }

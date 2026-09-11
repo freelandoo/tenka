@@ -6,6 +6,7 @@ import type { BoardProject } from '../services/projectsService';
 
 vi.mock('../services/projectsService', () => ({
   fetchBoard: vi.fn(),
+  fetchArchivedProjects: vi.fn(),
   moveProject: vi.fn(),
 }));
 
@@ -37,6 +38,7 @@ function project(id: string, status: BoardProject['status'], position: number): 
 }
 
 const mockedFetch = vi.mocked(service.fetchBoard);
+const mockedFetchArchived = vi.mocked(service.fetchArchivedProjects);
 const mockedMove = vi.mocked(service.moveProject);
 
 beforeEach(() => {
@@ -46,6 +48,7 @@ beforeEach(() => {
     project('b', 'inicio', 1),
     project('c', 'em_andamento', 0),
   ]);
+  mockedFetchArchived.mockResolvedValue([]);
 });
 
 describe('useKanban', () => {
@@ -55,6 +58,7 @@ describe('useKanban', () => {
     expect(result.current.columns.inicio.map((p) => p.id)).toEqual(['a', 'b']);
     expect(result.current.columns.em_andamento.map((p) => p.id)).toEqual(['c']);
     expect(result.current.columns.finalizado).toEqual([]);
+    expect(result.current.archivedProjects).toEqual([]);
   });
 
   it('move com atualização otimista e persiste via RPC', async () => {

@@ -33,6 +33,8 @@ interface UseKanbanResult {
   projectById: Map<string, BoardProject>;
   /** Projetos finalizados (fora do board), do mais recente ao mais antigo. */
   history: BoardProject[];
+  /** Projetos arquivados: consulta separada, fora da carteira e da operação. */
+  archivedProjects: BoardProject[];
   /** Board + histórico (todos os não-arquivados) — base da carteira. */
   allProjects: BoardProject[];
   refresh(): Promise<void>;
@@ -59,6 +61,7 @@ function groupByColumn(projects: BoardProject[]): Record<ProjectStatus, BoardPro
 export function useKanban(enabled: boolean): UseKanbanResult {
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [history, setHistory] = useState<BoardProject[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<BoardProject[]>([]);
   const [status, setStatus] = useState<BoardStatus>('loading');
   // Enquanto houver operação otimista em voo, segura o refetch do polling
   // para não sobrescrever o estado local com dados intermediários.
@@ -71,7 +74,10 @@ export function useKanban(enabled: boolean): UseKanbanResult {
       return;
     }
     try {
-      const all = await service.fetchBoard();
+      const [all, archived] = await Promise.all([
+        service.fetchBoard(),
+        service.fetchArchivedProjects(),
+      ]);
       // Board = colunas do Kanban (não finalizados); histórico = finalizados.
       setProjects(all.filter((p) => !p.finalized_at));
       setHistory(
@@ -79,6 +85,7 @@ export function useKanban(enabled: boolean): UseKanbanResult {
           .filter((p) => p.finalized_at)
           .sort((a, b) => (b.finalized_at ?? '').localeCompare(a.finalized_at ?? '')),
       );
+      setArchivedProjects(archived);
       setStatus('ready');
     } catch {
       setStatus((current) => (current === 'ready' ? current : 'error'));
@@ -167,5 +174,5 @@ export function useKanban(enabled: boolean): UseKanbanResult {
   );
   const allProjects = useMemo(() => [...projects, ...history], [projects, history]);
 
-  return { status, columns, projectById, history, allProjects, refresh, move };
+  return { status, columns, projectById, history, archivedProjects, allProjects, refresh, move };
 }

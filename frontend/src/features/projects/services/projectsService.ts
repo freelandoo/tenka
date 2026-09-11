@@ -57,6 +57,11 @@ export async function fetchBoard(): Promise<BoardProject[]> {
   return data.projects;
 }
 
+export async function fetchArchivedProjects(): Promise<BoardProject[]> {
+  const data = await apiRequest<{ projects: BoardProject[] }>('/projects/archived');
+  return data.projects;
+}
+
 /**
  * Criação transacional via RPC no backend (valida admin, posiciona no fim de
  * Início e grava mensalidade/lead numa passada só).
@@ -112,6 +117,10 @@ export async function finalizeProject(
 /** Reabre um projeto do histórico: volta ao board na coluna Em andamento. */
 export async function reopenProject(projectId: string): Promise<void> {
   await apiRequest(`/projects/${projectId}/reopen`, { method: 'POST' });
+}
+
+export async function restoreProject(projectId: string): Promise<void> {
+  await apiRequest(`/projects/${projectId}/restore`, { method: 'POST' });
 }
 
 /** Cobranças do Asaas recebidas para a competência `YYYY-MM`. */

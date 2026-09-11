@@ -12,6 +12,11 @@ export async function fetchClients(): Promise<ClientWithTotals[]> {
   return data.clients;
 }
 
+export async function fetchArchivedClients(): Promise<ClientWithTotals[]> {
+  const data = await apiRequest<{ clients: ClientWithTotals[] }>('/clients/archived');
+  return data.clients;
+}
+
 export async function fetchClientAttention(): Promise<{ missingDocumentCount: number }> {
   return apiRequest<{ missingDocumentCount: number }>('/clients/attention');
 }
@@ -45,6 +50,10 @@ export async function updateClient(
 
 export async function archiveClient(id: string): Promise<void> {
   await apiRequest(`/clients/${id}`, { method: 'DELETE' });
+}
+
+export async function restoreClient(id: string): Promise<void> {
+  await apiRequest(`/clients/${id}/restore`, { method: 'POST' });
 }
 
 // ---------------------------------------------------------------------------

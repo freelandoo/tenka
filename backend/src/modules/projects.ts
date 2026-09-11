@@ -138,6 +138,43 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ projects });
   });
 
+  app.get('/projects/archived', staffOnly, async (req, reply) => {
+    const userId = req.userId!;
+    const admin = isAdmin(req);
+    const pool = getPool();
+    const [projectsRes, assigneesRes] = await Promise.all([
+      pool.query(
+        `select p.* from public.projects p
+          where p.archived_at is not null
+            and ($2 or exists (select 1 from public.project_assignees a
+                                where a.project_id = p.id and a.user_id = $1))
+          order by p.archived_at desc, p.updated_at desc`,
+        [userId, admin],
+      ),
+      pool.query(
+        `select pa.* from public.project_assignees pa
+          join public.projects p on p.id = pa.project_id
+          where p.archived_at is not null
+            and ($2 or pa.user_id = $1
+              or exists (select 1 from public.project_assignees a2
+                          where a2.project_id = pa.project_id and a2.user_id = $1))`,
+        [userId, admin],
+      ),
+    ]);
+
+    const byProject = new Map<string, unknown[]>();
+    for (const row of assigneesRes.rows as Array<{ project_id: string }>) {
+      const list = byProject.get(row.project_id) ?? [];
+      list.push(row);
+      byProject.set(row.project_id, list);
+    }
+    const projects = (projectsRes.rows as Array<{ id: string }>).map((p) => ({
+      ...p,
+      assignees: byProject.get(p.id) ?? [],
+    }));
+    return reply.send({ projects });
+  });
+
   // ---- Cobranças mensais ---------------------------------------------------
   // O Asaas é a fonte de verdade: a listagem expõe o estado e os links que
   // chegaram pelo webhook, sem criar uma segunda baixa financeira na Tenka.
@@ -742,6 +779,25 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const result = await withActor(req.userId!, (client) => client.query(
       'update public.projects set finalized_at = null where id = $1 returning id', [id],
+    ));
+    if (!result.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
+    return reply.send({ ok: true });
+  });
+
+  app.post('/projects/:id/restore', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, (client) => client.query(
+      `update public.projects
+          set archived_at = null,
+              archive_requested_at = null,
+              archive_requested_by = null,
+              archive_reason = null,
+              archive_subscription_action = null,
+              financial_cleanup_status = 'none',
+              financial_cleanup_error = null
+        where id = $1 and archived_at is not null
+        returning id`,
+      [id],
     ));
     if (!result.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
     return reply.send({ ok: true });

@@ -45,7 +45,7 @@ export default function ProjectsPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { status, columns, projectById, history, allProjects, refresh, move } =
+  const { status, columns, projectById, history, archivedProjects, allProjects, refresh, move } =
     useKanban(isApiConfigured);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [form, setForm] = useState<FormState>({ mode: 'closed' });
@@ -126,10 +126,27 @@ export default function ProjectsPage() {
     [refresh, toast],
   );
 
+  const restoreArchivedProject = useCallback(
+    async (projectId: string) => {
+      try {
+        await service.restoreProject(projectId);
+        toast('success', 'Projeto restaurado.');
+        await refresh();
+      } catch (error) {
+        toast('error', error instanceof Error ? error.message : 'Falha ao restaurar o projeto.');
+      }
+    },
+    [refresh, toast],
+  );
+
   // Detalhes e observações valem para o board e para o histórico.
   const findProject = useCallback(
-    (id: string) => projectById.get(id) ?? history.find((p) => p.id === id) ?? null,
-    [projectById, history],
+    (id: string) =>
+      projectById.get(id)
+      ?? history.find((p) => p.id === id)
+      ?? archivedProjects.find((p) => p.id === id)
+      ?? null,
+    [projectById, history, archivedProjects],
   );
   const detailsProject = detailsId ? findProject(detailsId) : null;
   const notesProject = notesId ? findProject(notesId) : null;
@@ -286,9 +303,11 @@ export default function ProjectsPage() {
           />
           <HistoryList
             projects={history}
+            archivedProjects={archivedProjects}
             isAdmin={isAdmin}
             onOpenDetails={setDetailsId}
             onReopen={reopenFromHistory}
+            onRestore={restoreArchivedProject}
           />
         </>
       )}

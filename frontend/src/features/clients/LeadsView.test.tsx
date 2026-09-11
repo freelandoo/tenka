@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LeadsView } from './LeadsView';
 import * as service from './clientsService';
 import type { ClientWithTotals, ProfileRow } from '../../lib/supabase/database.types';
@@ -7,12 +7,15 @@ import type { BoardProject } from '../projects/services/projectsService';
 
 vi.mock('./clientsService', () => ({
   fetchClients: vi.fn(),
+  fetchArchivedClients: vi.fn(),
   fetchClientAttention: vi.fn(),
   fetchCosts: vi.fn(),
   createCost: vi.fn(),
   updateCost: vi.fn(),
   deleteCost: vi.fn(),
   updateClient: vi.fn(),
+  archiveClient: vi.fn(),
+  restoreClient: vi.fn(),
   sumActiveCosts: vi.fn(() => 0),
 }));
 
@@ -76,6 +79,9 @@ const profiles: ProfileRow[] = [];
 beforeEach(() => {
   vi.clearAllMocks();
   mocked.fetchCosts.mockResolvedValue([]);
+  mocked.fetchArchivedClients.mockResolvedValue([]);
+  mocked.archiveClient.mockResolvedValue();
+  mocked.restoreClient.mockResolvedValue();
 });
 
 describe('LeadsView', () => {
@@ -168,5 +174,34 @@ describe('LeadsView', () => {
     fireEvent.click(open);
     expect(screen.getByRole('tab', { name: /Cadastro/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByLabelText('CPF/CNPJ')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('oculta cliente da lista principal sem apagar o cadastro', async () => {
+    mocked.fetchClients.mockResolvedValue([makeClient()]);
+    const onChanged = vi.fn();
+    render(
+      <LeadsView projects={[makeProject()]} profiles={profiles} isAdmin onProjectsChanged={onChanged} />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ocultar Alex Rodrigues' }));
+
+    await waitFor(() => expect(mocked.archiveClient).toHaveBeenCalledWith('c1'));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it('mostra clientes ocultos em lista recolhível e permite restaurar', async () => {
+    mocked.fetchClients.mockResolvedValue([]);
+    mocked.fetchArchivedClients.mockResolvedValue([
+      makeClient({ archived_at: '2026-09-10T12:00:00Z', cpf_cnpj: '' }),
+    ]);
+    render(
+      <LeadsView projects={[]} profiles={profiles} isAdmin onProjectsChanged={vi.fn()} />,
+    );
+
+    fireEvent.click(await screen.findByText('Ocultos'));
+    expect(screen.queryByTitle('CPF/CNPJ ausente')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Restaurar Alex Rodrigues' }));
+
+    await waitFor(() => expect(mocked.restoreClient).toHaveBeenCalledWith('c1'));
   });
 });

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Mail, Phone, UserRound } from 'lucide-react';
+import { ChevronDown, EyeOff, Mail, Phone, RotateCcw, UserRound } from 'lucide-react';
 import type { ClientWithTotals, ProfileRow } from '../../lib/supabase/database.types';
 import type { BoardProject } from '../projects/services/projectsService';
 import { formatCurrencyFromCents } from '../panel/format';
 import { subscribeRealtime } from '../../lib/api/events';
+import { useToast } from '../panel/ToastContext';
 import * as service from './clientsService';
 import { ClientDrawer } from './ClientDrawer';
 import { isClientDocumentMissing } from './clientHealth';
@@ -25,18 +26,28 @@ interface LeadsViewProps {
  * ficha, onde cada projeto é uma seção com o financeiro e os custos dele.
  */
 export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: LeadsViewProps) {
+  const { toast } = useToast();
   const [busca, setBusca] = useState('');
   const [clients, setClients] = useState<ClientWithTotals[] | null>(null);
+  const [archivedClients, setArchivedClients] = useState<ClientWithTotals[]>([]);
   const [erro, setErro] = useState(false);
   const [abertoId, setAbertoId] = useState<string | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [pendingClient, setPendingClient] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setErro(false);
-      setClients(await service.fetchClients());
+      const [visible, archived] = await Promise.all([
+        service.fetchClients(),
+        service.fetchArchivedClients(),
+      ]);
+      setClients(visible);
+      setArchivedClients(archived);
     } catch {
       setErro(true);
       setClients([]);
+      setArchivedClients([]);
     }
   }, []);
 
@@ -55,7 +66,32 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
     );
   }, [clients, busca]);
 
-  const aberto = clients?.find((c) => c.id === abertoId) ?? null;
+  const ocultosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return archivedClients;
+    return archivedClients.filter((c) =>
+      [c.name, c.phone, c.email].join(' ').toLowerCase().includes(termo),
+    );
+  }, [archivedClients, busca]);
+
+  const runClientAction = async (id: string, fn: () => Promise<void>) => {
+    setPendingClient(id);
+    try {
+      await fn();
+      await load();
+      onProjectsChanged();
+      toast('success', 'Cliente atualizado.');
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao atualizar o cliente.');
+    } finally {
+      setPendingClient(null);
+    }
+  };
+
+  const aberto =
+    clients?.find((c) => c.id === abertoId)
+    ?? archivedClients.find((c) => c.id === abertoId)
+    ?? null;
 
   return (
     <section className="leads" aria-labelledby="leads-title">
@@ -111,6 +147,7 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
             <span role="columnheader" style={{ textAlign: 'center' }}>
               Ativa
             </span>
+            <span role="columnheader" />
           </div>
 
           {filtrados.map((c) => {
@@ -187,10 +224,115 @@ export function LeadsView({ projects, profiles, isAdmin, onProjectsChanged }: Le
                     </span>
                   )}
                 </span>
+                <span className="leads__actions" role="cell">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="panel-iconbtn leads__icon-action"
+                      title="Ocultar cliente"
+                      aria-label={`Ocultar ${c.name}`}
+                      disabled={pendingClient === c.id}
+                      onClick={() => void runClientAction(c.id, () => service.archiveClient(c.id))}
+                    >
+                      <EyeOff size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                </span>
               </div>
             );
           })}
         </div>
+      )}
+
+      {ocultosFiltrados.length > 0 && (
+        <details
+          className="leads-archived"
+          open={archivedOpen}
+          onToggle={(event) => setArchivedOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span>
+              <EyeOff size={14} aria-hidden="true" />
+              Ocultos
+              <strong>{ocultosFiltrados.length}</strong>
+            </span>
+            <ChevronDown size={15} aria-hidden="true" />
+          </summary>
+          <div className="leads__rows leads__rows--archived" role="table">
+            {ocultosFiltrados.map((c) => (
+              <div key={c.id} className="leads__row leads__row--archived" role="row">
+                <button
+                  type="button"
+                  className="leads__open"
+                  onClick={() => setAbertoId(c.id)}
+                  aria-label={`Abrir ficha oculta de ${c.name}`}
+                >
+                  <span className="leads__client" role="cell">{c.name}</span>
+                  <span className="leads__contact" role="cell">
+                    {c.phone && (
+                      <span className="leads__contact-item">
+                        <Phone size={12} aria-hidden="true" />
+                        {c.phone}
+                      </span>
+                    )}
+                    {c.email && (
+                      <span className="leads__contact-item">
+                        <Mail size={12} aria-hidden="true" />
+                        {c.email}
+                      </span>
+                    )}
+                    {!c.phone && !c.email && <span className="history__muted">—</span>}
+                  </span>
+                  <span className="leads__projcount" role="cell">
+                    {c.project_count === 0 ? (
+                      <span className="history__muted">nenhum</span>
+                    ) : (
+                      `${c.project_count} projeto${c.project_count === 1 ? '' : 's'}`
+                    )}
+                  </span>
+                  <span className="leads__value" role="cell">
+                    {formatCurrencyFromCents(c.total_value_cents)}
+                  </span>
+                  <span className="leads__fee" role="cell">
+                    {c.active_fee_cents > 0 ? (
+                      `${formatCurrencyFromCents(c.active_fee_cents)}/mês`
+                    ) : (
+                      <span className="history__muted">—</span>
+                    )}
+                  </span>
+                  <span className="leads__due" role="cell">
+                    {c.due_day ? `dia ${c.due_day}` : <span className="history__muted">—</span>}
+                  </span>
+                </button>
+                <span className="leads__ativa-cell" role="cell">
+                  {c.fee_count === 0 ? (
+                    <span className="history__muted">—</span>
+                  ) : (
+                    <span className={`leads__ativa${c.active_fee_count > 0 ? ' leads__ativa--on' : ''}`}>
+                      {c.fee_count === 1
+                        ? (c.active_fee_count > 0 ? 'Ativa' : 'Inativa')
+                        : `${c.active_fee_count}/${c.fee_count} ativas`}
+                    </span>
+                  )}
+                </span>
+                <span className="leads__actions" role="cell">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="panel-iconbtn leads__icon-action"
+                      title="Restaurar cliente"
+                      aria-label={`Restaurar ${c.name}`}
+                      disabled={pendingClient === c.id}
+                      onClick={() => void runClientAction(c.id, () => service.restoreClient(c.id))}
+                    >
+                      <RotateCcw size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {aberto && (
