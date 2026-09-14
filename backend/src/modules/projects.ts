@@ -80,6 +80,9 @@ const competenceSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const externalPaymentSchema = z.object({
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
+const manualSubscriptionPaymentSchema = externalPaymentSchema.extend({
+  competence: competenceSchema,
+});
 const monthlyChargeCancelSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
 const projectLifecycleSchema = z.object({
@@ -312,6 +315,128 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     adminOnly,
     async (_req, reply) => reply.code(409).send({ error: 'cobranca-mensal-exige-id' }),
   );
+
+  app.post('/projects/:id/subscription-payment/manual', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = manualSubscriptionPaymentSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const result = await withActor(req.userId!, async (client) => {
+      const project = await client.query<{
+        project_id: string; project_name: string; monthly_fee_cents: number; due_day: number | null;
+        due_date: string; archive_requested_at: string | null; subscription_id: string | null;
+        subscription_amount_cents: number | null;
+      }>(
+        `select p.id as project_id, p.name as project_name, p.monthly_fee_cents,
+                p.due_day, p.due_date, p.archive_requested_at,
+                ps.id as subscription_id, ps.amount_cents as subscription_amount_cents
+           from public.projects p
+           left join public.project_subscriptions ps on ps.project_id = p.id
+          where p.id = $1 and p.archived_at is null
+          for update of p`,
+        [id],
+      );
+      const row = project.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.archive_requested_at) return 'archiving' as const;
+      const amountCents = Number(row.subscription_amount_cents ?? row.monthly_fee_cents);
+      if (!Number.isInteger(amountCents) || amountCents <= 0) return 'no-subscription' as const;
+
+      const competenceDate = `${parsed.data.competence}-01`;
+      const existing = await client.query<{
+        id: string; status: string; source: string; asaas_payment_id: string | null;
+      }>(
+        `select id, status, source, asaas_payment_id
+           from public.subscription_payments
+          where project_id = $1 and competence = $2::date
+          order by provider_event_at desc nulls last, updated_at desc, id desc
+          for update`,
+        [id, competenceDate],
+      );
+      if (existing.rows.some((payment) =>
+        ['confirmed', 'received', 'legacy_paid'].includes(payment.status),
+      )) return 'already-paid' as const;
+      if (existing.rows.some((payment) => payment.source === 'manual')) {
+        return 'already-paid' as const;
+      }
+      if (existing.rows.some((payment) =>
+        payment.source === 'asaas'
+        && payment.asaas_payment_id
+        && ['pending', 'overdue', 'failed'].includes(payment.status),
+      )) return 'asaas-open' as const;
+
+      const activeReceipt = await client.query(
+        `select 1
+           from public.payment_receipt_intents pri
+           join public.subscription_payments sp on sp.id = pri.subscription_payment_id
+          where pri.project_id = $1
+            and sp.competence = $2::date
+            and pri.status in ('pending','submitted','uncertain')
+          limit 1`,
+        [id, competenceDate],
+      );
+      if (activeReceipt.rows[0]) return 'receipt-in-progress' as const;
+
+      const manual = await client.query<{ id: string }>(
+        `insert into public.subscription_payments
+           (project_id, subscription_id, competence, amount_cents, due_date,
+            status, paid_at, paid_by, received_at, source, payment_date,
+            client_payment_date)
+         values (
+           $1, $2, $3::date, $4,
+           (
+             date_trunc('month', $3::date)
+             + (
+               least(
+                 coalesce($5::int, extract(day from $6::date)::int, 1),
+                 extract(day from (date_trunc('month', $3::date) + interval '1 month - 1 day'))::int
+               ) - 1
+             ) * interval '1 day'
+           )::date,
+           'legacy_paid', $7::date::timestamptz, $8, $7::date::timestamptz,
+           'manual', $7::date, $7::date
+         )
+         returning id`,
+        [
+          id,
+          row.subscription_id,
+          competenceDate,
+          amountCents,
+          row.due_day,
+          row.due_date,
+          parsed.data.paymentDate,
+          req.userId,
+        ],
+      );
+      const paymentId = manual.rows[0]?.id;
+      if (!paymentId) throw new Error('Falha ao registrar o pagamento manual.');
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'pagamento_baixa_local',$3::jsonb)`,
+        [id, req.userId, JSON.stringify({
+          scope: 'mensalidade',
+          source: 'tenka-local',
+          method: 'pix_empresa',
+          paymentName: 'Mensalidade',
+          projectName: row.project_name,
+          competence: competenceDate,
+          amountCents,
+          paymentDate: parsed.data.paymentDate,
+          status: 'paid',
+        })],
+      );
+      return { paymentId };
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
+    if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
+    if (result === 'no-subscription') return reply.code(409).send({ error: 'mensalidade-nao-configurada' });
+    if (result === 'already-paid') return reply.code(409).send({ error: 'mensalidade-ja-paga' });
+    if (result === 'asaas-open') return reply.code(409).send({
+      error: 'cobranca-mensal-sincronizada-deve-ser-registrada-no-asaas',
+      message: 'Use a ação da cobrança emitida para registrar o recebimento por fora no Asaas.',
+    });
+    if (result === 'receipt-in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
+    return reply.code(201).send({ paymentId: result.paymentId });
+  });
 
   app.post('/subscription-payments/:paymentId/cancel', adminOnly, async (req, reply) => {
     if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });

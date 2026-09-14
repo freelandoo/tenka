@@ -84,7 +84,11 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
     case 'pagamento_projeto_atualizado':
       return `${actorName} alterou “${String(meta.paymentName ?? 'pagamento')}” de ${String(meta.from ?? '—')} para ${String(meta.to ?? '—')}.`;
     case 'pagamento_baixa_local':
-      return `${actorName} registrou na Tenka o pagamento de “${String(meta.paymentName ?? 'pagamento')}”`
+      return `${actorName} registrou na Tenka o pagamento de ${
+        meta.scope === 'mensalidade'
+          ? `mensalidade de ${String(meta.competence ?? '—')}`
+          : `“${String(meta.paymentName ?? 'pagamento')}”`
+      }`
         + `${meta.amountCents ? ` no valor de ${formatCurrencyFromCents(Number(meta.amountCents))}` : ''}`
         + `${meta.paymentDate ? ` em ${formatDate(String(meta.paymentDate))}` : ''}. Nenhuma cobrança do Asaas foi alterada.`;
     // A baixa manual é feita no Asaas com uma chave de API única — só esta

@@ -142,6 +142,17 @@ export async function registerSubscriptionPaymentOutside(
   });
 }
 
+export async function registerSubscriptionPaymentManual(
+  projectId: string,
+  competence: string,
+  paymentDate: string,
+): Promise<{ paymentId: string }> {
+  return apiRequest(`/projects/${projectId}/subscription-payment/manual`, {
+    method: 'POST',
+    body: { competence, paymentDate },
+  });
+}
+
 export async function cancelSubscriptionPayment(
   paymentId: string,
   reason: string,
