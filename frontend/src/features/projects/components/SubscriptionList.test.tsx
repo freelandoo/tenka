@@ -309,7 +309,7 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('Pendente')).toBeInTheDocument();
   });
 
-  it('oferece registro manual de PIX quando a competência não tem cobrança do Asaas', async () => {
+  it('oferece registro manual de pagamento recebido quando a competência não tem cobrança do Asaas', async () => {
     mockedFetchPayments.mockResolvedValue([]);
     render(
       <SubscriptionList
@@ -320,14 +320,17 @@ describe('SubscriptionList', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Registrar PIX recebido — 847 Vidros' }));
-    expect(await screen.findByRole('heading', { name: 'Registrar PIX recebido' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar pagamento recebido — 847 Vidros' }));
+    expect(await screen.findByRole('heading', { name: 'Registrar pagamento recebido' }))
       .toBeInTheDocument();
-    expect(screen.getByText(/PIX da empresa/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar PIX' }));
+    expect(screen.getByLabelText('Observação do pagamento')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Observação do pagamento'), {
+      target: { value: 'Transferência para conta PJ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
 
     await waitFor(() => expect(mockedRegisterManual).toHaveBeenCalledWith(
-      'a', '2026-08', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      'a', '2026-08', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), 'Transferência para conta PJ',
     ));
   });
 
@@ -344,7 +347,7 @@ describe('SubscriptionList', () => {
 
     expect(await screen.findByText('Recebido')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar pagamento por fora' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Registrar PIX recebido/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Registrar pagamento recebido/ })).toBeNull();
   });
 
   it('mantém cobranças duplicadas visíveis e cancela pelo id exato', async () => {

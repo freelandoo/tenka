@@ -82,6 +82,7 @@ const externalPaymentSchema = z.object({
 });
 const manualSubscriptionPaymentSchema = externalPaymentSchema.extend({
   competence: competenceSchema,
+  notes: z.string().trim().min(3).max(500),
 });
 const monthlyChargeCancelSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 
@@ -415,7 +416,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         [id, req.userId, JSON.stringify({
           scope: 'mensalidade',
           source: 'tenka-local',
-          method: 'pix_empresa',
+          notes: parsed.data.notes,
           paymentName: 'Mensalidade',
           projectName: row.project_name,
           competence: competenceDate,

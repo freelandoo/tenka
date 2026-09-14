@@ -90,7 +90,8 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
           : `“${String(meta.paymentName ?? 'pagamento')}”`
       }`
         + `${meta.amountCents ? ` no valor de ${formatCurrencyFromCents(Number(meta.amountCents))}` : ''}`
-        + `${meta.paymentDate ? ` em ${formatDate(String(meta.paymentDate))}` : ''}. Nenhuma cobrança do Asaas foi alterada.`;
+        + `${meta.paymentDate ? ` em ${formatDate(String(meta.paymentDate))}` : ''}`
+        + `${meta.notes ? `. Observação: ${String(meta.notes)}` : ''}. Nenhuma cobrança do Asaas foi alterada.`;
     // A baixa manual é feita no Asaas com uma chave de API única — só esta
     // linha diz qual pessoa apertou o botão.
     case 'pagamento_baixa_manual': {

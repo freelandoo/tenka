@@ -181,11 +181,11 @@ export function SubscriptionList({
     }
   };
 
-  const registerManual = async (project: BoardProject, paymentDate: string) => {
+  const registerManual = async (project: BoardProject, paymentDate: string, notes: string) => {
     setBusyPaymentId(project.id);
     try {
-      await registerSubscriptionPaymentManual(project.id, competence, paymentDate);
-      toast('success', 'PIX recebido registrado na Tenka. Nenhuma cobrança do Asaas foi alterada.');
+      await registerSubscriptionPaymentManual(project.id, competence, paymentDate, notes);
+      toast('success', 'Pagamento recebido registrado na Tenka. Nenhuma cobrança do Asaas foi alterada.');
       setConfirmingReceipt(null);
       await loadPayments();
     } catch (error) {
@@ -196,7 +196,7 @@ export function SubscriptionList({
         'cobranca-mensal-sincronizada-deve-ser-registrada-no-asaas':
           'Esta competência tem cobrança no Asaas. Use o botão da cobrança emitida.',
       };
-      toast('error', friendly[code] ?? (code || 'Falha ao registrar o PIX recebido.'));
+      toast('error', friendly[code] ?? (code || 'Falha ao registrar o pagamento recebido.'));
     } finally {
       setBusyPaymentId(null);
     }
@@ -351,8 +351,8 @@ export function SubscriptionList({
                 </span>}
                 {canRegisterManual && (
                   <button type="button" className="panel-iconbtn fees__billing-icon"
-                    aria-label={`Registrar PIX recebido — ${p.name}`}
-                    title="Registrar PIX recebido direto pela empresa"
+                    aria-label={`Registrar pagamento recebido — ${p.name}`}
+                    title="Registrar pagamento recebido direto pela empresa"
                     disabled={busyPaymentId === p.id || paymentsLoading}
                     onClick={() => setConfirmingReceipt({ kind: 'manual', project: p })}>
                     <Banknote size={14} />
@@ -510,18 +510,23 @@ export function SubscriptionList({
 
       {confirmingReceipt?.kind === 'manual' && (
         <ConfirmDialog
-          title="Registrar PIX recebido"
-          description="Registra a mensalidade como paga na Tenka porque o dinheiro entrou direto no PIX da empresa. Nenhuma cobrança do Asaas será criada, paga ou cancelada."
+          title="Registrar pagamento recebido"
+          description="Registra a mensalidade como paga na Tenka porque o dinheiro entrou direto na empresa. Nenhuma cobrança do Asaas será criada, paga ou cancelada."
           details={[
             { label: 'Projeto', value: confirmingReceipt.project.name },
             { label: 'Competência', value: competenceLabel },
             { label: 'Valor', value: formatCurrencyFromCents(confirmingReceipt.project.monthly_fee_cents) },
           ]}
           dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
-          warning="Use esta opção só quando não houver cobrança aberta no Asaas para esta competência. Seu nome e a data ficam no histórico do projeto."
-          confirmLabel="Registrar PIX"
+          textField={{
+            label: 'Observação do pagamento',
+            placeholder: 'Ex.: PIX da empresa, transferência para conta PJ, dinheiro, cartão...',
+            minLength: 3,
+          }}
+          warning="Use esta opção só quando não houver cobrança aberta no Asaas para esta competência. Seu nome, a data e a observação ficam no histórico do projeto."
+          confirmLabel="Registrar pagamento"
           busy={busyPaymentId === confirmingReceipt.project.id}
-          onConfirm={(date) => void registerManual(confirmingReceipt.project, date)}
+          onConfirm={(date, notes) => void registerManual(confirmingReceipt.project, date, notes)}
           onCancel={() => setConfirmingReceipt(null)}
         />
       )}
