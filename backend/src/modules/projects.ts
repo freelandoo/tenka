@@ -356,14 +356,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       if (existing.rows.some((payment) =>
         ['confirmed', 'received', 'legacy_paid'].includes(payment.status),
       )) return 'already-paid' as const;
-      if (existing.rows.some((payment) => payment.source === 'manual')) {
-        return 'already-paid' as const;
-      }
       if (existing.rows.some((payment) =>
         payment.source === 'asaas'
         && payment.asaas_payment_id
         && ['pending', 'overdue', 'failed'].includes(payment.status),
       )) return 'asaas-open' as const;
+      const existingManualPayment = existing.rows.find((payment) =>
+        payment.source === 'manual' && ['pending', 'overdue', 'failed'].includes(payment.status),
+      );
+      if (!existingManualPayment && existing.rows.some((payment) => payment.source === 'manual')) {
+        return 'already-paid' as const;
+      }
 
       const activeReceipt = await client.query(
         `select 1
@@ -377,37 +380,71 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       );
       if (activeReceipt.rows[0]) return 'receipt-in-progress' as const;
 
-      const manual = await client.query<{ id: string }>(
-        `insert into public.subscription_payments
-           (project_id, subscription_id, competence, amount_cents, due_date,
-            status, paid_at, paid_by, received_at, source, payment_date,
-            client_payment_date)
-         values (
-           $1, $2, $3::date, $4,
-           (
-             date_trunc('month', $3::date)
-             + (
-               least(
-                 coalesce($5::int, extract(day from $6::date)::int, 1),
-                 extract(day from (date_trunc('month', $3::date) + interval '1 month - 1 day'))::int
-               ) - 1
-             ) * interval '1 day'
-           )::date,
-           'legacy_paid', $7::date::timestamptz, $8, $7::date::timestamptz,
-           'manual', $7::date, $7::date
-         )
-         returning id`,
-        [
-          id,
-          row.subscription_id,
-          competenceDate,
-          amountCents,
-          row.due_day,
-          row.due_date,
-          parsed.data.paymentDate,
-          req.userId,
-        ],
-      );
+      const manual = existingManualPayment
+        ? await client.query<{ id: string }>(
+          `update public.subscription_payments
+              set subscription_id = $2,
+                  amount_cents = $3,
+                  due_date = (
+                    date_trunc('month', competence)
+                    + (
+                      least(
+                        coalesce($4::int, extract(day from $5::date)::int, 1),
+                        extract(day from (date_trunc('month', competence) + interval '1 month - 1 day'))::int
+                      ) - 1
+                    ) * interval '1 day'
+                  )::date,
+                  status = 'legacy_paid',
+                  paid_at = $6::date::timestamptz,
+                  paid_by = $7,
+                  received_at = $6::date::timestamptz,
+                  payment_date = $6::date,
+                  client_payment_date = $6::date,
+                  source = 'manual',
+                  updated_at = now()
+            where id = $1
+            returning id`,
+          [
+            existingManualPayment.id,
+            row.subscription_id,
+            amountCents,
+            row.due_day,
+            row.due_date,
+            parsed.data.paymentDate,
+            req.userId,
+          ],
+        )
+        : await client.query<{ id: string }>(
+          `insert into public.subscription_payments
+             (project_id, subscription_id, competence, amount_cents, due_date,
+              status, paid_at, paid_by, received_at, source, payment_date,
+              client_payment_date)
+           values (
+             $1, $2, $3::date, $4,
+             (
+               date_trunc('month', $3::date)
+               + (
+                 least(
+                   coalesce($5::int, extract(day from $6::date)::int, 1),
+                   extract(day from (date_trunc('month', $3::date) + interval '1 month - 1 day'))::int
+                 ) - 1
+               ) * interval '1 day'
+             )::date,
+             'legacy_paid', $7::date::timestamptz, $8, $7::date::timestamptz,
+             'manual', $7::date, $7::date
+           )
+           returning id`,
+          [
+            id,
+            row.subscription_id,
+            competenceDate,
+            amountCents,
+            row.due_day,
+            row.due_date,
+            parsed.data.paymentDate,
+            req.userId,
+          ],
+        );
       const paymentId = manual.rows[0]?.id;
       if (!paymentId) throw new Error('Falha ao registrar o pagamento manual.');
       await client.query(

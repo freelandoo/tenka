@@ -191,7 +191,8 @@ export function SubscriptionList({
     } catch (error) {
       const code = error instanceof Error ? error.message : '';
       const friendly: Record<string, string> = {
-        'mensalidade-ja-paga': 'Esta mensalidade já consta como paga nesta competência.',
+        'mensalidade-ja-paga':
+          `Esta mensalidade já consta como paga em ${competenceLabel}. Se o recebimento for de outro mês, selecione a competência correta na Carteira.`,
         'mensalidade-nao-configurada': 'Este projeto não tem mensalidade configurada.',
         'cobranca-mensal-sincronizada-deve-ser-registrada-no-asaas':
           'Esta competência tem cobrança no Asaas. Use o botão da cobrança emitida.',
@@ -514,7 +515,7 @@ export function SubscriptionList({
           description="Registra a mensalidade como paga na Tenka porque o dinheiro entrou direto na empresa. Nenhuma cobrança do Asaas será criada, paga ou cancelada."
           details={[
             { label: 'Projeto', value: confirmingReceipt.project.name },
-            { label: 'Competência', value: competenceLabel },
+            { label: 'Competência selecionada', value: competenceLabel },
             { label: 'Valor', value: formatCurrencyFromCents(confirmingReceipt.project.monthly_fee_cents) },
           ]}
           dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
@@ -523,7 +524,7 @@ export function SubscriptionList({
             placeholder: 'Ex.: PIX da empresa, transferência para conta PJ, dinheiro, cartão...',
             minLength: 3,
           }}
-          warning="Use esta opção só quando não houver cobrança aberta no Asaas para esta competência. Seu nome, a data e a observação ficam no histórico do projeto."
+          warning={`Este registro paga somente ${competenceLabel}. Se o dinheiro recebido for de outro mês, selecione esse mês na Carteira antes de registrar. Seu nome, a data e a observação ficam no histórico do projeto.`}
           confirmLabel="Registrar pagamento"
           busy={busyPaymentId === confirmingReceipt.project.id}
           onConfirm={(date, notes) => void registerManual(confirmingReceipt.project, date, notes)}

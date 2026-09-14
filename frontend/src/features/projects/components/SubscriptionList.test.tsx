@@ -323,6 +323,8 @@ describe('SubscriptionList', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Registrar pagamento recebido — 847 Vidros' }));
     expect(await screen.findByRole('heading', { name: 'Registrar pagamento recebido' }))
       .toBeInTheDocument();
+    expect(screen.getByText('Competência selecionada')).toBeInTheDocument();
+    expect(screen.getByText(/Este registro paga somente Agosto de 2026/)).toBeInTheDocument();
     expect(screen.getByLabelText('Observação do pagamento')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Observação do pagamento'), {
       target: { value: 'Transferência para conta PJ' },
