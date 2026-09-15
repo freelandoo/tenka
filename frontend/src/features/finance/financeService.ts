@@ -231,6 +231,46 @@ export const updateProjectPayment = (
 export const createProjectCharge = (paymentId: string) =>
   apiRequest<{ queued: true; dueDate: string }>(`/project-payments/${paymentId}/charge`, { method: 'POST' });
 
+export type ConsolidatedChargeItem = {
+  kind: 'subscription' | 'project_payment';
+  id: string;
+  project_id: string;
+  project_name: string;
+  client_name: string;
+  label: string;
+  amount_cents: number;
+  due_date: string;
+  status: string;
+  source: string;
+  asaas_payment_id: string | null;
+  payment_url: string;
+  billing_type: string;
+  already_in_batch: boolean;
+  is_target: boolean;
+};
+
+export interface ConsolidatedChargePreview {
+  client: { id: string; name: string; cpfCnpj: string; hasDocument: boolean };
+  target: { kind: 'project_payment'; id: string };
+  items: ConsolidatedChargeItem[];
+  totalCents: number;
+}
+
+export const previewConsolidatedProjectCharge = (paymentId: string, dueDate: string) =>
+  apiRequest<ConsolidatedChargePreview>(
+    `/project-payments/${paymentId}/consolidated-charge/preview`,
+    { query: { dueDate } },
+  );
+
+export const createConsolidatedProjectCharge = (
+  paymentId: string,
+  dueDate: string,
+  items: Array<{ kind: 'subscription' | 'project_payment'; id: string }>,
+) => apiRequest<{ queued: true; batchId: string; amountCents: number; itemCount: number }>(
+  `/project-payments/${paymentId}/consolidated-charge`,
+  { method: 'POST', body: { dueDate, items } },
+);
+
 export const cancelProjectCharge = (paymentId: string, reason: string) =>
   apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, {
     method: 'POST', body: { reason },

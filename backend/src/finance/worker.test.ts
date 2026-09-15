@@ -173,6 +173,8 @@ class FakeDb {
 
     // Fila de operações: vazia nestes testes (hasAsaas === false já corta antes).
     if (sql.includes('public.asaas_operations')) return { rows: [], rowCount: 0 };
+    if (sql.includes('public.client_billing_batch_items')) return { rows: [], rowCount: 0 };
+    if (sql.includes('public.client_billing_batches')) return { rows: [], rowCount: 0 };
 
     if (sql.includes('public.asaas_webhook_events')) return this.webhookQuery(sql, values);
     if (sql.includes('public.subscription_payments')) return this.paymentQuery(sql, values);

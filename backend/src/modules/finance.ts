@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { adminOnly } from '../auth/middleware';
 import { getPool, withActor } from '../db/pool';
@@ -14,6 +14,7 @@ import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
 import { runReconciliation } from '../finance/reconciliationRun';
 import {
+  queueClientBillingBatchOperation,
   queueProjectPaymentOperation,
   queueSubscriptionOperation as queueOperation,
 } from '../finance/queue';
@@ -89,6 +90,14 @@ const defaultPaymentSchema = z.object({
 
 const projectExternalPaymentSchema = z.object({
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const consolidatedChargeSchema = z.object({
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  items: z.array(z.object({
+    kind: z.enum(['subscription', 'project_payment']),
+    id: z.string().uuid(),
+  })).min(1).max(80),
 });
 
 const subscriptionCancelSchema = z.object({ confirmation: z.string().trim().min(1).max(200) });
@@ -192,6 +201,107 @@ async function financeQueueHealth() {
     oldestPendingAt: rows[0]?.oldest_pending_at ?? null,
     lastWebhookAt: rows[0]?.last_webhook_at ?? null,
   };
+}
+
+type ConsolidatedChargeKind = 'subscription' | 'project_payment';
+
+interface ConsolidatedChargeItem {
+  kind: ConsolidatedChargeKind;
+  id: string;
+  project_id: string;
+  project_name: string;
+  client_name: string;
+  label: string;
+  amount_cents: number;
+  due_date: string;
+  status: string;
+  source: string;
+  asaas_payment_id: string | null;
+  payment_url: string;
+  billing_type: string;
+  already_in_batch: boolean;
+  is_target: boolean;
+}
+
+async function consolidatedChargeCandidates(paymentId: string, dueDate: string) {
+  const target = await getPool().query<{
+    id: string; project_id: string; project_name: string; client_id: string | null;
+    client_name: string; cpf_cnpj: string | null; amount_cents: number;
+    due_date: string | null; status: string; sync_status: string;
+    asaas_payment_id: string | null; payment_url: string; billing_type: string;
+    archive_requested_at: string | null; archived_at: string | null;
+  }>(
+    `select pp.id, pp.project_id, p.name as project_name, p.client_id,
+            coalesce(c.name, p.client_name) as client_name, c.cpf_cnpj,
+            pp.amount_cents, pp.due_date, pp.status, pp.sync_status,
+            pp.asaas_payment_id, pp.payment_url, pp.billing_type,
+            p.archive_requested_at, p.archived_at
+       from public.project_payments pp
+       join public.projects p on p.id = pp.project_id
+       left join public.clients c on c.id = p.client_id and c.archived_at is null
+      where pp.id = $1`,
+    [paymentId],
+  );
+  const clicked = target.rows[0];
+  if (!clicked) return 'missing' as const;
+  if (clicked.archived_at || clicked.archive_requested_at) return 'archiving' as const;
+  if (!clicked.client_id) return 'client' as const;
+  const items = await getPool().query<ConsolidatedChargeItem>(
+    `with target_client as (
+       select $1::uuid as payment_id, $2::date as due_date, $3::uuid as client_id
+     ),
+     subscription_items as (
+       select 'subscription'::text as kind, sp.id, sp.project_id, p.name as project_name,
+              coalesce(c.name, p.client_name) as client_name,
+              p.name || ' - mensalidade ' || to_char(sp.competence, 'MM/YYYY') as label,
+              sp.amount_cents, sp.due_date, sp.status, sp.source,
+              sp.asaas_payment_id, coalesce(sp.payment_url, '') as payment_url,
+              coalesce(sp.billing_type, 'UNDEFINED') as billing_type,
+              exists (
+                select 1 from public.client_billing_batch_items bi
+                 where bi.subscription_payment_id = sp.id and bi.status = 'active'
+              ) as already_in_batch,
+              false as is_target
+         from public.subscription_payments sp
+         join public.projects p on p.id = sp.project_id
+         join public.clients c on c.id = p.client_id and c.archived_at is null
+         join target_client tc on tc.client_id = c.id
+        where p.archived_at is null
+          and sp.amount_cents > 0
+          and sp.due_date is not null
+          and sp.due_date <= tc.due_date
+          and sp.status in ('pending','overdue','failed')
+     ),
+     project_items as (
+       select 'project_payment'::text as kind, pp.id, pp.project_id, p.name as project_name,
+              coalesce(c.name, p.client_name) as client_name,
+              p.name || ' - ' || pp.name as label,
+              pp.amount_cents,
+              coalesce(pp.due_date, tc.due_date) as due_date,
+              pp.status, pp.sync_status as source, pp.asaas_payment_id,
+              pp.payment_url, pp.billing_type,
+              exists (
+                select 1 from public.client_billing_batch_items bi
+                 where bi.project_payment_id = pp.id and bi.status = 'active'
+              ) as already_in_batch,
+              pp.id = tc.payment_id as is_target
+         from public.project_payments pp
+         join public.projects p on p.id = pp.project_id
+         join public.clients c on c.id = p.client_id and c.archived_at is null
+         join target_client tc on tc.client_id = c.id
+        where p.archived_at is null
+          and p.archive_requested_at is null
+          and pp.amount_cents > 0
+          and pp.status = 'pending'
+          and (pp.id = tc.payment_id or pp.due_date <= tc.due_date)
+     )
+     select * from subscription_items
+     union all
+     select * from project_items
+     order by is_target desc, due_date, label`,
+    [paymentId, dueDate, clicked.client_id],
+  );
+  return { target: clicked, items: items.rows };
 }
 
 export async function financeRoutes(app: FastifyInstance): Promise<void> {
@@ -1136,6 +1246,112 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     }
     financeWorker.kick();
     return reply.code(202).send(result);
+  });
+
+  app.get('/project-payments/:id/consolidated-charge/preview', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const dueDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).safeParse(
+      (req.query as { dueDate?: string }).dueDate,
+    );
+    if (!dueDate.success) return reply.code(400).send({ error: 'invalid-due-date' });
+    const result = await consolidatedChargeCandidates(id, dueDate.data);
+    if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
+    if (result === 'client') return reply.code(409).send({ error: 'cliente-obrigatorio' });
+    const selectable = result.items.filter((item) => !item.already_in_batch);
+    return reply.send({
+      client: {
+        id: result.target.client_id,
+        name: result.target.client_name,
+        cpfCnpj: result.target.cpf_cnpj ?? '',
+        hasDocument: Boolean((result.target.cpf_cnpj ?? '').replace(/\D/g, '')),
+      },
+      target: { kind: 'project_payment', id },
+      items: selectable,
+      totalCents: selectable.reduce((sum, item) => sum + Number(item.amount_cents), 0),
+    });
+  });
+
+  app.post('/project-payments/:id/consolidated-charge', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const parsed = consolidatedChargeSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const preview = await consolidatedChargeCandidates(id, parsed.data.dueDate);
+    if (preview === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (preview === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
+    if (preview === 'client') return reply.code(409).send({ error: 'cliente-obrigatorio' });
+    if (!(preview.target.cpf_cnpj ?? '').replace(/\D/g, '')) {
+      return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio' });
+    }
+    const wanted = new Set(parsed.data.items.map((item) => `${item.kind}:${item.id}`));
+    const selected = preview.items.filter((item) =>
+      wanted.has(`${item.kind}:${item.id}`) && !item.already_in_batch);
+    if (!selected.some((item) => item.kind === 'project_payment' && item.id === id)) {
+      return reply.code(409).send({ error: 'cobranca-atual-obrigatoria' });
+    }
+    if (selected.length !== wanted.size) {
+      return reply.code(409).send({ error: 'itens-indisponiveis-para-consolidacao' });
+    }
+    const amountCents = selected.reduce((sum, item) => sum + Number(item.amount_cents), 0);
+    if (amountCents <= 0) return reply.code(409).send({ error: 'sem-itens-para-cobrar' });
+    const result = await withActor(req.userId!, async (client) => {
+      const batchId = randomUUID();
+      const inserted = await client.query<{ id: string }>(
+        `insert into public.client_billing_batches
+           (id, client_id, anchor_project_id, due_date, amount_cents, billing_type,
+            status, external_reference, created_by)
+         values ($1,$2,$3,$4::date,$5,'UNDEFINED','queued',$6,$7)
+         returning id`,
+        [batchId, preview.target.client_id, preview.target.project_id, parsed.data.dueDate,
+          amountCents, `client-billing:${batchId}`, req.userId],
+      );
+      if (!inserted.rows[0]) throw new Error('Falha ao criar a cobrança consolidada.');
+      for (const item of selected) {
+        await client.query(
+          `insert into public.client_billing_batch_items
+             (batch_id, project_id, kind, subscription_payment_id, project_payment_id,
+              amount_cents, previous_asaas_payment_id, previous_payment_url)
+           values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [batchId, item.project_id, item.kind,
+            item.kind === 'subscription' ? item.id : null,
+            item.kind === 'project_payment' ? item.id : null,
+            item.amount_cents, item.asaas_payment_id, item.payment_url],
+        );
+      }
+      const projectPaymentIds = selected
+        .filter((item) => item.kind === 'project_payment')
+        .map((item) => item.id);
+      if (projectPaymentIds.length > 0) {
+        await client.query(
+          `update public.project_payments
+              set sync_status = 'queued', sync_error = null
+            where id = any($1::uuid[])
+              and sync_status in ('local','failed')`,
+          [projectPaymentIds],
+        );
+      }
+      const queued = await queueClientBillingBatchOperation(
+        client, preview.target.project_id, batchId, { itemCount: selected.length },
+        'Cobrança consolidada por cliente',
+      );
+      if (!queued) throw new Error('Falha ao enfileirar cobrança consolidada.');
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'cobranca_asaas_evento',$3::jsonb)`,
+        [preview.target.project_id, req.userId, JSON.stringify({
+          event: 'client_billing_batch_queued',
+          billingBatchId: batchId,
+          clientId: preview.target.client_id,
+          dueDate: parsed.data.dueDate,
+          amountCents,
+          itemCount: selected.length,
+        })],
+      );
+      return { batchId, amountCents, itemCount: selected.length };
+    });
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true, ...result });
   });
 
   app.post('/project-payments/:id/cancel-charge', adminOnly, async (req, reply) => {

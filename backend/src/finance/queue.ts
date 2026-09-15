@@ -88,3 +88,28 @@ export async function queueSubscriptionPaymentOperation(
   );
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function queueClientBillingBatchOperation(
+  client: QueryClient,
+  projectId: string,
+  billingBatchId: string,
+  requestPayload: Record<string, unknown> = {},
+  reason: string | null = null,
+): Promise<boolean> {
+  const result = await client.query(
+    `insert into public.asaas_operations
+       (operation_key, project_id, billing_batch_id, kind, request_payload,
+        requested_by, request_reason)
+     select 'create_client_billing_batch:' || gen_random_uuid()::text,
+            $1, $2, 'create_client_billing_batch', $3::jsonb,
+            public.current_user_id(), $4
+      where not exists (
+        select 1 from public.asaas_operations
+         where billing_batch_id = $2 and kind = 'create_client_billing_batch'
+           and (status in ('pending', 'processing', 'uncertain')
+             or (status = 'failed' and attempts < 5))
+      )`,
+    [projectId, billingBatchId, JSON.stringify(requestPayload), reason],
+  );
+  return (result.rowCount ?? 0) > 0;
+}

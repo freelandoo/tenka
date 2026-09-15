@@ -12,11 +12,12 @@ export interface Operation {
   subscription_id: string | null;
   project_payment_id: string | null;
   subscription_payment_id?: string | null;
+  billing_batch_id?: string | null;
   kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription'
     | 'cancel_subscription'
     | 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge'
     | 'receive_project_payment_in_cash' | 'receive_subscription_payment_in_cash'
-    | 'cancel_subscription_payment';
+    | 'cancel_subscription_payment' | 'create_client_billing_batch';
   attempts: number;
   request_payload: Record<string, unknown>;
   requested_by?: string | null;
@@ -80,6 +81,23 @@ interface SubscriptionPaymentContext {
   asaas_payment_id: string | null;
   status: string;
   provider_status: string | null;
+}
+
+interface BillingBatchContext {
+  id: string;
+  client_id: string;
+  anchor_project_id: string;
+  due_date: string;
+  amount_cents: number;
+  billing_type: string;
+  external_reference: string;
+  asaas_payment_id: string | null;
+  client_name: string;
+  client_email: string;
+  client_phone: string;
+  cpf_cnpj: string | null;
+  asaas_customer_id: string | null;
+  description: string;
 }
 
 function isProviderSettled(status: string): boolean {
@@ -218,7 +236,7 @@ async function claimOperation(): Promise<Operation | null> {
     await client.query('begin');
     const { rows } = await client.query<Operation>(
       `select id, project_id, subscription_id, project_payment_id,
-              subscription_payment_id, kind, attempts, request_payload,
+              subscription_payment_id, billing_batch_id, kind, attempts, request_payload,
               requested_by, request_reason
          from public.asaas_operations
         where (status in ('pending', 'failed') or
@@ -438,7 +456,102 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   return payment.id;
 }
 
+async function billingBatchContext(operation: Operation): Promise<BillingBatchContext> {
+  const { rows } = await getPool().query<BillingBatchContext>(
+    `select b.id, b.client_id, b.anchor_project_id, b.due_date, b.amount_cents,
+            b.billing_type, b.external_reference, b.asaas_payment_id,
+            c.name as client_name, c.email as client_email, c.phone as client_phone,
+            c.cpf_cnpj, c.asaas_customer_id,
+            string_agg(label, '; ' order by due_date, label) as description
+       from public.client_billing_batches b
+       join public.clients c on c.id = b.client_id
+       join (
+         select bi.batch_id, bi.amount_cents, sp.due_date,
+                p.name || ' - mensalidade ' || to_char(sp.competence, 'MM/YYYY') as label
+           from public.client_billing_batch_items bi
+           join public.subscription_payments sp on sp.id = bi.subscription_payment_id
+           join public.projects p on p.id = bi.project_id
+          where bi.kind = 'subscription' and bi.status = 'active'
+         union all
+         select bi.batch_id, bi.amount_cents, pp.due_date,
+                p.name || ' - ' || pp.name as label
+           from public.client_billing_batch_items bi
+           join public.project_payments pp on pp.id = bi.project_payment_id
+           join public.projects p on p.id = bi.project_id
+          where bi.kind = 'project_payment' and bi.status = 'active'
+       ) items on items.batch_id = b.id
+      where b.id = $1
+      group by b.id, c.id`,
+    [operation.billing_batch_id],
+  );
+  if (!rows[0]) throw new Error('Cobrança consolidada não encontrada.');
+  return rows[0];
+}
+
+async function cancelPreviousBatchItemCharges(batchId: string): Promise<void> {
+  const { rows } = await getPool().query<{
+    previous_asaas_payment_id: string | null;
+  }>(
+    `select distinct previous_asaas_payment_id
+       from public.client_billing_batch_items
+      where batch_id = $1 and previous_asaas_payment_id is not null`,
+    [batchId],
+  );
+  for (const row of rows) {
+    const paymentId = row.previous_asaas_payment_id;
+    if (!paymentId) continue;
+    try {
+      const current = await asaas.getPayment(paymentId);
+      if (!isProviderDeleted(current) && isOpenSubscriptionPayment(current.status)) {
+        await asaas.deletePayment(paymentId);
+      }
+    } catch (error) {
+      if (!(error instanceof AsaasError && error.status === 404)) throw error;
+    }
+  }
+}
+
+async function executeBillingBatchOperation(operation: Operation): Promise<string | null> {
+  const ctx = await billingBatchContext(operation);
+  const customerId = await ensureCustomer({
+    client_id: ctx.client_id,
+    client_name: ctx.client_name,
+    client_email: ctx.client_email,
+    client_phone: ctx.client_phone,
+    cpf_cnpj: ctx.cpf_cnpj,
+    asaas_customer_id: ctx.asaas_customer_id,
+  } as SubscriptionContext);
+  await cancelPreviousBatchItemCharges(ctx.id);
+  const input = {
+    customer: customerId,
+    billingType: ctx.billing_type || 'UNDEFINED',
+    value: ctx.amount_cents / 100,
+    dueDate: ctx.due_date,
+    externalReference: ctx.external_reference,
+    description: `TENKA - cobranca consolidada: ${ctx.description}`.slice(0, 500),
+  };
+  const existing = ctx.asaas_payment_id
+    ? await asaas.getPayment(ctx.asaas_payment_id)
+    : await asaas.findPayment(ctx.external_reference);
+  const payment = existing ?? await asaas.createPayment(input);
+  const pix = payment.billingType === 'PIX'
+    ? await asaas.getPixQrCode(payment.id)
+    : null;
+  await getPool().query(
+    `update public.client_billing_batches
+        set asaas_payment_id = $2, payment_url = $3, bank_slip_url = $4,
+            pix_payload = $5, billing_type = $6, provider_status = $7,
+            status = case when $7 = 'OVERDUE' then 'overdue' else 'synced' end,
+            sync_error = null
+      where id = $1`,
+    [ctx.id, payment.id, payment.invoiceUrl ?? '', payment.bankSlipUrl ?? '',
+      pix?.payload ?? '', payment.billingType || ctx.billing_type, payment.status],
+  );
+  return payment.id;
+}
+
 export async function executeOperation(operation: Operation): Promise<string | null> {
+  if (operation.billing_batch_id) return executeBillingBatchOperation(operation);
   if (operation.subscription_payment_id) return executeSubscriptionPaymentOperation(operation);
   if (operation.project_payment_id) return executeProjectPaymentOperation(operation);
   const ctx = await subscriptionContext(operation);
@@ -670,6 +783,12 @@ async function finishOperation(operation: Operation): Promise<void> {
           `update public.project_payments set sync_status = 'failed', sync_error = $2 where id = $1`,
           [operation.project_payment_id, message],
         );
+      } else if (operation.billing_batch_id) {
+        await client.query(
+          `update public.client_billing_batches
+              set status = 'failed', sync_error = $2 where id = $1`,
+          [operation.billing_batch_id, message],
+        );
       } else if (operation.subscription_id) {
         await client.query(
           `update public.project_subscriptions set status = 'error', sync_error = $2 where id = $1`,
@@ -694,6 +813,7 @@ interface WebhookEvent {
 class WebhookNeedsReviewError extends Error {}
 
 const PROJECT_PAYMENT_REFERENCE = /^project-payment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const BILLING_BATCH_REFERENCE = /^client-billing:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 function providerStatusForEvent(eventType: string, payment: Record<string, unknown>): string {
   const byEvent: Record<string, string> = {
@@ -726,6 +846,29 @@ async function processProjectPaymentWebhook(
   );
   if (!existing.rows[0]) {
     throw new WebhookNeedsReviewError(`Pagamento de projeto não encontrado: ${externalReference}.`);
+  }
+  if (event.event_type === 'PAYMENT_DELETED') {
+    const replacement = await getPool().query(
+      `select 1
+         from public.client_billing_batch_items bi
+         join public.client_billing_batches b on b.id = bi.batch_id
+        where bi.project_payment_id = $1
+          and bi.previous_asaas_payment_id = $2
+          and bi.status = 'active'
+          and b.status in ('queued','synced','overdue')
+        limit 1`,
+      [projectPaymentId, String(payment.id)],
+    );
+    if (replacement.rows[0]) {
+      await recordPaymentWebhookActivity(event, existing.rows[0].project_id, {
+        scope: 'projeto',
+        paymentName: existing.rows[0].name,
+        asaasPaymentId: String(payment.id),
+        providerStatus,
+        ignoredBecause: 'consolidated_replacement',
+      });
+      return;
+    }
   }
   const localStatus = projectPaymentStatusFromProvider(providerStatus);
   const applied = await getPool().query(
@@ -768,6 +911,101 @@ async function processProjectPaymentWebhook(
   if (event.event_type === 'PAYMENT_DELETED') {
     await tryFinalizePendingArchive(existing.rows[0].project_id);
   }
+}
+
+async function processBillingBatchWebhook(
+  event: WebhookEvent,
+  payment: Record<string, unknown>,
+  batchId: string,
+  providerStatus: string,
+): Promise<void> {
+  const batch = await getPool().query<{ id: string; anchor_project_id: string }>(
+    'select id, anchor_project_id from public.client_billing_batches where id = $1',
+    [batchId],
+  );
+  if (!batch.rows[0]) {
+    throw new WebhookNeedsReviewError(`Cobrança consolidada não encontrada: ${batchId}.`);
+  }
+  const localStatus = paymentStatus(providerStatus);
+  const batchStatus = localStatus === 'received' || localStatus === 'confirmed'
+    ? 'paid'
+    : localStatus === 'cancelled'
+      ? 'cancelled'
+      : localStatus === 'overdue' ? 'overdue' : 'synced';
+  await withActor(null, async (client) => {
+    await client.query(
+      `update public.client_billing_batches
+          set amount_cents = round(($2::numeric) * 100)::bigint,
+              due_date = coalesce($3::date, due_date),
+              status = $4,
+              asaas_payment_id = $5,
+              payment_url = $6,
+              bank_slip_url = $7,
+              pix_payload = $8,
+              billing_type = $9,
+              provider_status = $10,
+              sync_error = null
+        where id = $1`,
+      [batchId, Number(payment.value ?? 0), paymentDate(payment, 'dueDate'),
+        batchStatus, String(payment.id), String(payment.invoiceUrl ?? ''),
+        String(payment.bankSlipUrl ?? ''), String(payment.pixPayload ?? ''),
+        String(payment.billingType ?? 'UNDEFINED'), providerStatus],
+    );
+    if (batchStatus === 'paid') {
+      await client.query(
+        `update public.subscription_payments sp
+            set status = $2,
+                paid_at = coalesce($4::date,$3::date)::timestamptz,
+                received_at = case when $2 = 'received'
+                  then coalesce($4::date,$3::date)::timestamptz else received_at end,
+                confirmed_at = case when $2 = 'confirmed'
+                  then coalesce($4::date,$3::date)::timestamptz else confirmed_at end,
+                payment_date = coalesce($4::date,$3::date),
+                client_payment_date = $4::date,
+                provider_status = $5,
+                external_receipt_pending_at = null
+           from public.client_billing_batch_items bi
+          where bi.batch_id = $1
+            and bi.subscription_payment_id = sp.id`,
+        [batchId, localStatus, paymentDate(payment, 'paymentDate'),
+          paymentDate(payment, 'clientPaymentDate'), providerStatus],
+      );
+      await client.query(
+        `update public.project_payments pp
+            set status = 'paid',
+                paid_at = coalesce($3::date,$2::date)::timestamptz,
+                payment_date = coalesce($3::date,$2::date),
+                provider_status = $4,
+                sync_status = 'synced',
+                sync_error = null,
+                external_receipt_pending_at = null
+           from public.client_billing_batch_items bi
+          where bi.batch_id = $1
+            and bi.project_payment_id = pp.id`,
+        [batchId, paymentDate(payment, 'paymentDate'),
+          paymentDate(payment, 'clientPaymentDate'), providerStatus],
+      );
+      await client.query(
+        `update public.client_billing_batch_items
+            set status = 'paid'
+          where batch_id = $1`,
+        [batchId],
+      );
+    } else if (batchStatus === 'cancelled') {
+      await client.query(
+        `update public.client_billing_batch_items
+            set status = 'cancelled'
+          where batch_id = $1`,
+        [batchId],
+      );
+    }
+  });
+  await recordPaymentWebhookActivity(event, batch.rows[0].anchor_project_id, {
+    scope: 'cobranca_consolidada',
+    billingBatchId: batchId,
+    asaasPaymentId: String(payment.id),
+    providerStatus,
+  });
 }
 
 async function recordPaymentWebhookActivity(
@@ -826,6 +1064,30 @@ async function processSubscriptionPaymentWebhook(
     throw new WebhookNeedsReviewError('Cobrança sem referência de assinatura reconhecida.');
   }
   const status = paymentStatus(providerStatus);
+  if (event.event_type === 'PAYMENT_DELETED' && exactPayment.rows[0]) {
+    const replacement = await getPool().query(
+      `select 1
+         from public.client_billing_batch_items bi
+         join public.client_billing_batches b on b.id = bi.batch_id
+        where bi.subscription_payment_id = (
+          select id from public.subscription_payments where asaas_payment_id = $1
+        )
+          and bi.previous_asaas_payment_id = $1
+          and bi.status = 'active'
+          and b.status in ('queued','synced','overdue')
+        limit 1`,
+      [String(payment.id)],
+    );
+    if (replacement.rows[0]) {
+      await recordPaymentWebhookActivity(event, exactPayment.rows[0].project_id, {
+        scope: 'mensalidade',
+        asaasPaymentId: String(payment.id),
+        providerStatus,
+        ignoredBecause: 'consolidated_replacement',
+      });
+      return;
+    }
+  }
   const dueDate = typeof payment.dueDate === 'string'
     ? payment.dueDate
     : exactPayment.rows[0]?.due_date;
@@ -979,30 +1241,43 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
         ? payment.externalReference
         : '';
       const projectMatch = PROJECT_PAYMENT_REFERENCE.exec(externalReference);
-      if (projectMatch?.[1]) {
+      const batchMatch = BILLING_BATCH_REFERENCE.exec(externalReference);
+      if (batchMatch?.[1]) {
+        await processBillingBatchWebhook(event, payment, batchMatch[1], providerStatus);
+      } else if (projectMatch?.[1]) {
         await processProjectPaymentWebhook(
           event, payment, projectMatch[1], externalReference, providerStatus,
         );
       } else {
-        const projectByProviderId = await getPool().query<{ id: string }>(
-          'select id from public.project_payments where asaas_payment_id = $1',
+        const batchByProviderId = await getPool().query<{ id: string }>(
+          'select id from public.client_billing_batches where asaas_payment_id = $1',
           [String(payment.id)],
         );
-        if (projectByProviderId.rows[0]) {
-          await processProjectPaymentWebhook(
-            event, payment, projectByProviderId.rows[0].id,
-            externalReference || `project-payment:${projectByProviderId.rows[0].id}`,
-            providerStatus,
+        if (batchByProviderId.rows[0]) {
+          await processBillingBatchWebhook(
+            event, payment, batchByProviderId.rows[0].id, providerStatus,
           );
-        } else if (payment.subscription || (await getPool().query(
-          'select 1 from public.subscription_payments where asaas_payment_id = $1',
-          [String(payment.id)],
-        )).rows[0]) {
-          await processSubscriptionPaymentWebhook(event, payment, providerStatus);
         } else {
-          throw new WebhookNeedsReviewError(
-            `Cobrança sem referência reconhecida: ${externalReference || String(payment.id)}.`,
+          const projectByProviderId = await getPool().query<{ id: string }>(
+          'select id from public.project_payments where asaas_payment_id = $1',
+          [String(payment.id)],
           );
+          if (projectByProviderId.rows[0]) {
+            await processProjectPaymentWebhook(
+              event, payment, projectByProviderId.rows[0].id,
+              externalReference || `project-payment:${projectByProviderId.rows[0].id}`,
+              providerStatus,
+            );
+          } else if (payment.subscription || (await getPool().query(
+            'select 1 from public.subscription_payments where asaas_payment_id = $1',
+            [String(payment.id)],
+          )).rows[0]) {
+            await processSubscriptionPaymentWebhook(event, payment, providerStatus);
+          } else {
+            throw new WebhookNeedsReviewError(
+              `Cobrança sem referência reconhecida: ${externalReference || String(payment.id)}.`,
+            );
+          }
         }
       }
     }

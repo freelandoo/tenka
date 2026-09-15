@@ -7,6 +7,7 @@ import { cents, formatCurrencyFromCents, formatDate } from '../../panel/format';
 import { useToast } from '../../panel/ToastContext';
 import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
 import { ConfirmDialog } from '../../panel/ConfirmDialog';
+import { PanelOverlay } from '../../panel/PanelOverlay';
 
 interface ProjectPaymentsListProps {
   isAdmin: boolean;
@@ -55,6 +56,12 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const [dateEditorId, setDateEditorId] = useState<string | null>(null);
   const [dateValue, setDateValue] = useState('');
   const [confirming, setConfirming] = useState<PendingConfirm | null>(null);
+  const [consolidating, setConsolidating] = useState<{
+    item: ProjectPaymentRow;
+    dueDate: string;
+    preview: finance.ConsolidatedChargePreview;
+    selected: Set<string>;
+  } | null>(null);
   const [planEditor, setPlanEditor] = useState<{
     project: { id: string; name: string; value_cents: number };
     appendStage: boolean;
@@ -163,6 +170,21 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const generateCharge = async (item: ProjectPaymentRow) => {
     setBusyId(item.id);
     try {
+      if (!item.virtual) {
+        const dueDate = item.due_date ?? localIsoDate();
+        const preview = await finance.previewConsolidatedProjectCharge(item.id, dueDate);
+        const pendingOldItems = preview.items.filter((candidate) =>
+          !(candidate.kind === 'project_payment' && candidate.id === item.id));
+        if (!preview.client.hasDocument || pendingOldItems.length > 0) {
+          setConsolidating({
+            item,
+            dueDate,
+            preview,
+            selected: new Set(preview.items.map((candidate) => `${candidate.kind}:${candidate.id}`)),
+          });
+          return;
+        }
+      }
       const result = item.virtual
         ? await finance.createDefaultProjectCharge(item.project_id)
         : await finance.createProjectCharge(item.id);
@@ -179,6 +201,43 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
       await load();
     } catch (caught) {
       toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar a cobrança.');
+    } finally { setBusyId(null); }
+  };
+
+  const createSingleCharge = async (item: ProjectPaymentRow) => {
+    setBusyId(item.id);
+    try {
+      const result = await finance.createProjectCharge(item.id);
+      toast('success', `Cobrança enviada ao Asaas com vencimento em ${formatDate(result.dueDate)}.`);
+      setConsolidating(null);
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar a cobrança.');
+    } finally { setBusyId(null); }
+  };
+
+  const createConsolidatedCharge = async (
+    state: NonNullable<typeof consolidating>,
+    mode: 'all' | 'selected',
+  ) => {
+    const selectedKeys = mode === 'all'
+      ? new Set(state.preview.items.map((candidate) => `${candidate.kind}:${candidate.id}`))
+      : state.selected;
+    const items = state.preview.items
+      .filter((candidate) => selectedKeys.has(`${candidate.kind}:${candidate.id}`))
+      .map((candidate) => ({ kind: candidate.kind, id: candidate.id }));
+    if (!items.some((candidate) => candidate.kind === 'project_payment' && candidate.id === state.item.id)) {
+      toast('error', 'A cobrança atual precisa estar no pacote.');
+      return;
+    }
+    setBusyId(state.item.id);
+    try {
+      const result = await finance.createConsolidatedProjectCharge(state.item.id, state.dueDate, items);
+      toast('success', `${result.itemCount} item(ns) enviados para cobrança consolidada.`);
+      setConsolidating(null);
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar a cobrança consolidada.');
     } finally { setBusyId(null); }
   };
 
@@ -398,6 +457,96 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
 
       {planEditor && (
         <ProjectPaymentPlanDrawer project={planEditor.project} appendStage={planEditor.appendStage} onBack={() => setPlanEditor(null)} onClose={() => setPlanEditor(null)} onSaved={() => { setPlanEditor(null); void load(); }} />
+      )}
+
+      {consolidating && (
+        <PanelOverlay
+          variant="modal"
+          labelledBy="consolidated-charge-title"
+          onClose={() => { if (busyId !== consolidating.item.id) setConsolidating(null); }}
+        >
+          <div className="subscription-confirm">
+            <div>
+              <p className="panel-eyebrow">Cobrança · {consolidating.preview.client.name}</p>
+              <h2 id="consolidated-charge-title">Existem pendências para este cliente</h2>
+            </div>
+            {!consolidating.preview.client.hasDocument ? (
+              <p className="finance-warning">
+                Cadastre o CPF/CNPJ do cliente antes de gerar a cobrança no Asaas.
+              </p>
+            ) : (
+              <div className="subscription-confirm__impact">
+                <strong>Escolha o que entra no link</strong>
+                <p>
+                  A cobrança completa inclui a cobrança atual e pendências anteriores do mesmo cliente
+                  com vencimento até {formatDate(consolidating.dueDate)}.
+                </p>
+              </div>
+            )}
+            <div className="finance-table-wrap">
+              <table className="finance-table">
+                <thead><tr><th>Incluir</th><th>Item</th><th>Vencimento</th><th>Valor</th></tr></thead>
+                <tbody>{consolidating.preview.items.map((candidate) => {
+                  const key = `${candidate.kind}:${candidate.id}`;
+                  const isTarget = candidate.kind === 'project_payment' && candidate.id === consolidating.item.id;
+                  return (
+                    <tr key={key}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Incluir ${candidate.label}`}
+                          checked={consolidating.selected.has(key)}
+                          disabled={isTarget || !consolidating.preview.client.hasDocument}
+                          onChange={(event) => setConsolidating((current) => {
+                            if (!current) return current;
+                            const next = new Set(current.selected);
+                            if (event.target.checked) next.add(key);
+                            else next.delete(key);
+                            return { ...current, selected: next };
+                          })}
+                        />
+                      </td>
+                      <td>
+                        <strong>{candidate.label}</strong>
+                        {candidate.asaas_payment_id && <small> cobrança aberta no Asaas será substituída</small>}
+                      </td>
+                      <td>{formatDate(candidate.due_date)}</td>
+                      <td>{formatCurrencyFromCents(candidate.amount_cents)}</td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+            <div className="costs__total">
+              <span>Total selecionado</span>
+              <strong>{formatCurrencyFromCents(consolidating.preview.items
+                .filter((candidate) => consolidating.selected.has(`${candidate.kind}:${candidate.id}`))
+                .reduce((sum, candidate) => sum + cents(candidate.amount_cents), 0))}</strong>
+            </div>
+            <div className="subscription-confirm__actions">
+              <button type="button" className="panel-btn panel-btn--ghost"
+                disabled={busyId === consolidating.item.id}
+                onClick={() => setConsolidating(null)}>
+                Voltar
+              </button>
+              <button type="button" className="panel-btn panel-btn--ghost"
+                disabled={!consolidating.preview.client.hasDocument || busyId === consolidating.item.id}
+                onClick={() => void createSingleCharge(consolidating.item)}>
+                Somente esta cobrança
+              </button>
+              <button type="button" className="panel-btn"
+                disabled={!consolidating.preview.client.hasDocument || busyId === consolidating.item.id}
+                onClick={() => void createConsolidatedCharge(consolidating, 'selected')}>
+                Gerar selecionados
+              </button>
+              <button type="button" className="panel-btn panel-btn--primary"
+                disabled={!consolidating.preview.client.hasDocument || busyId === consolidating.item.id}
+                onClick={() => void createConsolidatedCharge(consolidating, 'all')}>
+                Gerar cobrança completa
+              </button>
+            </div>
+          </div>
+        </PanelOverlay>
       )}
 
       {confirming?.kind === 'receipt' && (

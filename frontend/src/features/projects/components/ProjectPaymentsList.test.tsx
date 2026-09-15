@@ -12,6 +12,8 @@ vi.mock('../../finance/financeService', () => ({
   setDefaultProjectPayment: vi.fn(),
   updateProjectPayment: vi.fn(),
   createProjectCharge: vi.fn(),
+  previewConsolidatedProjectCharge: vi.fn(),
+  createConsolidatedProjectCharge: vi.fn(),
   createDefaultProjectCharge: vi.fn(),
   cancelProjectCharge: vi.fn(),
   registerProjectPaymentOutside: vi.fn(),
@@ -22,6 +24,8 @@ const fetchOverview = vi.mocked(finance.fetchFinanceOverview);
 const setDefaultPayment = vi.mocked(finance.setDefaultProjectPayment);
 const updatePayment = vi.mocked(finance.updateProjectPayment);
 const createCharge = vi.mocked(finance.createProjectCharge);
+const previewConsolidatedCharge = vi.mocked(finance.previewConsolidatedProjectCharge);
+const createConsolidatedCharge = vi.mocked(finance.createConsolidatedProjectCharge);
 const createDefaultCharge = vi.mocked(finance.createDefaultProjectCharge);
 const registerOutside = vi.mocked(finance.registerProjectPaymentOutside);
 
@@ -74,7 +78,32 @@ beforeEach(() => {
     queued: false, billingIssue: null, dueDate: null,
   });
   updatePayment.mockResolvedValue({ payment: payment({ status: 'paid' }) });
+  previewConsolidatedCharge.mockResolvedValue({
+    client: { id: 'client-1', name: 'Braslar', cpfCnpj: '12345678901', hasDocument: true },
+    target: { kind: 'project_payment', id: 'payment-1' },
+    items: [{
+      kind: 'project_payment',
+      id: 'payment-1',
+      project_id: 'project-1',
+      project_name: 'Site Braslar',
+      client_name: 'Braslar',
+      label: 'Site Braslar - Pagamento do projeto',
+      amount_cents: 250000,
+      due_date: '2026-09-20',
+      status: 'pending',
+      source: 'local',
+      asaas_payment_id: null,
+      payment_url: '',
+      billing_type: 'UNDEFINED',
+      already_in_batch: false,
+      is_target: true,
+    }],
+    totalCents: 250000,
+  });
   createCharge.mockResolvedValue({ queued: true, dueDate: '2026-09-20' });
+  createConsolidatedCharge.mockResolvedValue({
+    queued: true, batchId: 'batch-1', amountCents: 300000, itemCount: 2,
+  });
   createDefaultCharge.mockResolvedValue({
     payment: payment({ virtual: false, due_date: '2026-09-09', sync_status: 'queued' }),
     queued: true, billingIssue: null, dueDate: '2026-09-09',
@@ -155,6 +184,69 @@ describe('ProjectPaymentsList', () => {
     fireEvent.click(button);
 
     await waitFor(() => expect(createCharge).toHaveBeenCalledWith('payment-1'));
+  });
+
+  it('abre modal e gera cobrança consolidada quando há pendências antigas do cliente', async () => {
+    previewConsolidatedCharge.mockResolvedValue({
+      client: { id: 'client-1', name: 'Braslar', cpfCnpj: '12345678901', hasDocument: true },
+      target: { kind: 'project_payment', id: 'payment-1' },
+      items: [
+        {
+          kind: 'project_payment',
+          id: 'payment-1',
+          project_id: 'project-1',
+          project_name: 'Site Braslar',
+          client_name: 'Braslar',
+          label: 'Site Braslar - Pagamento do projeto',
+          amount_cents: 250000,
+          due_date: '2026-09-20',
+          status: 'pending',
+          source: 'local',
+          asaas_payment_id: null,
+          payment_url: '',
+          billing_type: 'UNDEFINED',
+          already_in_batch: false,
+          is_target: true,
+        },
+        {
+          kind: 'subscription',
+          id: '11111111-1111-4111-8111-111111111111',
+          project_id: 'project-2',
+          project_name: 'Retainer Braslar',
+          client_name: 'Braslar',
+          label: 'Retainer Braslar - mensalidade 08/2026',
+          amount_cents: 50000,
+          due_date: '2026-08-20',
+          status: 'overdue',
+          source: 'asaas',
+          asaas_payment_id: 'pay_old',
+          payment_url: 'https://sandbox.asaas.com/i/pay_old',
+          billing_type: 'PIX',
+          already_in_batch: false,
+          is_target: false,
+        },
+      ],
+      totalCents: 300000,
+    });
+    fetchOverview.mockResolvedValue(overview([payment()]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Existem pendências para este cliente' }))
+      .toBeInTheDocument();
+    expect(screen.getByText('Retainer Braslar - mensalidade 08/2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar cobrança completa' }));
+
+    await waitFor(() => expect(createConsolidatedCharge).toHaveBeenCalledWith(
+      'payment-1',
+      '2026-09-20',
+      [
+        { kind: 'project_payment', id: 'payment-1' },
+        { kind: 'subscription', id: '11111111-1111-4111-8111-111111111111' },
+      ],
+    ));
+    expect(createCharge).not.toHaveBeenCalled();
   });
 
   it('materializa o pagamento único e gera a cobrança quando ainda é virtual', async () => {
