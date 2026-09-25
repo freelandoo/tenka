@@ -903,10 +903,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           due_date: string | null; status: string; position: number; kind: 'stage' | 'installment';
           installment_group_id: string | null; installment_number: number | null;
           installment_count: number | null; group_label: string; sync_status: string;
+          asaas_payment_id: string | null;
         }>(
           `select id, name, description, amount_cents, due_date, status, position, kind,
                   installment_group_id, installment_number, installment_count, group_label,
-                  sync_status
+                  sync_status, asaas_payment_id
              from public.project_payments where project_id = $1 order by position`, [id]);
         // Uma linha cancelada continua no plano como história, mas não ocupa
         // mais parte do contrato — é a mesma regra do `distributed_cents` que
@@ -930,6 +931,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             installmentGroupId: row.installment_group_id,
             installmentNumber: row.installment_number, installmentCount: row.installment_count,
             groupLabel: row.group_label, status: row.status, syncStatus: row.sync_status,
+            asaasPaymentId: row.asaas_payment_id,
           }));
         const integratedChanges = integratedPlanUpdates(protectedRows, parsed.data.payments);
         if (integratedChanges.error) return integratedChanges.error;
@@ -973,22 +975,24 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         for (const item of diff.update) {
           await client.query(
             `update public.project_payments
-                set name = case when sync_status = 'local' then $2 else name end,
-                    description = case when sync_status = 'local' then $3 else description end,
-                    amount_cents = case when sync_status = 'local' then $4 else amount_cents end,
-                    due_date = case when sync_status = 'local' then $5 else due_date end,
+                set name = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $2 else name end,
+                    description = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $3 else description end,
+                    amount_cents = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $4 else amount_cents end,
+                    due_date = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $5 else due_date end,
                     status = case
-                      when sync_status = 'local'
+                      when (sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null))
                        and status not in ('paid','cancelled','refunded',
                                           'refund_requested','chargeback') then $6
                       else status
                     end,
                     position = $7,
-                    kind = case when sync_status = 'local' then $8 else kind end,
-                    installment_group_id = case when sync_status = 'local' then $9 else installment_group_id end,
-                    installment_number = case when sync_status = 'local' then $10 else installment_number end,
-                    installment_count = case when sync_status = 'local' then $11 else installment_count end,
-                    group_label = case when sync_status = 'local' then $12 else group_label end
+                    kind = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $8 else kind end,
+                    installment_group_id = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $9 else installment_group_id end,
+                    installment_number = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $10 else installment_number end,
+                    installment_count = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $11 else installment_count end,
+                    group_label = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $12 else group_label end,
+                    sync_status = case when sync_status = 'failed' and asaas_payment_id is null then 'local' else sync_status end,
+                    sync_error = case when sync_status = 'failed' and asaas_payment_id is null then null else sync_error end
               where id = $1`,
             [item.id, item.row.name, item.row.description, item.row.amountCents,
               item.row.dueDate, rowStatus, item.position, item.row.kind ?? 'stage',

@@ -114,6 +114,14 @@ describe('protecao de linhas financeiras', () => {
     expect(protectedPlanChangeError([protectedRow()], [])).toBeNull();
   });
 
+  it('permite corrigir ou remover linha que falhou antes de virar cobrança no Asaas', () => {
+    const failed = protectedRow({ syncStatus: 'failed', asaasPaymentId: null });
+    expect(protectedPlanChangeError([failed], [
+      row({ id: ENTRADA, name: 'Entrada corrigida', amountCents: 150_000, dueDate: '2026-10-20' }),
+    ])).toBeNull();
+    expect(protectedPlanChangeError([failed], [])).toBeNull();
+  });
+
   it('recusa alterar ou remover linha paga', () => {
     const paid = protectedRow({ status: 'paid' });
     expect(protectedPlanChangeError([paid], [])).toBe('linha-paga-imutavel');
@@ -139,6 +147,9 @@ describe('protecao de linhas financeiras', () => {
       row({ id: ENTRADA, name: 'Outro nome', amountCents: 200_000, dueDate: '2026-10-20' }),
     ])).toBe('linha-sincronizada-imutavel');
     expect(protectedPlanChangeError([{ ...synced, syncStatus: 'queued' }], [
+      row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
+    ])).toBe('linha-sincronizada-imutavel');
+    expect(protectedPlanChangeError([{ ...synced, syncStatus: 'failed', asaasPaymentId: 'pay_123' }], [
       row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
     ])).toBe('linha-sincronizada-imutavel');
   });

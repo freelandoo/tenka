@@ -23,6 +23,7 @@ interface DraftRow {
   dueDate: string;
   status: ProjectPaymentRow['status'];
   syncStatus: 'local' | 'queued' | 'synced' | 'failed';
+  asaasPaymentId: string | null;
   kind: PaymentKind;
   installmentGroupId: string | null;
   installmentNumber: number | null;
@@ -44,6 +45,7 @@ type PaymentPlanProject = Pick<BoardProject, 'id' | 'name' | 'value_cents'>;
 
 const emptyStage = (position: number, name = `Etapa ${position + 1}`): DraftRow => ({
   name, description: '', amount: '', dueDate: '', status: 'draft', syncStatus: 'local',
+  asaasPaymentId: null,
   kind: 'stage', installmentGroupId: null, installmentNumber: null,
   installmentCount: null, groupLabel: '',
 });
@@ -130,7 +132,9 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
             id: item.id, name: item.name, description: item.description,
             amount: item.amountCents === null ? '' : moneyInput(item.amountCents),
             dueDate: item.dueDate ?? '', status: active?.status ?? 'draft',
-            syncStatus: active?.sync_status ?? 'local', kind: item.kind,
+            syncStatus: active?.sync_status ?? 'local',
+            asaasPaymentId: active?.asaas_payment_id ?? null,
+            kind: item.kind,
             installmentGroupId: item.installmentGroupId,
             installmentNumber: item.installmentNumber,
             installmentCount: item.installmentCount, groupLabel: item.groupLabel,
@@ -261,7 +265,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
       ...current,
       ...installmentPreview.installments.map((item): DraftRow => ({
         name: item.name, description: '', amount: moneyInput(item.amountCents), dueDate: item.dueDate,
-        status: 'draft', syncStatus: 'local', kind: 'installment', installmentGroupId: groupId,
+        status: 'draft', syncStatus: 'local', asaasPaymentId: null,
+        kind: 'installment', installmentGroupId: groupId,
         installmentNumber: item.number, installmentCount: item.count, groupLabel,
       })),
     ]);
@@ -345,15 +350,18 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           // cobrança viva no Asaas — pode sair do plano e liberar o valor.
           const settled = ['paid', 'refunded', 'refund_requested', 'chargeback'].includes(row.status);
           const cancelled = row.status === 'cancelled';
-          const structuralImmutable = settled || (!cancelled && row.syncStatus !== 'local');
+          const recoverableFailed = row.syncStatus === 'failed' && !row.asaasPaymentId;
+          const locallyEditable = row.syncStatus === 'local' || recoverableFailed;
+          const structuralImmutable = settled || (!cancelled && !locallyEditable);
           const financialImmutable = settled || cancelled
-            || !['local', 'synced'].includes(row.syncStatus);
+            || !(locallyEditable || row.syncStatus === 'synced');
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
           return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">
               {row.kind === 'installment' && <small>{row.groupLabel || 'Parcelamento'}</small>}
               <input className="panel-input" aria-label={`Nome da ${itemLabel} ${index + 1}`} placeholder="Ex.: Entrada" value={row.name} disabled={structuralImmutable} onChange={(event) => update(index, { name: event.target.value })} />
               {row.syncStatus === 'synced' && <small>Valor e vencimento serão alterados no Asaas</small>}
+              {recoverableFailed && <small>Falha anterior: revise e salve para tentar novamente</small>}
             </span>
             <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} onChange={(event) => update(index, { amount: event.target.value })} />
             <input className="panel-input" aria-label={`Vencimento da ${itemLabel} ${index + 1}`} type="date" value={row.dueDate} disabled={financialImmutable} onChange={(event) => update(index, { dueDate: event.target.value })} />

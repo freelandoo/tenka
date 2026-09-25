@@ -171,6 +171,53 @@ describe('ProjectPaymentPlanDrawer', () => {
     }));
   });
 
+  it('permite corrigir entrada com falha antes de criar a cobrança no Asaas', async () => {
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true,
+      environment: 'sandbox',
+      project: { id: 'project-1', name: 'Ricardo Fogões', value_cents: 100_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: '11111111-1111-4111-8111-111111111111', project_id: 'project-1', name: 'Entrada',
+        description: '', amount_cents: 10_000, due_date: null, paid_at: null, status: 'pending',
+        position: 0, notes: '', receipt_url: '', kind: 'stage', installment_group_id: null,
+        installment_number: null, installment_count: null, group_label: '', asaas_payment_id: null,
+        external_reference: null, payment_url: '', bank_slip_url: '', pix_payload: '',
+        billing_type: 'UNDEFINED', provider_status: null, sync_status: 'failed',
+        sync_error: 'CPF/CNPJ ausente', payment_date: null, provider_event_at: null,
+      }],
+      subscriptionPayments: [],
+      paymentPlanDraft: null,
+    });
+
+    render(
+      <ProjectPaymentPlanDrawer
+        project={{ id: 'project-1', name: 'Ricardo Fogões', value_cents: 100_000 }}
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    const amount = await screen.findByLabelText('Valor da etapa 1');
+    expect(screen.getByLabelText('Nome da etapa 1')).not.toBeDisabled();
+    expect(amount).not.toBeDisabled();
+    expect(screen.getByLabelText('Vencimento da etapa 1')).not.toBeDisabled();
+    expect(screen.getByText('Falha anterior: revise e salve para tentar novamente')).toBeInTheDocument();
+
+    fireEvent.change(amount, { target: { value: '200,00' } });
+    fireEvent.change(screen.getByLabelText('Vencimento da etapa 1'), { target: { value: '2026-09-30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e ativar' }));
+
+    await waitFor(() => expect(finance.savePaymentPlan).toHaveBeenCalledWith('project-1', expect.objectContaining({
+      payments: [expect.objectContaining({
+        id: '11111111-1111-4111-8111-111111111111',
+        amountCents: 20_000,
+        dueDate: '2026-09-30',
+      })],
+    })));
+  });
+
   it('permite ajustar valor e vencimento sincronizados sem liberar estrutura ou exclusão', async () => {
     const synced = (id: string, name: string, amount: number, dueDate: string, position: number) => ({
       id, project_id: 'project-1', name, description: '', amount_cents: amount,
