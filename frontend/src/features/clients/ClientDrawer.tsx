@@ -52,7 +52,9 @@ export function ClientDrawer({
   onChanged,
 }: ClientDrawerProps) {
   const missingDocument = isClientDocumentMissing(client.cpf_cnpj);
+  const missingEmail = normalizeEmailInput(client.email) === '';
   const [tab, setTab] = useState<Tab>(missingDocument ? 'cadastro' : 'projetos');
+  const [hideEmailWarning, setHideEmailWarning] = useState(false);
 
   const meus = useMemo(
     () =>
@@ -94,6 +96,15 @@ export function ClientDrawer({
           <X size={19} aria-hidden="true" />
         </button>
       </header>
+
+      {missingEmail && !hideEmailWarning && (
+        <div className="client-contact-warning" role="status">
+          <span>Cliente sem e-mail. Avisos por e-mail não serão enviados; use os canais disponíveis.</span>
+          <button type="button" className="panel-iconbtn" aria-label="Ocultar aviso de e-mail" onClick={() => setHideEmailWarning(true)}>
+            <X size={13} aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       <div className="client-tabs" role="tablist" aria-label="Seções do cliente">
         <button

@@ -176,6 +176,19 @@ describe('LeadsView', () => {
     expect(screen.getByLabelText('CPF/CNPJ')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('avisa no drawer quando o cliente não tem e-mail e permite ocultar o aviso', async () => {
+    mocked.fetchClients.mockResolvedValue([makeClient({ email: '' })]);
+    render(
+      <LeadsView projects={[makeProject()]} profiles={profiles} isAdmin onProjectsChanged={vi.fn()} />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir ficha de Alex Rodrigues' }));
+    expect(screen.getByText(/Cliente sem e-mail/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar aviso de e-mail' }));
+    expect(screen.queryByText(/Cliente sem e-mail/)).toBeNull();
+  });
+
   it('oculta cliente da lista principal sem apagar o cadastro', async () => {
     mocked.fetchClients.mockResolvedValue([makeClient()]);
     const onChanged = vi.fn();

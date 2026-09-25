@@ -171,6 +171,42 @@ describe('ProjectPaymentPlanDrawer', () => {
     }));
   });
 
+  it('preserva entrada parcial existente ao adicionar outra etapa', async () => {
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true,
+      environment: 'sandbox',
+      project: { id: 'project-1', name: 'Ricardo Fogões', value_cents: 100_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: '11111111-1111-4111-8111-111111111111', project_id: 'project-1', name: 'Entrada',
+        description: '', amount_cents: 20_000, due_date: null, paid_at: null, status: 'pending',
+        position: 0, notes: '', receipt_url: '', kind: 'stage', installment_group_id: null,
+        installment_number: null, installment_count: null, group_label: '', asaas_payment_id: null,
+        external_reference: null, payment_url: '', bank_slip_url: '', pix_payload: '',
+        billing_type: 'UNDEFINED', provider_status: null, sync_status: 'local',
+        sync_error: null, payment_date: null, provider_event_at: null,
+      }],
+      subscriptionPayments: [],
+      paymentPlanDraft: null,
+    });
+
+    render(
+      <ProjectPaymentPlanDrawer
+        project={{ id: 'project-1', name: 'Ricardo Fogões', value_cents: 100_000 }}
+        appendStage
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByLabelText('Nome da etapa 1')).toHaveValue('Entrada');
+    expect(screen.getByLabelText('Valor da etapa 1')).toHaveValue('200,00');
+    expect(screen.getByLabelText('Nome da etapa 2')).toHaveValue('Etapa 2');
+    expect(screen.getByLabelText('Valor da etapa 2')).toHaveValue('');
+    expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 800,00');
+  });
+
   it('permite corrigir entrada com falha antes de criar a cobrança no Asaas', async () => {
     vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
       configured: true,

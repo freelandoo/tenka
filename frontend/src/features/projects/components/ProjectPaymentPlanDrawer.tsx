@@ -59,6 +59,11 @@ const quickSplit = (valueCents: number, existing?: DraftRow): DraftRow[] => {
   ];
 };
 
+const isDefaultProjectPayment = (row: DraftRow | undefined, valueCents: number) =>
+  row?.name === 'Pagamento do projeto'
+  && parseCurrencyToCents(row.amount) === valueCents
+  && row.status !== 'paid';
+
 function localIsoDate(): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -141,7 +146,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           };
         });
         const opened = appendStage
-          ? loaded.length <= 1
+          ? loaded.length === 0 || isDefaultProjectPayment(loaded[0], project.value_cents)
             ? quickSplit(project.value_cents, loaded[0])
             : [...loaded, emptyStage(loaded.length)]
           : loaded;

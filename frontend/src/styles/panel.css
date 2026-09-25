@@ -2752,6 +2752,27 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   color: var(--panel-text-faint);
 }
 .client-contact span { display: inline-flex; align-items: center; gap: 5px; }
+.client-contact-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 9px 10px 9px 12px;
+  border: 1px solid color-mix(in srgb, #f4bd68 45%, var(--panel-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, #f4bd68 9%, transparent);
+  color: #f4bd68;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.client-contact-warning .panel-iconbtn {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  color: #f4bd68;
+}
 
 #client-drawer-title { display: flex; align-items: center; gap: 8px; }
 .panel-field--attention > label { color: #ff8a87; }
@@ -3649,7 +3670,9 @@ a.fees__billing-icon { text-decoration: none; }
 .finance-editor__actions > .panel-field__hint { margin-right: auto; }
 .finance-warning { color: #f4bd68; font-size: 12px; line-height: 1.5; }
 .finance-plan { display: grid; gap: 8px; }
-.finance-plan__row { display: grid; grid-template-columns: 1.3fr .8fr 1fr auto; gap: 7px; align-items: center; }
+.finance-plan__row { display: grid; grid-template-columns: 1.3fr .8fr 1fr auto; gap: 7px; align-items: start; }
+.finance-plan__row > .panel-input,
+.finance-plan__row > .panel-iconbtn { margin-top: 0; }
 .finance-plan__row.is-installment { padding-left: 9px; border-left: 2px solid color-mix(in srgb, var(--panel-accent) 45%, transparent); }
 .finance-plan__name { display: grid; gap: 4px; min-width: 0; }
 .finance-plan__name small { color: var(--panel-text-faint); font-size: 10px; line-height: 1; }
