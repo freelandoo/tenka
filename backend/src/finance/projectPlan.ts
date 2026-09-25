@@ -1,15 +1,15 @@
-export type ProjectPlanTotalError = 'sum-exceeds' | 'sum-mismatch' | null;
+export type ProjectPlanTotalError = 'sum-exceeds' | null;
 
 /**
  * Rascunhos podem estar incompletos, mas nunca acima do valor contratado.
- * Um plano ativo precisa fechar exatamente o valor total do projeto.
+ * Um plano ativo tambem pode ficar parcial: o saldo nao distribuido representa
+ * um restante ainda a combinar com o cliente.
  */
 export function projectPlanTotalError(
-  status: 'draft' | 'active',
+  _status: 'draft' | 'active',
   totalCents: number,
   projectValueCents: number,
 ): ProjectPlanTotalError {
   if (totalCents > projectValueCents) return 'sum-exceeds';
-  if (status === 'active' && totalCents !== projectValueCents) return 'sum-mismatch';
   return null;
 }

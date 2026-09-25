@@ -1080,7 +1080,6 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       });
       if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (result === 'sum-exceeds') return reply.code(409).send({ error: 'soma-ultrapassa-valor-do-projeto' });
-      if (result === 'sum-mismatch') return reply.code(409).send({ error: 'soma-diferente-do-valor-do-projeto' });
       // O painel está com uma versão antiga do plano em tela; recarregar resolve.
       if (result === 'linha-desconhecida' || result === 'linha-repetida') {
         return reply.code(409).send({ error: 'plano-desatualizado' });

@@ -308,9 +308,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
       publishingRef.current = false;
       await persistDraft(rowsRef.current);
       const code = error instanceof Error ? error.message : '';
-      toast('error', code === 'soma-diferente-do-valor-do-projeto'
-        ? 'A soma dos itens precisa ser igual ao valor total do projeto.'
-        : code === 'soma-ultrapassa-valor-do-projeto'
+      toast('error', code === 'soma-ultrapassa-valor-do-projeto'
           ? 'A soma dos itens não pode ultrapassar o valor total do projeto.'
         : code === 'linha-paga-imutavel'
           ? 'Um item já pago não pode ser alterado nem removido.'
@@ -391,18 +389,18 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
         </div>
       </section>}
 
-      <div className={`finance-plan__summary ${summary.remaining !== 0 ? 'finance-plan__summary--mismatch' : ''}`}>
+      <div className={`finance-plan__summary ${summary.remaining < 0 ? 'finance-plan__summary--mismatch' : ''}`}>
         <span>Valor total <strong>{formatCurrencyFromCents(project.value_cents)}</strong></span>
         <span>Distribuído <strong>{formatCurrencyFromCents(summary.distributed)}</strong></span>
         <span>Pago <strong>{formatCurrencyFromCents(summary.paid)}</strong></span>
         <span>Pendente <strong>{formatCurrencyFromCents(summary.pending)}</strong></span>
         <span>Vencido <strong>{formatCurrencyFromCents(summary.overdue)}</strong></span>
-        <span className={summary.remaining > 0 ? 'is-warning' : undefined}>Não distribuído <strong>{formatCurrencyFromCents(Math.max(0, summary.remaining))}</strong></span>
+        <span className={summary.remaining > 0 ? 'is-warning' : undefined}>Restante a combinar <strong>{formatCurrencyFromCents(Math.max(0, summary.remaining))}</strong></span>
         {summary.remaining < 0 && <span className="is-warning">Valor excedido <strong>{formatCurrencyFromCents(-summary.remaining)}</strong></span>}
       </div>
       <div className="finance-editor__actions">
         <span className="panel-field__hint">O rascunho é salvo automaticamente. Nenhuma cobrança é criada antes da ativação.</span>
-        <button type="button" className="panel-btn" disabled={busy || !rowsValid || summary.remaining !== 0} onClick={() => void activate()}><Check size={14} /> Salvar e ativar</button>
+        <button type="button" className="panel-btn" disabled={busy || !rowsValid || summary.remaining < 0} onClick={() => void activate()}><Check size={14} /> Salvar e ativar</button>
       </div>
     </>}
   </PanelOverlay>;

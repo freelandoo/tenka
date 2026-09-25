@@ -90,7 +90,7 @@ describe('ProjectPaymentPlanDrawer', () => {
     expect(finance.savePaymentPlan).not.toHaveBeenCalled();
     expect(screen.getAllByDisplayValue('833,33')).toHaveLength(2);
     expect(screen.getByDisplayValue('833,34')).toBeInTheDocument();
-    expect(screen.getByText('Não distribuído').parentElement).toHaveTextContent('R$ 0,00');
+    expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 0,00');
 
     fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
     await waitFor(() => expect(finance.savePaymentPlanDraft).toHaveBeenCalledWith(
@@ -141,6 +141,34 @@ describe('ProjectPaymentPlanDrawer', () => {
 
     expect(within(screen.getByRole('list')).getAllByText('R$ 2.000,00')).toHaveLength(4);
     expect(screen.getByText('20/01/2027')).toBeInTheDocument();
+  });
+
+  it('ativa um plano parcial e deixa o restante para combinar depois', async () => {
+    render(
+      <ProjectPaymentPlanDrawer
+        project={{ id: 'project-1', name: 'Ricardo Fogões', value_cents: 100_000 }}
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar etapa' }));
+    fireEvent.change(screen.getByLabelText('Nome da etapa 1'), { target: { value: 'Entrada' } });
+    fireEvent.change(screen.getByLabelText('Valor da etapa 1'), { target: { value: '200,00' } });
+
+    expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 800,00');
+    expect(screen.getByRole('button', { name: 'Salvar e ativar' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e ativar' }));
+
+    await waitFor(() => expect(finance.savePaymentPlan).toHaveBeenCalledWith('project-1', {
+      status: 'active',
+      payments: [expect.objectContaining({
+        name: 'Entrada',
+        amountCents: 20_000,
+        dueDate: null,
+      })],
+    }));
   });
 
   it('permite ajustar valor e vencimento sincronizados sem liberar estrutura ou exclusão', async () => {
