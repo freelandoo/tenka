@@ -5,11 +5,8 @@ import { gsap, ScrollTrigger } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useMultimediaLenis } from './hooks/useMultimediaLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
+import { useSeo } from '../seo/useSeo';
 import './multimedia.css';
-
-const PAGE_TITLE = 'Tenka Studios — 3D, visualização e identidade visual';
-const PAGE_DESCRIPTION =
-  'Maquetes 3D, animações 3D, mockups digitais de produtos, identidade visual, branding e logos criados pela Tenka Studios.';
 
 const PROJECTS = [
   {
@@ -108,22 +105,6 @@ function BrandMark({ official = false }: { official?: boolean }) {
   );
 }
 
-function upsertMeta(attribute: 'name' | 'property', key: string, content: string) {
-  let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
-  const created = !element;
-  const previous = element?.content ?? null;
-  if (!element) {
-    element = document.createElement('meta');
-    element.setAttribute(attribute, key);
-    document.head.appendChild(element);
-  }
-  element.content = content;
-  return () => {
-    if (created) element?.remove();
-    else if (previous !== null && element) element.content = previous;
-  };
-}
-
 export default function CultureMachine() {
   const rootRef = useRef<HTMLDivElement>(null);
   const focusFrameRef = useRef<HTMLDivElement>(null);
@@ -131,23 +112,16 @@ export default function CultureMachine() {
   const lenisRef = useMultimediaLenis(!reducedMotion);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  useSeo('/studios');
+
   useEffect(() => {
-    const previousTitle = document.title;
     const previousHtml = document.documentElement.style.backgroundColor;
     const previousBody = document.body.style.backgroundColor;
-    document.title = PAGE_TITLE;
     document.documentElement.style.backgroundColor = '#0b0b0d';
     document.body.style.backgroundColor = '#0b0b0d';
-    const restoreMeta = [
-      upsertMeta('name', 'description', PAGE_DESCRIPTION),
-      upsertMeta('property', 'og:title', PAGE_TITLE),
-      upsertMeta('property', 'og:description', PAGE_DESCRIPTION),
-    ];
     return () => {
-      document.title = previousTitle;
       document.documentElement.style.backgroundColor = previousHtml;
       document.body.style.backgroundColor = previousBody;
-      restoreMeta.forEach((restore) => restore());
     };
   }, []);
 
@@ -492,8 +466,9 @@ export default function CultureMachine() {
               <span>IDEIAS QUE</span>
               <span>GANHAM</span>
               <span>PRESENÇA<span className="ts-terminal" aria-hidden="true" /></span>
+              <span className="sr-only"> — maquetes 3D, animação 3D, mockup de produto e identidade visual</span>
             </h1>
-            <p className="ts-hero-summary">Construímos imagens, formas e sistemas visuais para tornar o que ainda é ideia impossível de ignorar.</p>
+            <p className="ts-hero-summary">Maquetes 3D, animações 3D, mockup digital de produtos, identidade visual e branding: construímos imagens, formas e sistemas visuais para tornar o que ainda é ideia impossível de ignorar.</p>
             <button className="ts-primary-button ts-mono" type="button" onClick={() => navigate('projetos')}>
               VER PROJETOS <span>↘</span>
             </button>

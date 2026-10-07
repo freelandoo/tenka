@@ -9,11 +9,8 @@ import { WorldEngineBackground } from './components/WorldEngineBackground';
 import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import TenkaSymbol from '../components/TenkaSymbol';
+import { useSeo } from '../seo/useSeo';
 import './games.css';
-
-const PAGE_TITLE = 'Tenka Games — Jogos, experiências e treinamentos em VR';
-const PAGE_DESCRIPTION =
-  'Jogos de navegador, mobile e VR, ativações corporativas e treinamentos imersivos criados pela Tenka Games.';
 
 const EMBERS = Array.from({ length: 18 }, (_, index) => ({
   id: index,
@@ -113,18 +110,15 @@ export default function WorldForge() {
     [lenisRef, reducedMotion],
   );
 
+  // Head (título, description, canonical, og:, JSON-LD) vem do manifesto em
+  // src/seo/routes.ts — o mesmo que o build usa para gerar /games/index.html.
+  useSeo('/games');
+
   useEffect(() => {
-    const previousTitle = document.title;
     const previousBackground = document.body.style.backgroundColor;
-    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-    const previousDescription = description?.content;
-    document.title = PAGE_TITLE;
     document.body.style.backgroundColor = '#0d0d0d';
-    if (description) description.content = PAGE_DESCRIPTION;
     return () => {
-      document.title = previousTitle;
       document.body.style.backgroundColor = previousBackground;
-      if (description && previousDescription) description.content = previousDescription;
     };
   }, []);
 
@@ -280,11 +274,12 @@ export default function WorldForge() {
               <span>MUNDOS FEITOS</span>
               <span>PARA SEREM</span>
               <span>VIVIDOS<span className="tg-terminal" aria-hidden="true" /></span>
+              <span className="sr-only"> — jogos, experiências e treinamentos em realidade virtual para empresas</span>
             </h1>
             <div className="tg-hero-meta">
               <div>
                 <b className="tg-mono">[ MISSÃO ]</b>
-                <p>CRIAR. CONSTRUIR. JOGAR.<br />IDEIAS QUE VIRAM MUNDOS.</p>
+                <p>JOGOS, ATIVAÇÕES E TREINAMENTOS<br />EM REALIDADE VIRTUAL.</p>
               </div>
               <div className="tg-mono">
                 <p>23.5505° S, 46.6333° W</p>

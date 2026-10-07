@@ -12,11 +12,19 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TENKA" />
+
+    <!-- Não havia ícone nenhum: todo carregamento pedia /favicon.ico e tomava 404. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- Título e description ficam aqui só como fallback do dev server e de
+         qualquer rota não listada. No build, scripts/seo-plugin.ts troca os dois
+         pelos da rota (ver src/seo/routes.ts). -->
     <meta
       name="description"
-      content="TENKA — grupo de tecnologia e entretenimento: desenvolvimento de games, marketing e multimídia, sites e softwares."
+      content="TENKA — grupo de tecnologia e entretenimento: games e realidade virtual, 3D e branding, sites, sistemas e automações."
     />
-    <title>TENKA — Games, Studios e Tech</title>
+    <title>TENKA Group — Games em VR, 3D, Branding, Sites e Sistemas</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

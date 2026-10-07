@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ContactPage from './pages/ContactPage';
+import SobrePage from './pages/SobrePage';
+import ProjetosPage from './pages/ProjetosPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
@@ -83,27 +85,18 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route
-          path="/multimidia"
-          element={
-            <Suspense fallback={<MultimediaFallback />}>
-              <MultimidiaPage />
-            </Suspense>
-          }
-        />
+        {/* /multimidia e /desenvolvimento serviam o MESMO componente de
+            /studios e /tech, em URLs diferentes e sem canonical — conteúdo
+            duplicado por construção. Agora são 301 no edge (vercel.json); estes
+            Navigate cobrem navegação interna e o `npm run dev`, onde não há
+            redirect do Vercel. */}
+        <Route path="/multimidia" element={<Navigate to="/studios" replace />} />
+        <Route path="/desenvolvimento" element={<Navigate to="/tech" replace />} />
         <Route
           path="/studios"
           element={
             <Suspense fallback={<MultimediaFallback />}>
               <MultimidiaPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/desenvolvimento"
-          element={
-            <Suspense fallback={<TechnologyFallback />}>
-              <DesenvolvimentoPage />
             </Suspense>
           }
         />
@@ -115,6 +108,8 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route path="/sobre" element={<SobrePage />} />
+        <Route path="/projetos" element={<ProjetosPage />} />
         <Route path="/contato" element={<ContactPage />} />
         <Route
           path="/painel/*"

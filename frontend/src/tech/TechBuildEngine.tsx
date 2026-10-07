@@ -5,10 +5,8 @@ import { gsap } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTechLenis } from './hooks/useTechLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
+import { useSeo } from '../seo/useSeo';
 import './tech.css';
-
-const PAGE_TITLE = 'Tenka Tech — Sites, SaaS, Automações e Aplicativos';
-const PAGE_DESCRIPTION = 'A Tenka Tech projeta e desenvolve sites, plataformas SaaS, automações e aplicativos conectados ao negócio.';
 
 const SERVICES = [
   {
@@ -51,22 +49,6 @@ const PROCESS = [
   ['03', 'Construir', 'Interface e engenharia evoluindo no mesmo ciclo.'],
   ['04', 'Operar', 'Publicação, monitoramento e melhoria contínua.'],
 ];
-
-function upsertMeta(attribute: 'name' | 'property', key: string, content: string) {
-  let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
-  const created = !element;
-  const previous = element?.content ?? null;
-  if (!element) {
-    element = document.createElement('meta');
-    element.setAttribute(attribute, key);
-    document.head.appendChild(element);
-  }
-  element.content = content;
-  return () => {
-    if (created) element?.remove();
-    else if (previous !== null && element) element.content = previous;
-  };
-}
 
 function BrandMark({ official = false }: { official?: boolean }) {
   return (
@@ -140,23 +122,16 @@ export default function TechBuildEngine() {
   const lenisRef = useTechLenis(!reducedMotion);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  useSeo('/tech');
+
   useEffect(() => {
-    const previousTitle = document.title;
     const previousHtml = document.documentElement.style.backgroundColor;
     const previousBody = document.body.style.backgroundColor;
-    document.title = PAGE_TITLE;
     document.documentElement.style.backgroundColor = '#080b0d';
     document.body.style.backgroundColor = '#080b0d';
-    const restoreMeta = [
-      upsertMeta('name', 'description', PAGE_DESCRIPTION),
-      upsertMeta('property', 'og:title', PAGE_TITLE),
-      upsertMeta('property', 'og:description', PAGE_DESCRIPTION),
-    ];
     return () => {
-      document.title = previousTitle;
       document.documentElement.style.backgroundColor = previousHtml;
       document.body.style.backgroundColor = previousBody;
-      restoreMeta.forEach((restore) => restore());
     };
   }, []);
 
@@ -226,8 +201,15 @@ export default function TechBuildEngine() {
         <section id="inicio" className="tt-hero" aria-labelledby="tech-title">
           <div className="tt-hero-copy">
             <p className="tt-eyebrow tt-mono"><i /> ENGENHARIA DIGITAL / SISTEMAS VIVOS</p>
-            <h1 id="tech-title"><span>TECNOLOGIA</span><span>QUE TOMA</span><span>FORMA<b>.</b></span></h1>
-            <p className="tt-hero-summary">Projetamos o ambiente digital inteiro — da primeira tela aos fluxos que mantêm o negócio operando.</p>
+            {/* O slogan segue sendo o display. A linha `sr-only` entra no texto
+                do H1 para que a página tenha um cabeçalho com a palavra-chave —
+                ela é lida por leitor de tela e pelo crawler, e o mesmo conteúdo
+                aparece visível no parágrafo abaixo e na seção de serviços. */}
+            <h1 id="tech-title">
+              <span>TECNOLOGIA</span><span>QUE TOMA</span><span>FORMA<b>.</b></span>
+              <span className="sr-only"> — sites, sistemas sob medida, aplicativos e automações com IA</span>
+            </h1>
+            <p className="tt-hero-summary">Sites, sistemas sob medida, aplicativos e automações com IA: projetamos o ambiente digital inteiro — da primeira tela aos fluxos que mantêm o negócio operando.</p>
             <div className="tt-hero-actions">
               <button className="tt-button tt-mono" type="button" onClick={() => navigate('servicos')}>CONHECER SOLUÇÕES <span>↘</span></button>
               <p className="tt-mono">SITES <b>·</b> SAAS <b>·</b> AUTOMAÇÕES <b>·</b> APLICATIVOS</p>

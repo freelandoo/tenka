@@ -10,6 +10,7 @@ import {
 } from '../../features/auth/guards';
 import { ToastProvider } from '../../features/panel/ToastContext';
 import PanelLayout from '../../layouts/PanelLayout';
+import { useNoindex } from '../../seo/useSeo';
 import LoginPage from './LoginPage';
 import ProjectsPage from './ProjectsPage';
 import AtendimentoPage from './AtendimentoPage';
@@ -47,6 +48,12 @@ function PanelHome() {
  * sem ser admin é redirecionado aqui e recebe 403 lá.
  */
 export default function PanelRoutes() {
+  // Área interna fora do índice. Em camadas, porque cada uma cobre um furo da
+  // outra: `robots.txt` evita o rastreamento, o header `X-Robots-Tag` do
+  // vercel.json vale para quem já tem a URL, e este meta vale na navegação SPA
+  // (em que nenhum dos dois é reavaliado).
+  useNoindex();
+
   return (
     <AuthProvider>
       <ToastProvider>
