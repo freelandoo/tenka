@@ -110,14 +110,48 @@ function crawlableBody(route: SeoRoute): string {
     .map((other) => `<li><a href="${escapeAttr(other.path)}">${escapeHtml(other.h1)}</a></li>`)
     .join('');
 
+  // Páginas de norma regulamentadora: as exigências e, principalmente, o limite
+  // do que a TENKA entrega precisam estar AQUI, não só no React.
+  //
+  // Sem isto, o que o crawler e os motores de IA leem afirma carga horária e
+  // modalidade de treinamento obrigatório e omite que a TENKA não emite
+  // certificado de NR — exatamente a leitura errada que o bloco existe para
+  // impedir. Quem lê a página sem executar JavaScript tem de receber a ressalva
+  // junto com a afirmação, não depois dela.
+  const content = SERVICE_CONTENT.find((item) => item.path === route.path);
+  const regulation = content?.regulation
+    ? [
+        `<h2>O que a ${escapeHtml(content.regulation.code)} exige</h2>`,
+        `<p>${escapeHtml(content.regulation.scope)}</p>`,
+        '<dl>',
+        ...content.regulation.requirements.flatMap((item) => [
+          `<dt>${escapeHtml(item.label)}</dt>`,
+          `<dd>${escapeHtml(item.value)}</dd>`,
+        ]),
+        '</dl>',
+        content.regulation.update
+          ? `<h3>${escapeHtml(content.regulation.update.title)}</h3><p>${escapeHtml(
+              content.regulation.update.body,
+            )}</p>`
+          : '',
+        '<h3>O que a TENKA entrega — e o que não entrega</h3>',
+        `<p>${escapeHtml(content.regulation.disclaimer)}</p>`,
+        `<p>Dados normativos conferidos em ${escapeHtml(
+          content.regulation.checkedAt,
+        )}. Confirme a redação vigente no portal do Ministério do Trabalho e Emprego.</p>`,
+      ].join('')
+    : '';
+
   return [
     '<div id="tenka-seo-fallback">',
     `<h1>${escapeHtml(route.h1)}</h1>`,
     `<p>${escapeHtml(route.intro)}</p>`,
     items,
+    regulation,
     `<nav aria-label="Páginas da TENKA"><ul>${nav}</ul></nav>`,
     '<noscript><p>Este site usa JavaScript para as experiências interativas. ' +
-      `Fale com a TENKA em <a href="mailto:contato@tenka.com.br">contato@tenka.com.br</a>.</p></noscript>`,
+      `Fale com a TENKA em <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> ` +
+      `ou ${escapeHtml(PHONE_DISPLAY)}.</p></noscript>`,
     '</div>',
   ].join('');
 }
@@ -264,6 +298,26 @@ function renderLlmsFull(): string {
       );
       for (const section of content.sections ?? []) {
         parts.push('', `### ${section.title}`, '', section.body);
+      }
+
+      // Mesma razão do bloco no HTML estático: este arquivo é lido por modelos
+      // que podem citar a página. A exigência da norma e o limite do que a
+      // TENKA entrega andam juntos, ou a citação sai pela metade errada.
+      if (content.regulation) {
+        const reg = content.regulation;
+        parts.push('', `### O que a ${reg.code} exige`, '', `Aplicação: ${reg.scope}`, '');
+        parts.push(...reg.requirements.map((item) => `- **${item.label}**: ${item.value}`));
+        if (reg.update) {
+          parts.push('', `#### ${reg.update.title}`, '', reg.update.body);
+        }
+        parts.push(
+          '',
+          '#### IMPORTANTE — limite do serviço',
+          '',
+          reg.disclaimer,
+          '',
+          `Dados normativos conferidos em ${reg.checkedAt}. As normas regulamentadoras são alteradas periodicamente; confirme a redação vigente no portal do Ministério do Trabalho e Emprego.`,
+        );
       }
     }
 
