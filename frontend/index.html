@@ -36,22 +36,21 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- A folha do Google Fonts bloqueava a renderização por ~829 ms (medido no
-         Lighthouse). Carregada como `print` ela não bloqueia; o onload a promove
-         para `all` assim que chega. O <noscript> cobre quem está sem JS.
-         `display=swap` já garante texto visível com a fonte do sistema até lá. -->
+    <!-- Folha de fontes SÍNCRONA, de propósito.
+         Tentei carregá-la com media="print" + onload para destravar os ~829 ms
+         de render-blocking que o Lighthouse apontava. Funcionou para o FCP
+         (4,2 s -> 3,7 s) e quebrou o CLS: 0 -> 0,141, atribuído pelo Lighthouse
+         a "Web font loaded" (Unbounded). Com a folha assíncrona o texto pinta na
+         fonte de sistema e reflui quando a web font chega.
+         CLS é Core Web Vital; FCP não é. Trocar 0,5 s de FCP por 0,14 de CLS é
+         prejuízo, então a folha volta a bloquear.
+         Para destravar o FCP sem reintroduzir o shift seria preciso casar as
+         métricas da fonte de fallback (size-adjust / ascent-override) por
+         família, ou reduzir as 9 famílias carregadas aqui. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Unbounded:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
     />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Unbounded:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
 
     <!-- Initial background set immediately to avoid a white flash before JS loads. -->
     <style>
