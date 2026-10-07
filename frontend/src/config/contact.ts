@@ -37,6 +37,17 @@ export const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encod
   `${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} - ${ADDRESS.region}, ${ADDRESS.postalCode}`,
 )}`;
 
+/**
+ * Perfis oficiais. Alimentam o `sameAs` do Organization no JSON-LD: é assim que
+ * buscador e motor de IA ligam o site, as redes e a ficha do Google Business
+ * como sendo a mesma entidade, em vez de três TENKAs soltas.
+ */
+export const SOCIAL_PROFILES = [
+  'https://www.instagram.com/grupo.tenka/',
+  'https://www.facebook.com/profile.php?id=61593466682541',
+  'https://www.linkedin.com/company/tenkagroup/',
+];
+
 export const hasWhatsapp = /^\d{12,13}$/.test(WHATSAPP_NUMBER);
 
 export function whatsappUrl(message: string): string {

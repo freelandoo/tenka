@@ -215,6 +215,11 @@ export const NOINDEX_PREFIXES = ['/painel', '/admin'];
 export const REDIRECTS: Record<string, string> = {
   '/multimidia': '/studios',
   '/desenvolvimento': '/tech',
+  // Canibalização resolvida por fusão: /games/jogos-de-navegador disputava a
+  // mesma intenção de /games/advergame-e-gamificacao (as duas prometiam WebGL
+  // por link, sem instalação, para campanha). O conteúdo de navegador foi
+  // absorvido pela página de advergame, que fica como a canônica da intenção.
+  '/games/jogos-de-navegador': '/games/advergame-e-gamificacao',
 };
 
 export function routeFor(pathname: string): SeoRoute | undefined {

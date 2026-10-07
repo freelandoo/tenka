@@ -1,4 +1,5 @@
 import type { SeoRoute } from './routes';
+import { PRICING_CONTENT, PRICING_ROUTES } from './pricing';
 
 /**
  * Páginas de serviço — uma URL por intenção comercial.
@@ -71,7 +72,7 @@ export interface ServiceContent {
 
 const GAMES_ACCENT = '#FF6A0A';
 
-export const SERVICE_ROUTES: SeoRoute[] = [
+const BASE_SERVICE_ROUTES: SeoRoute[] = [
   {
     path: '/games/treinamento-em-realidade-virtual',
     title: 'Treinamento em realidade virtual para empresas | TENKA',
@@ -279,14 +280,15 @@ export const SERVICE_ROUTES: SeoRoute[] = [
   },
   {
     path: '/games/advergame-e-gamificacao',
-    title: 'Advergame e gamificação para marcas e empresas | TENKA',
+    title: 'Advergame, jogo de navegador e gamificação | TENKA',
     description:
-      'Criamos advergames e sistemas de gamificação sob medida: jogo de campanha acessível por link, mecânica de engajamento, premiação e métricas de participação.',
-    h1: 'Advergame e gamificação para marcas e empresas',
+      'Advergames e jogos de navegador em WebGL que abrem por link, sem instalação, e sistemas de gamificação sob medida para campanha, fidelidade e uso interno.',
+    h1: 'Advergame, jogo de navegador e gamificação para marcas',
     intro:
-      'Um jogo que carrega a mensagem da marca e que as pessoas jogam por vontade própria. Advergame para campanha e promoção, gamificação para engajamento contínuo — de fidelidade de cliente a adoção interna de processo.',
+      'Um jogo que carrega a mensagem da marca e que as pessoas jogam por vontade própria. Entregue em WebGL, abre por link ou QR code no celular e no desktop, sem loja e sem instalação. Advergame para campanha e promoção, gamificação para engajamento contínuo — de fidelidade de cliente a adoção interna de processo.',
     highlights: [
-      'Advergame de campanha — jogo de navegador, acessível por link, sem instalação',
+      'Jogo de navegador em WebGL — abre por link ou QR code, sem loja e sem instalação',
+      'Advergame de campanha — mecânica ligada ao que a marca de fato vende',
       'Mecânica de promoção — ranking, sorteio, cupom e regras auditáveis',
       'Gamificação de produto — pontos, missões, progresso e recompensa dentro do seu sistema',
       'Gamificação interna — adoção de processo, treinamento e metas de equipe',
@@ -298,6 +300,11 @@ export const SERVICE_ROUTES: SeoRoute[] = [
         question: 'O que é um advergame?',
         answer:
           'É um jogo criado para comunicar uma marca ou campanha. Em vez de interromper o conteúdo que a pessoa consome, ele é o conteúdo: ela escolhe jogar, passa minutos com a marca e costuma voltar. Funciona bem quando a mecânica tem relação com o produto, e não quando é um joguinho genérico com um logo colado.',
+      },
+      {
+        question: 'Jogo de navegador roda bem em celular?',
+        answer:
+          'Roda, desde que seja projetado para isso. O erro comum é produzir para desktop e só depois tentar encaixar no celular — aí o peso do carregamento e o consumo de bateria derrubam a taxa de conclusão. Definimos o aparelho-alvo no início, e o orçamento de carregamento entra como requisito do projeto.',
       },
       {
         question: 'O jogador precisa instalar alguma coisa?',
@@ -355,42 +362,6 @@ export const SERVICE_ROUTES: SeoRoute[] = [
         question: 'Fazem jogo mobile para campanha de marca?',
         answer:
           'Fazemos, mas vale conversar sobre o formato: para campanha, um jogo de navegador costuma performar melhor, porque o usuário entra por um link em vez de instalar. App faz sentido quando a marca quer relação contínua, não um pico de campanha.',
-      },
-    ],
-    priority: 0.7,
-    changefreq: 'monthly',
-  },
-  {
-    path: '/games/jogos-de-navegador',
-    title: 'Jogos de navegador em WebGL, sem instalação | TENKA',
-    description:
-      'Jogos de navegador em WebGL que abrem por link no celular e no desktop: campanhas, advergames, demonstrações de produto e experiências dentro do seu site.',
-    h1: 'Jogos de navegador em WebGL, acessíveis por link',
-    intro:
-      'Experiências jogáveis que abrem por link ou QR code, sem loja e sem instalação. É o formato com menor atrito que existe — e por isso o que melhor funciona para campanha, ativação digital e demonstração de produto.',
-    highlights: [
-      'WebGL rodando no navegador do celular e do desktop',
-      'Entrada por link ou QR code, sem instalação e sem cadastro obrigatório',
-      'Peso e carregamento tratados como requisito, porque campanha roda em 4G',
-      'Integração com site, campanha, CRM e mecânica de promoção',
-      'Medição de partidas, sessão e conversão desde o primeiro dia',
-    ],
-    ogImage: '/images/og/tenka-games.jpg',
-    faq: [
-      {
-        question: 'Jogo de navegador roda bem em celular?',
-        answer:
-          'Roda, desde que seja projetado para isso. O erro comum é produzir para desktop e só depois tentar encaixar no celular — aí o peso do carregamento e o consumo de bateria derrubam a taxa de conclusão. Definimos o aparelho-alvo no início e o orçamento técnico sai dele.',
-      },
-      {
-        question: 'Dá para colocar o jogo dentro do nosso site?',
-        answer:
-          'Sim, em página própria ou incorporado. Em campanha, a página própria costuma render mais, porque permite medir a origem do tráfego e otimizar o anúncio sem mexer no site.',
-      },
-      {
-        question: 'Quanto tempo o jogo fica no ar?',
-        answer:
-          'O tempo que a campanha precisar. Como é web, não depende de aprovação de loja nem de atualização do usuário: ajustes entram no ar no mesmo dia, o que é uma vantagem real quando a campanha está rodando.',
       },
     ],
     priority: 0.7,
@@ -741,7 +712,7 @@ export const SERVICE_ROUTES: SeoRoute[] = [
 const STUDIOS_ACCENT = '#D9232E';
 const TECH_ACCENT = '#00B8B3';
 
-export const SERVICE_CONTENT: ServiceContent[] = [
+const BASE_SERVICE_CONTENT: ServiceContent[] = [
   {
     path: '/games/treinamento-em-realidade-virtual',
     parent: '/games',
@@ -1328,76 +1299,10 @@ export const SERVICE_CONTENT: ServiceContent[] = [
       },
     ],
     related: [
-      { to: '/games/jogos-de-navegador', label: 'Jogos de navegador' },
       { to: '/games/advergame-e-gamificacao', label: 'Advergame e gamificação' },
       { to: '/tech/aplicativos', label: 'Aplicativos iOS e Android' },
     ],
     ctaLabel: 'Falar sobre um jogo mobile',
-  },
-  {
-    path: '/games/jogos-de-navegador',
-    parent: '/games',
-    parentLabel: 'TENKA Games',
-    accent: GAMES_ACCENT,
-    problem: {
-      title: 'Cada passo a mais derruba a participação pela metade',
-      body: 'Em campanha, o funil não morre no jogo — morre antes dele. Pedir instalação, cadastro ou atualização elimina a maior parte das pessoas que teriam jogado. O jogo de navegador existe para tirar esses passos do caminho: o visitante toca no link e já está dentro.',
-    },
-    includes: [
-      {
-        title: 'Entrada por link ou QR code',
-        description:
-          'Sem loja, sem instalação, sem cadastro obrigatório na porta. O cadastro vem depois, quando a pessoa já se interessou.',
-      },
-      {
-        title: 'Projetado para celular',
-        description:
-          'Aparelho-alvo definido no início. Produzir para desktop e adaptar depois é o que derruba a taxa de conclusão.',
-      },
-      {
-        title: 'Peso como requisito',
-        description:
-          'O orçamento de carregamento entra no projeto, porque campanha roda em 4G e em aparelho mediano.',
-      },
-      {
-        title: 'Integração com a campanha',
-        description:
-          'Site, CRM, mecânica de promoção e origem de tráfego ligados desde o começo.',
-      },
-      {
-        title: 'Ajuste no ar',
-        description:
-          'Sem aprovação de loja: uma correção entra no mesmo dia, o que importa muito com campanha rodando.',
-      },
-    ],
-    process: [
-      {
-        step: '01',
-        title: 'Objetivo',
-        description: 'O que a campanha precisa que aconteça, e em quanto tempo.',
-      },
-      {
-        step: '02',
-        title: 'Mecânica',
-        description: 'Protótipo cru da jogabilidade, testado no celular desde o primeiro dia.',
-      },
-      {
-        step: '03',
-        title: 'Produção',
-        description: 'Arte, código e integrações, com peso e carregamento medidos a cada entrega.',
-      },
-      {
-        step: '04',
-        title: 'No ar',
-        description: 'Publicação, acompanhamento durante a campanha e ajustes com dado real.',
-      },
-    ],
-    related: [
-      { to: '/games/advergame-e-gamificacao', label: 'Advergame e gamificação' },
-      { to: '/games/jogos-mobile', label: 'Jogos mobile' },
-      { to: '/tech/sites', label: 'Landing page da campanha' },
-    ],
-    ctaLabel: 'Falar sobre um jogo de navegador',
   },
   {
     path: '/studios/animacao-3d',
@@ -1950,6 +1855,10 @@ export const SERVICE_CONTENT: ServiceContent[] = [
     ctaLabel: 'Falar sobre um site',
   },
 ];
+
+/** Serviços + páginas de "quanto custa", que usam o mesmo template. */
+export const SERVICE_ROUTES: SeoRoute[] = [...BASE_SERVICE_ROUTES, ...PRICING_ROUTES];
+export const SERVICE_CONTENT: ServiceContent[] = [...BASE_SERVICE_CONTENT, ...PRICING_CONTENT];
 
 export function serviceContentFor(path: string): ServiceContent | undefined {
   return SERVICE_CONTENT.find((content) => content.path === path);

@@ -6,6 +6,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useMultimediaLenis } from './hooks/useMultimediaLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
 import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
+import BriefModal from '../components/brief/BriefModal';
+import { STUDIOS_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import './multimedia.css';
 
@@ -112,6 +114,7 @@ export default function CultureMachine() {
   const reducedMotion = useReducedMotion();
   const lenisRef = useMultimediaLenis(!reducedMotion);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
 
   useSeo('/studios');
 
@@ -448,7 +451,7 @@ export default function CultureMachine() {
           <button type="button" onClick={() => navigate('processo')}>PROCESSO</button>
           <button type="button" onClick={() => navigate('contato')}>CONTATO</button>
         </nav>
-        <a className="ts-header-cta ts-mono" href="/contato">INICIAR PROJETO <span>↗</span></a>
+        <button type="button" className="ts-header-cta ts-mono" onClick={() => setBriefOpen(true)}>INICIAR PROJETO <span aria-hidden="true">↗</span></button>
         <button className="ts-menu-button" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
           {menuOpen ? 'FECHAR' : 'MENU'}
         </button>
@@ -564,7 +567,7 @@ export default function CultureMachine() {
           <p className="ts-kicker ts-mono ts-reveal">04 / PRÓXIMA CRIAÇÃO</p>
           <h2 id="contact-title" className="ts-reveal" data-ts-focus data-ts-frame="FRAME 108 / CONTATO">Vamos dar forma<br />à sua ideia?</h2>
           <p className="ts-reveal">Conte o que precisa existir. A gente transforma intenção em imagem, objeto, espaço ou marca.</p>
-          <a className="ts-primary-button ts-mono ts-reveal" href="/contato">INICIAR UM PROJETO <span>↗</span></a>
+          <button type="button" className="ts-primary-button ts-mono ts-reveal" onClick={() => setBriefOpen(true)}>INICIAR UM PROJETO <span aria-hidden="true">↗</span></button>
         </section>
       </main>
 
@@ -573,6 +576,8 @@ export default function CultureMachine() {
         <p>3D · VISUALIZAÇÃO · IDENTIDADE · BRANDING</p>
         <p>CREATE. BUILD. PLAY. — 2026</p>
       </footer>
+
+      <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={STUDIOS_BRIEF} />
     </div>
   );
 }

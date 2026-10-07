@@ -10,6 +10,7 @@ import {
   ADDRESS,
   CONTACT_EMAIL,
   PHONE_E164,
+  SOCIAL_PROFILES,
 } from '../config/contact';
 import {
   ROUTES,
@@ -60,6 +61,7 @@ export function organizationSchema(): Json {
       areaServed: 'BR',
       availableLanguage: ['Portuguese'],
     },
+    sameAs: SOCIAL_PROFILES,
     areaServed: { '@type': 'Country', name: 'Brasil' },
     department: DIVISIONS.map((division) => ({
       '@type': 'Organization',

@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { gsap, ScrollTrigger } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useLenis } from './hooks/useLenis';
-import { ProjectBriefModal } from './components/ProjectBriefModal';
+import BriefModal from '../components/brief/BriefModal';
+import { GAMES_BRIEF } from '../components/brief/briefConfig';
 import { WorldEngineBackground } from './components/WorldEngineBackground';
 import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
@@ -377,7 +378,7 @@ export default function WorldForge() {
         <p className="tg-mono">CREATE. BUILD. PLAY. — 2026</p>
       </footer>
 
-      <ProjectBriefModal open={briefOpen} onClose={() => setBriefOpen(false)} />
+      <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={GAMES_BRIEF} />
     </div>
   );
 }

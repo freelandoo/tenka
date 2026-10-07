@@ -159,10 +159,11 @@ export default function ServicePage() {
         </ShellSection>
       )}
 
-      {/* Subpáginas, quando houver — é como /treinamento-em-realidade-virtual
-          linka as três páginas de norma regulamentadora. */}
+      {/* Subpáginas, quando houver: é como /treinamento-em-realidade-virtual
+          linka as três páginas de norma e a de "quanto custa". Título neutro
+          de propósito — a lista mistura tipos de página. */}
       {children.length > 0 && (
-        <ShellSection title="Por norma regulamentadora" accent={accent}>
+        <ShellSection title="Ver em detalhe" accent={accent}>
           <div className="grid gap-4 md:grid-cols-3">
             {children.map((child) => (
               <Link

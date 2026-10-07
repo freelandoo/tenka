@@ -6,6 +6,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTechLenis } from './hooks/useTechLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
 import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
+import BriefModal from '../components/brief/BriefModal';
+import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import './tech.css';
 
@@ -122,6 +124,7 @@ export default function TechBuildEngine() {
   const reducedMotion = useReducedMotion();
   const lenisRef = useTechLenis(!reducedMotion);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
 
   useSeo('/tech');
 
@@ -194,7 +197,7 @@ export default function TechBuildEngine() {
           <button type="button" onClick={() => navigate('metodo')}>MÉTODO</button>
           <button type="button" onClick={() => navigate('contato')}>CONTATO</button>
         </nav>
-        <a className="tt-header-cta tt-mono" href="/contato">INICIAR PROJETO <span>↗</span></a>
+        <button type="button" className="tt-header-cta tt-mono" onClick={() => setBriefOpen(true)}>INICIAR PROJETO <span aria-hidden="true">↗</span></button>
         <button className="tt-menu" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'FECHAR' : 'MENU'}</button>
       </header>
 
@@ -263,11 +266,13 @@ export default function TechBuildEngine() {
           <p className="tt-kicker tt-mono tt-reveal">03 / PRÓXIMO BUILD</p>
           <h2 id="contact-title" className="tt-reveal">O QUE PRECISA<br />ENTRAR EM OPERAÇÃO?</h2>
           <p className="tt-reveal">Conte o desafio. A gente organiza produto, tecnologia e execução em um caminho claro.</p>
-          <a className="tt-button tt-mono tt-reveal" href="/contato">COMEÇAR UM PROJETO <span>↗</span></a>
+          <button type="button" className="tt-button tt-mono tt-reveal" onClick={() => setBriefOpen(true)}>COMEÇAR UM PROJETO <span aria-hidden="true">↗</span></button>
         </section>
       </main>
 
       <footer className="tt-footer tt-mono"><BrandMark official /><p>SITES · SAAS · AUTOMAÇÕES · APLICATIVOS</p><p>CREATE. BUILD. PLAY. — 2026</p></footer>
+
+      <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={TECH_BRIEF} />
     </div>
   );
 }

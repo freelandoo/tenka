@@ -158,7 +158,12 @@ describe('páginas de norma regulamentadora', () => {
 
   it('pendura as páginas de NR sob o pilar de treinamento em VR', () => {
     const parent = '/games/treinamento-em-realidade-virtual';
-    expect(servicesUnder(parent)).toHaveLength(3);
+    const filhas = servicesUnder(parent).map((r) => r.path);
+    // Conferimos as três normas, não o total: a página de "quanto custa"
+    // também é filha deste pilar.
+    expect(filhas).toContain(`${parent}/nr-35-trabalho-em-altura`);
+    expect(filhas).toContain(`${parent}/nr-33-espaco-confinado`);
+    expect(filhas).toContain(`${parent}/nr-10-seguranca-em-eletricidade`);
     // E não devem aparecer como filhas diretas da divisão.
     expect(servicesUnder('/games').map((r) => r.path)).not.toContain(
       `${parent}/nr-35-trabalho-em-altura`,

@@ -5,22 +5,58 @@
   "outputDirectory": "dist",
   "trailingSlash": false,
   "redirects": [
-    { "source": "/multimidia", "destination": "/studios", "permanent": true },
-    { "source": "/desenvolvimento", "destination": "/tech", "permanent": true }
+    {
+      "source": "/multimidia",
+      "destination": "/studios",
+      "permanent": true
+    },
+    {
+      "source": "/desenvolvimento",
+      "destination": "/tech",
+      "permanent": true
+    },
+    {
+      "source": "/games/jogos-de-navegador",
+      "destination": "/games/advergame-e-gamificacao",
+      "permanent": true
+    }
   ],
   "headers": [
     {
       "source": "/painel/:path*",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "rewrites": [
-    { "source": "/games", "destination": "/games/index.html" },
-    { "source": "/studios", "destination": "/studios/index.html" },
-    { "source": "/tech", "destination": "/tech/index.html" },
-    { "source": "/projetos", "destination": "/projetos/index.html" },
-    { "source": "/sobre", "destination": "/sobre/index.html" },
-    { "source": "/contato", "destination": "/contato/index.html" },
+    {
+      "source": "/games",
+      "destination": "/games/index.html"
+    },
+    {
+      "source": "/studios",
+      "destination": "/studios/index.html"
+    },
+    {
+      "source": "/tech",
+      "destination": "/tech/index.html"
+    },
+    {
+      "source": "/projetos",
+      "destination": "/projetos/index.html"
+    },
+    {
+      "source": "/sobre",
+      "destination": "/sobre/index.html"
+    },
+    {
+      "source": "/contato",
+      "destination": "/contato/index.html"
+    },
     {
       "source": "/games/treinamento-em-realidade-virtual",
       "destination": "/games/treinamento-em-realidade-virtual/index.html"
@@ -45,12 +81,14 @@
       "source": "/games/advergame-e-gamificacao",
       "destination": "/games/advergame-e-gamificacao/index.html"
     },
-    { "source": "/games/jogos-mobile", "destination": "/games/jogos-mobile/index.html" },
     {
-      "source": "/games/jogos-de-navegador",
-      "destination": "/games/jogos-de-navegador/index.html"
+      "source": "/games/jogos-mobile",
+      "destination": "/games/jogos-mobile/index.html"
     },
-    { "source": "/studios/animacao-3d", "destination": "/studios/animacao-3d/index.html" },
+    {
+      "source": "/studios/animacao-3d",
+      "destination": "/studios/animacao-3d/index.html"
+    },
     {
       "source": "/studios/maquete-eletronica-3d",
       "destination": "/studios/maquete-eletronica-3d/index.html"
@@ -71,8 +109,33 @@
       "source": "/tech/sistemas-sob-medida",
       "destination": "/tech/sistemas-sob-medida/index.html"
     },
-    { "source": "/tech/aplicativos", "destination": "/tech/aplicativos/index.html" },
-    { "source": "/tech/sites", "destination": "/tech/sites/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/tech/aplicativos",
+      "destination": "/tech/aplicativos/index.html"
+    },
+    {
+      "source": "/tech/sites",
+      "destination": "/tech/sites/index.html"
+    },
+    {
+      "source": "/games/treinamento-em-realidade-virtual/quanto-custa",
+      "destination": "/games/treinamento-em-realidade-virtual/quanto-custa/index.html"
+    },
+    {
+      "source": "/studios/maquete-eletronica-3d/quanto-custa",
+      "destination": "/studios/maquete-eletronica-3d/quanto-custa/index.html"
+    },
+    {
+      "source": "/studios/identidade-visual-e-branding/quanto-custa",
+      "destination": "/studios/identidade-visual-e-branding/quanto-custa/index.html"
+    },
+    {
+      "source": "/tech/sites/quanto-custa",
+      "destination": "/tech/sites/quanto-custa/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
