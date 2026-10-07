@@ -18,7 +18,8 @@ export default function DivisionServiceLinks({
   accent,
   title = 'Serviços em detalhe',
 }: {
-  parent: '/games' | '/studios' | '/tech';
+  /** Divisão (`/games`) ou página de serviço com subpáginas. */
+  parent: string;
   accent: string;
   title?: string;
 }) {

@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor, normalizePath } from '../seo/routes';
-import { serviceContentFor } from '../seo/services';
+import { serviceContentFor, servicesUnder } from '../seo/services';
 import NotFoundPage from './NotFoundPage';
 
 /**
@@ -17,6 +17,7 @@ export default function ServicePage() {
   const path = normalizePath(useLocation().pathname);
   const route = routeFor(path);
   const content = serviceContentFor(path);
+  const children = servicesUnder(path);
 
   if (!route || !content) return <NotFoundPage />;
 
@@ -82,6 +83,57 @@ export default function ServicePage() {
         </ol>
       </ShellSection>
 
+      {content.regulation && (
+        <ShellSection title={`O que a ${content.regulation.code.split('—')[0].trim()} exige`} accent={accent}>
+          <p className="max-w-3xl text-[15px] leading-[1.8] text-white/70">
+            <strong className="text-white">Aplicação:</strong>{' '}
+            {content.regulation.scope}
+          </p>
+
+          <dl className="mt-6 max-w-3xl divide-y divide-white/10 border-y border-white/10">
+            {content.regulation.requirements.map((item) => (
+              <div key={item.label} className="grid gap-1 py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
+                <dt className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45">
+                  {item.label}
+                </dt>
+                <dd className="text-[14.5px] leading-[1.7] text-white/80">{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {content.regulation.update && (
+            <div
+              className="mt-8 max-w-3xl rounded-lg border-l-2 bg-white/[0.03] p-5"
+              style={{ borderLeftColor: accent }}
+            >
+              <h3 className="text-[15px] font-semibold text-white">
+                {content.regulation.update.title}
+              </h3>
+              <p className="mt-3 text-[14.5px] leading-[1.8] text-white/70">
+                {content.regulation.update.body}
+              </p>
+            </div>
+          )}
+
+          {/* Limite explícito e visível, não nota de rodapé. Quem vende apoio a
+              treinamento de norma e esconde isso está vendendo mal de propósito. */}
+          <div className="mt-6 max-w-3xl rounded-lg border border-white/15 bg-white/[0.02] p-5">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/50">
+              O que a TENKA entrega — e o que não entrega
+            </h3>
+            <p className="mt-3 text-[14px] leading-[1.75] text-white/65">
+              {content.regulation.disclaimer}
+            </p>
+            <p className="mt-3 text-[12.5px] leading-[1.7] text-white/40">
+              Dados normativos conferidos em {content.regulation.checkedAt}. As normas
+              regulamentadoras são alteradas periodicamente — confirme sempre a redação
+              vigente no portal do Ministério do Trabalho e Emprego antes de planejar a
+              capacitação.
+            </p>
+          </div>
+        </ShellSection>
+      )}
+
       {content.sections?.map((section) => (
         <ShellSection key={section.title} title={section.title} accent={accent}>
           <p className="max-w-3xl text-[15px] leading-[1.8] text-white/70">
@@ -102,6 +154,32 @@ export default function ServicePage() {
                   {item.answer}
                 </p>
               </details>
+            ))}
+          </div>
+        </ShellSection>
+      )}
+
+      {/* Subpáginas, quando houver — é como /treinamento-em-realidade-virtual
+          linka as três páginas de norma regulamentadora. */}
+      {children.length > 0 && (
+        <ShellSection title="Por norma regulamentadora" accent={accent}>
+          <div className="grid gap-4 md:grid-cols-3">
+            {children.map((child) => (
+              <Link
+                key={child.path}
+                to={child.path}
+                className="group block h-full rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
+              >
+                <h3 className="text-[15px] font-semibold leading-snug text-white">
+                  {child.h1}
+                </h3>
+                <p className="mt-2 text-[13px] leading-[1.65] text-white/55">
+                  {child.description}
+                </p>
+                <span className="mt-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 transition-colors group-hover:text-white">
+                  Ver página →
+                </span>
+              </Link>
             ))}
           </div>
         </ShellSection>

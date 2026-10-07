@@ -19,10 +19,35 @@ export interface ServiceSection {
   body: string;
 }
 
+/**
+ * Bloco normativo das páginas de NR.
+ *
+ * Existe para que a página diga, lado a lado, o que a norma exige e o que a
+ * TENKA entrega — e para deixar explícito onde termina o fornecedor da
+ * simulação e começa a responsabilidade legal da empresa e do profissional
+ * habilitado. Página que vende treinamento de norma e é vaga nisso não é
+ * ambígua por acaso; é ambígua porque vender assim é mais fácil.
+ */
+export interface RegulationBlock {
+  /** Nome curto, ex.: "NR-35". */
+  code: string;
+  /** Quem a norma alcança. */
+  scope: string;
+  /** Exigências objetivas: carga horária, periodicidade, modalidade. */
+  requirements: { label: string; value: string }[];
+  /** Mudança recente relevante, quando houver. */
+  update?: { title: string; body: string };
+  /** Limite explícito do que a TENKA entrega. */
+  disclaimer: string;
+  /** Quando os dados normativos foram conferidos pela última vez. */
+  checkedAt: string;
+}
+
 export interface ServiceContent {
   /** Casa com o `path` da SeoRoute correspondente. */
   path: string;
-  parent: '/games' | '/studios' | '/tech';
+  /** Caminho da página mãe — divisão, ou outra página de serviço. */
+  parent: string;
   parentLabel: string;
   accent: string;
   /** O problema do cliente, antes de falar de entregável. */
@@ -33,6 +58,8 @@ export interface ServiceContent {
   process: { step: string; title: string; description: string }[];
   /** Blocos de texto corrido para profundidade e semântica. */
   sections?: ServiceSection[];
+  /** Só nas páginas de norma regulamentadora. */
+  regulation?: RegulationBlock;
   /** Links internos contextuais — path + rótulo. */
   related: { to: string; label: string }[];
   ctaLabel: string;
@@ -84,6 +111,129 @@ export const SERVICE_ROUTES: SeoRoute[] = [
       },
     ],
     priority: 0.9,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura',
+    title: 'Treinamento de NR-35 em realidade virtual | TENKA',
+    description:
+      'Simulador em VR para a prática de trabalho em altura: cenários do seu ambiente, erro sem consequência real e desempenho medido. Aplicado presencialmente.',
+    h1: 'Treinamento de NR-35 (trabalho em altura) em realidade virtual',
+    intro:
+      'A NR-35 passou a exigir treinamento integralmente presencial. Isso não tira a realidade virtual do jogo — ao contrário: a VR é usada dentro da sala, com instrutor presente, como o recurso prático que reproduz a altura real sem expor ninguém a ela.',
+    highlights: [
+      'Cenários reconstruídos a partir do ambiente real da sua empresa',
+      'Prática de percepção de risco, ancoragem e uso de EPI em altura',
+      'Queda simulada com consequência, sem exposição real do trabalhador',
+      'Registro de desempenho por trabalhador, etapa e turma',
+      'Aplicação presencial, junto do instrutor — como a norma exige',
+    ],
+    ogImage: '/images/og/tenka-games.jpg',
+    faq: [
+      {
+        question: 'A NR-35 pode ser feita em EAD?',
+        answer:
+          'Não. Desde a Portaria MTE nº 1.259/2026, publicada no Diário Oficial da União em 16 de julho de 2026, os treinamentos da NR-35 devem ser realizados integralmente na modalidade presencial — inicial, periódico e eventual. Acabou a divisão de teoria em EAD com prática presencial. As empresas têm até 16 de julho de 2027 para refazer ou complementar presencialmente a capacitação de quem foi treinado a distância.',
+      },
+      {
+        question: 'Se precisa ser presencial, onde entra a realidade virtual?',
+        answer:
+          'A exigência é de modalidade presencial, não de ausência de tecnologia. O simulador roda na sala de treinamento, com o instrutor junto e a turma presente — é um recurso didático dentro do treinamento presencial, como já são maquete, talha e cinto de segurança. O que a VR acrescenta é a possibilidade de treinar a percepção de risco em altura real sem colocar ninguém em altura real.',
+      },
+      {
+        question: 'O simulador substitui o treinamento ou o instrutor?',
+        answer:
+          'Não, e nós não vendemos isso. A TENKA produz o simulador; a capacitação continua sendo conduzida pelo instrutor com proficiência comprovada, sob responsabilidade do profissional qualificado em segurança do trabalho da empresa, com a carga horária e o conteúdo programático que a norma determina.',
+      },
+      {
+        question: 'Qual a carga horária exigida pela NR-35?',
+        answer:
+          'A capacitação inicial exige no mínimo 8 horas, com conteúdo teórico e prático. O treinamento periódico é bienal, também com no mínimo 8 horas. A norma trata como trabalho em altura toda atividade executada acima de 2,00 metros do nível inferior onde haja risco de queda.',
+      },
+    ],
+    priority: 0.85,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado',
+    title: 'Treinamento de NR-33 em realidade virtual | TENKA',
+    description:
+      'Simulador em VR para espaço confinado: atmosfera, permissão de entrada, papel do vigia e emergência — praticados sem entrada real no espaço.',
+    h1: 'Treinamento de NR-33 (espaço confinado) em realidade virtual',
+    intro:
+      'Espaço confinado é o treinamento em que a prática real é mais cara e mais arriscada de montar — e o único em que o erro mata rápido. O simulador permite entrar, medir atmosfera, errar a sequência e sofrer a consequência no cenário, quantas vezes forem necessárias.',
+    highlights: [
+      'Reconstrução do tanque, silo, galeria ou vaso da sua operação',
+      'Avaliação de atmosfera, permissão de entrada e bloqueio de energias',
+      'Papel do vigia treinado separadamente, com a visão de fora',
+      'Cenários de emergência e resgate, sem exposição real',
+      'Registro por função: trabalhador autorizado, vigia e supervisor',
+    ],
+    ogImage: '/images/og/tenka-games.jpg',
+    faq: [
+      {
+        question: 'Qual a carga horária do treinamento de NR-33?',
+        answer:
+          'Para trabalhador autorizado e vigia, a capacitação inicial exige no mínimo 16 horas. Para supervisor de entrada, no mínimo 40 horas. O treinamento periódico é anual, a cada 12 meses, com no mínimo 8 horas.',
+      },
+      {
+        question: 'A NR-33 aceita EAD?',
+        answer:
+          'A parte teórica pode ser realizada a distância, desde que atendidos os requisitos do Anexo II da NR-1 — ambiente virtual de aprendizagem, requisitos pedagógicos, tecnológicos e administrativos. A parte prática continua exigindo realização presencial. O simulador é usado nessa etapa presencial.',
+      },
+      {
+        question: 'Dá para treinar o vigia no simulador?',
+        answer:
+          'Sim, e é um dos usos mais úteis. O vigia não entra no espaço, mas é quem controla a permissão, acompanha o trabalhador e aciona a emergência — um papel que raramente é treinado com cenário próprio. No simulador, ele vive a situação da posição dele, inclusive quando algo dá errado lá dentro.',
+      },
+      {
+        question: 'Vocês emitem o certificado?',
+        answer:
+          'Não. A TENKA produz o simulador e o relatório de desempenho. A capacitação, a carga horária, o conteúdo programático, o instrutor e a emissão do certificado seguem sob responsabilidade da empresa e do seu profissional qualificado em segurança do trabalho.',
+      },
+    ],
+    priority: 0.85,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade',
+    title: 'Treinamento de NR-10 em realidade virtual | TENKA',
+    description:
+      'Simulador em VR para segurança em eletricidade: bloqueio e etiquetagem, sequência de manobra e risco elétrico praticados sem instalação energizada.',
+    h1: 'Treinamento de NR-10 (segurança em eletricidade) em realidade virtual',
+    intro:
+      'Choque e arco elétrico não dão segunda chance, e a prática em instalação energizada é justamente a que não se pode improvisar. O simulador reproduz o painel, a subestação e o procedimento da sua empresa para a equipe errar a sequência onde errar não custa nada.',
+    highlights: [
+      'Painéis, quadros e subestações reconstruídos a partir da sua instalação',
+      'Bloqueio e etiquetagem praticados passo a passo, na ordem correta',
+      'Arco elétrico simulado com consequência visual e sonora',
+      'Sequência de manobra, medição e liberação para trabalho',
+      'Desempenho por eletricista e por etapa do procedimento',
+    ],
+    ogImage: '/images/og/tenka-games.jpg',
+    faq: [
+      {
+        question: 'Qual a carga horária da NR-10?',
+        answer:
+          'O curso básico de segurança em instalações e serviços com eletricidade exige no mínimo 40 horas, obrigatório para quem atua em instalações elétricas energizadas ou em suas proximidades. O complementar para Sistema Elétrico de Potência (SEP) exige mais 40 horas e tem o básico como pré-requisito.',
+      },
+      {
+        question: 'De quanto em quanto tempo é a reciclagem?',
+        answer:
+          'A reciclagem é bienal e também é exigida em situações específicas: troca de função ou mudança de empresa, retorno de afastamento superior a três meses, e mudança de método, processo ou organização do trabalho.',
+      },
+      {
+        question: 'A NR-10 pode ser online?',
+        answer:
+          'A parte teórica admite EAD nos termos do Anexo II da NR-1, mas o conteúdo prático deve ser presencial. A Portaria MTE nº 737/2026 reestruturou a norma, com vacância de um ano a partir da publicação, e reforçou a prática supervisionada considerando a realidade da organização, as características da instalação e os procedimentos de trabalho — além de restringir a validade do certificado à organização que forneceu o treinamento.',
+      },
+      {
+        question: 'Por que isso favorece treinamento sob medida?',
+        answer:
+          'Porque a norma caminha para prática supervisionada na realidade da própria instalação, com certificado que não se transfere entre empresas. Um simulador construído sobre os painéis e procedimentos reais da sua operação atende exatamente esse recorte — coisa que um curso genérico de prateleira, por definição, não faz.',
+      },
+    ],
+    priority: 0.85,
     changefreq: 'monthly',
   },
   {
@@ -665,11 +815,315 @@ export const SERVICE_CONTENT: ServiceContent[] = [
       },
     ],
     related: [
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura',
+        label: 'NR-35 — trabalho em altura',
+      },
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado',
+        label: 'NR-33 — espaço confinado',
+      },
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade',
+        label: 'NR-10 — segurança em eletricidade',
+      },
       { to: '/games/ativacao-de-marca-em-realidade-virtual', label: 'Ativação de marca em VR' },
-      { to: '/games', label: 'TENKA Games' },
       { to: '/tech/sistemas-sob-medida', label: 'Painel de acompanhamento sob medida' },
     ],
     ctaLabel: 'Falar sobre um treinamento em VR',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura',
+    parent: '/games/treinamento-em-realidade-virtual',
+    parentLabel: 'Treinamento em VR',
+    accent: GAMES_ACCENT,
+    problem: {
+      title: 'Ninguém aprende altura no chão',
+      body: 'A parte teórica da NR-35 ensina o procedimento. O que ela não consegue ensinar é o que acontece com o corpo e com o julgamento a vinte metros do solo — e é exatamente aí que o trabalhador decide se ancora no ponto certo, se confere o talabarte, se para quando deveria parar. Montar essa prática de verdade exige estrutura, bloqueio de área e exposição real. É caro, é lento, e por isso muita empresa simplesmente não faz.',
+    },
+    includes: [
+      {
+        title: 'O seu ambiente, não um genérico',
+        description:
+          'Telhado, torre, plataforma, silo ou fachada reconstruídos a partir da instalação real da empresa, com os pontos de ancoragem que existem lá.',
+      },
+      {
+        title: 'Altura percebida de verdade',
+        description:
+          'A sensação de exposição em VR é o que nenhum slide reproduz — e é ela que faz o treinando levar o procedimento a sério.',
+      },
+      {
+        title: 'Queda com consequência',
+        description:
+          'Ancoragem errada resulta em queda simulada. É a lição que o treinamento tradicional só consegue descrever.',
+      },
+      {
+        title: 'Inspeção de EPI',
+        description:
+          'Cinto, talabarte e trava-quedas inspecionados no cenário, com defeitos plantados que o trabalhador precisa encontrar.',
+      },
+      {
+        title: 'Registro por trabalhador',
+        description:
+          'O que cada um fez, em que ordem e onde falhou — material objetivo para o SESMT decidir quem repete.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Levantamento',
+        description:
+          'Visita à operação com o seu profissional de segurança: tarefas em altura, pontos de ancoragem e o que mais gera incidente.',
+      },
+      {
+        step: '02',
+        title: 'Roteiro técnico',
+        description:
+          'O cenário e os critérios de avaliação definidos junto do SESMT, alinhados ao conteúdo programático da norma.',
+      },
+      {
+        step: '03',
+        title: 'Produção',
+        description:
+          'Construção do ambiente, da interação e da avaliação, com teste em headset desde cedo.',
+      },
+      {
+        step: '04',
+        title: 'Turma-piloto',
+        description:
+          'Aplicação presencial com uma turma real, ajuste do cenário e passagem para os instrutores da empresa.',
+      },
+    ],
+    regulation: {
+      code: 'NR-35 — Trabalho em Altura',
+      scope:
+        'Toda atividade executada acima de 2,00 m do nível inferior onde haja risco de queda.',
+      requirements: [
+        { label: 'Capacitação inicial', value: 'Mínimo de 8 horas, teórica e prática' },
+        { label: 'Capacitação periódica', value: 'Bienal, mínimo de 8 horas' },
+        { label: 'Modalidade', value: 'Integralmente presencial — EAD e híbrido vedados' },
+        {
+          label: 'Responsável',
+          value:
+            'Instrutor com proficiência comprovada, sob responsabilidade de profissional qualificado em segurança do trabalho',
+        },
+      ],
+      update: {
+        title: 'Portaria MTE nº 1.259/2026 — o que mudou',
+        body: 'Publicada no Diário Oficial da União em 16 de julho de 2026, a portaria passou a exigir que todos os treinamentos da NR-35 — inicial, periódico e eventual — sejam realizados integralmente na modalidade presencial. Encerrou-se a prática de cumprir a carga horária teórica em EAD autoinstrucional, em formato híbrido ou por transmissão ao vivo. As empresas têm até 16 de julho de 2027 para refazer integralmente, ou complementar presencialmente, a capacitação de quem foi treinado a distância. Na prática, isso elimina o modelo de quem vendia NR-35 100% online e valoriza quem tem como entregar prática presencial de qualidade — que é onde o simulador entra.',
+      },
+      disclaimer:
+        'A TENKA produz o simulador e o relatório de desempenho. Não somos escola de segurança do trabalho e não emitimos certificado de NR. A capacitação, a carga horária, o conteúdo programático, o instrutor e a documentação permanecem sob responsabilidade da empresa e do seu profissional qualificado em segurança do trabalho. O simulador é recurso prático dentro do treinamento presencial, não substituto dele.',
+      checkedAt: 'outubro de 2026',
+    },
+    related: [
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado',
+        label: 'NR-33 — espaço confinado',
+      },
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade',
+        label: 'NR-10 — segurança em eletricidade',
+      },
+      { to: '/games/treinamento-em-realidade-virtual', label: 'Treinamento em VR' },
+    ],
+    ctaLabel: 'Falar sobre um simulador de NR-35',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado',
+    parent: '/games/treinamento-em-realidade-virtual',
+    parentLabel: 'Treinamento em VR',
+    accent: GAMES_ACCENT,
+    problem: {
+      title: 'O treinamento que não dá para ensaiar de verdade',
+      body: 'Para treinar espaço confinado na prática, seria preciso um espaço confinado parado, uma atmosfera controlada e alguém disposto a errar lá dentro. Como nada disso é razoável, a prática vira demonstração: o grupo olha o equipamento, o instrutor explica a sequência e todo mundo assina a lista. O trabalhador sai sabendo a ordem dos passos — mas nunca executou a ordem dos passos.',
+    },
+    includes: [
+      {
+        title: 'O espaço da sua operação',
+        description:
+          'Tanque, silo, galeria, vaso ou caixa reconstruídos com a geometria e os acessos reais, não um cilindro genérico.',
+      },
+      {
+        title: 'Atmosfera que se comporta',
+        description:
+          'Oxigênio, gases inflamáveis e tóxicos variando conforme o que o trabalhador faz — ventilar, abrir, esperar ou entrar cedo demais.',
+      },
+      {
+        title: 'Permissão de entrada na prática',
+        description:
+          'Preenchimento, bloqueio de energias e checagem feitos como etapa do cenário, não como formulário na mesa.',
+      },
+      {
+        title: 'Cenário próprio do vigia',
+        description:
+          'A função mais negligenciada do treinamento, treinada da posição de quem fica fora e precisa agir quando algo acontece.',
+      },
+      {
+        title: 'Emergência e resgate',
+        description:
+          'A situação que ninguém consegue ensaiar de verdade — inclusive o impulso de entrar para socorrer, que é o que mata o segundo trabalhador.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Levantamento',
+        description:
+          'Mapeamento dos espaços confinados da operação e dos riscos atmosféricos de cada um, com o SESMT.',
+      },
+      {
+        step: '02',
+        title: 'Roteiro técnico',
+        description:
+          'Cenários por função — trabalhador autorizado, vigia e supervisor — e critérios de avaliação.',
+      },
+      {
+        step: '03',
+        title: 'Produção',
+        description:
+          'Ambiente, simulação de atmosfera, interações e avaliação construídos e testados em headset.',
+      },
+      {
+        step: '04',
+        title: 'Turma-piloto',
+        description: 'Aplicação presencial, ajuste e passagem para os instrutores da empresa.',
+      },
+    ],
+    regulation: {
+      code: 'NR-33 — Segurança e Saúde nos Trabalhos em Espaços Confinados',
+      scope:
+        'Trabalhadores autorizados, vigias e supervisores de entrada em espaços confinados.',
+      requirements: [
+        {
+          label: 'Trabalhador autorizado e vigia',
+          value: 'Capacitação inicial de no mínimo 16 horas',
+        },
+        { label: 'Supervisor de entrada', value: 'Capacitação inicial de no mínimo 40 horas' },
+        { label: 'Capacitação periódica', value: 'Anual (12 meses), mínimo de 8 horas' },
+        {
+          label: 'Modalidade',
+          value:
+            'Teoria admite EAD nos termos do Anexo II da NR-1; parte prática exige realização presencial',
+        },
+      ],
+      disclaimer:
+        'A TENKA produz o simulador e o relatório de desempenho. Não somos escola de segurança do trabalho e não emitimos certificado de NR. A capacitação, a carga horária, o conteúdo programático, o instrutor e a documentação permanecem sob responsabilidade da empresa e do seu profissional qualificado em segurança do trabalho.',
+      checkedAt: 'outubro de 2026',
+    },
+    related: [
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura',
+        label: 'NR-35 — trabalho em altura',
+      },
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade',
+        label: 'NR-10 — segurança em eletricidade',
+      },
+      { to: '/games/treinamento-em-realidade-virtual', label: 'Treinamento em VR' },
+    ],
+    ctaLabel: 'Falar sobre um simulador de NR-33',
+  },
+  {
+    path: '/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade',
+    parent: '/games/treinamento-em-realidade-virtual',
+    parentLabel: 'Treinamento em VR',
+    accent: GAMES_ACCENT,
+    problem: {
+      title: 'A prática que não pode ser praticada',
+      body: 'Em eletricidade, o treinamento prático esbarra num paradoxo: o procedimento existe justamente para que ninguém chegue perto do circuito energizado, e treinar com ele energizado seria violar o que se está ensinando. O resultado é que a sequência de bloqueio, medição e liberação quase sempre é explicada e quase nunca é executada antes do dia em que precisa dar certo.',
+    },
+    includes: [
+      {
+        title: 'A sua instalação',
+        description:
+          'Painéis, quadros, cabines e subestações reconstruídos com a identificação e o layout reais da empresa.',
+      },
+      {
+        title: 'Bloqueio e etiquetagem passo a passo',
+        description:
+          'A sequência executada na ordem, com o cenário recusando o avanço quando uma etapa foi pulada.',
+      },
+      {
+        title: 'Arco elétrico com consequência',
+        description:
+          'A manobra errada produz o evento, com efeito visual e sonoro. É a única forma segura de mostrar o que está em jogo.',
+      },
+      {
+        title: 'Medição e liberação',
+        description:
+          'Teste de ausência de tensão, aterramento temporário e liberação para o trabalho, como etapas avaliadas.',
+      },
+      {
+        title: 'Desempenho por etapa',
+        description:
+          'Onde cada eletricista errou no procedimento — e qual passo o time inteiro está pulando.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Levantamento',
+        description:
+          'Instalações, procedimentos de trabalho e os pontos em que a equipe mais se desvia do padrão.',
+      },
+      {
+        step: '02',
+        title: 'Roteiro técnico',
+        description:
+          'Cenários e critérios definidos com o profissional habilitado responsável pelas instalações.',
+      },
+      {
+        step: '03',
+        title: 'Produção',
+        description: 'Ambiente, interação e avaliação construídos e validados em headset.',
+      },
+      {
+        step: '04',
+        title: 'Turma-piloto',
+        description: 'Aplicação presencial supervisionada, ajuste e passagem para os instrutores.',
+      },
+    ],
+    regulation: {
+      code: 'NR-10 — Segurança em Instalações e Serviços em Eletricidade',
+      scope:
+        'Trabalhadores que interajam em instalações elétricas energizadas ou em suas proximidades.',
+      requirements: [
+        { label: 'Curso básico', value: 'Mínimo de 40 horas' },
+        {
+          label: 'Complementar SEP',
+          value: 'Mínimo de 40 horas, com o curso básico como pré-requisito',
+        },
+        {
+          label: 'Reciclagem',
+          value:
+            'Bienal; também em troca de função ou empresa, retorno de afastamento superior a 3 meses e mudança de método ou processo de trabalho',
+        },
+        {
+          label: 'Modalidade',
+          value: 'Conteúdo prático em modalidade presencial, com supervisão',
+        },
+      ],
+      update: {
+        title: 'Portaria MTE nº 737/2026 — o que muda',
+        body: 'A portaria reestrutura a NR-10 e estabelece vacância geral de um ano a partir da publicação, com prazo adicional para um subitem específico. Entre os pontos de maior impacto: o conteúdo prático passa a ser expressamente presencial e supervisionado, considerando a realidade da organização, as características da instalação e os procedimentos de trabalho; e a validade do treinamento fica restrita à organização que o forneceu, sem revalidação ou convalidação de certificado entre empresas. O efeito prático é o enfraquecimento do certificado genérico de prateleira e o fortalecimento do treinamento construído sobre a instalação real da empresa.',
+      },
+      disclaimer:
+        'A TENKA produz o simulador e o relatório de desempenho. Não somos escola de segurança do trabalho e não emitimos certificado de NR. A capacitação, a carga horária, o conteúdo programático, o instrutor e a documentação permanecem sob responsabilidade da empresa e do seu profissional habilitado e do profissional qualificado em segurança do trabalho.',
+      checkedAt: 'outubro de 2026',
+    },
+    related: [
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura',
+        label: 'NR-35 — trabalho em altura',
+      },
+      {
+        to: '/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado',
+        label: 'NR-33 — espaço confinado',
+      },
+      { to: '/games/treinamento-em-realidade-virtual', label: 'Treinamento em VR' },
+    ],
+    ctaLabel: 'Falar sobre um simulador de NR-10',
   },
   {
     path: '/games/ativacao-de-marca-em-realidade-virtual',
@@ -1501,7 +1955,11 @@ export function serviceContentFor(path: string): ServiceContent | undefined {
   return SERVICE_CONTENT.find((content) => content.path === path);
 }
 
-/** Páginas filhas de uma divisão, para o hub linkar os filhos. */
+/**
+ * Filhas diretas de uma página — a divisão lista seus serviços, e uma página de
+ * serviço lista suas subpáginas (é como /treinamento-em-realidade-virtual chega
+ * nas três de NR). Compara o pai exato, então uma neta não vaza para o avô.
+ */
 export function servicesUnder(parent: string): SeoRoute[] {
   const paths = new Set(
     SERVICE_CONTENT.filter((content) => content.parent === parent).map((c) => c.path),

@@ -26,6 +26,18 @@
       "destination": "/games/treinamento-em-realidade-virtual/index.html"
     },
     {
+      "source": "/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura",
+      "destination": "/games/treinamento-em-realidade-virtual/nr-35-trabalho-em-altura/index.html"
+    },
+    {
+      "source": "/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado",
+      "destination": "/games/treinamento-em-realidade-virtual/nr-33-espaco-confinado/index.html"
+    },
+    {
+      "source": "/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade",
+      "destination": "/games/treinamento-em-realidade-virtual/nr-10-seguranca-em-eletricidade/index.html"
+    },
+    {
       "source": "/games/ativacao-de-marca-em-realidade-virtual",
       "destination": "/games/ativacao-de-marca-em-realidade-virtual/index.html"
     },
