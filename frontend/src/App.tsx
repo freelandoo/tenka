@@ -9,6 +9,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import { SERVICE_ROUTES } from './seo/services';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
+import { usePageviews } from './lib/usePageviews';
 
 // The Games experience bundles Three.js/GSAP/Lenis — lazy-loaded so the rest
 // of the site pays nothing for it.
@@ -68,6 +69,8 @@ function MultimediaFallback() {
 }
 
 export default function App() {
+  usePageviews();
+
   return (
     // Envolve TODAS as rotas: um erro que escape aqui deixaria o #root vazio, e
     // o usuário veria só o fundo laranja do index.html, sem nada para fazer.

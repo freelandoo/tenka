@@ -21,6 +21,20 @@
       content="Qrrjv-aviD9peB0KzntLbBg1kkLL4cqM4Iheb0z4mrc"
     />
 
+    <!-- Google Analytics 4.
+         `send_page_view: false` de proposito: num SPA o page_view automatico
+         contaria so a primeira pagina de cada visita, e a opcao de contar
+         mudancas de History disparia antes de o titulo da rota ser aplicado,
+         registrando cada visualizacao com o titulo da pagina anterior. Quem
+         dispara e src/lib/usePageviews.ts, depois do titulo estar certo. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XWSJ1D2BXZ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XWSJ1D2BXZ', { send_page_view: false });
+    </script>
+
     <!-- Não havia ícone nenhum: todo carregamento pedia /favicon.ico e tomava 404. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
