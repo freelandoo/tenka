@@ -7,16 +7,29 @@
  * pior, some do rich result sem avisar.
  */
 import {
+  ADDRESS,
   CONTACT_EMAIL,
-  COUNTRY,
-  LOCALITY,
-  REGION,
+  PHONE_E164,
+} from '../config/contact';
+import {
   ROUTES,
   SITE_NAME,
   SITE_URL,
   canonicalFor,
   type SeoRoute,
 } from './routes';
+
+/** Endereço postal completo — reaproveitado por Organization e LocalBusiness. */
+function postalAddress() {
+  return {
+    '@type': 'PostalAddress',
+    streetAddress: ADDRESS.street,
+    addressLocality: ADDRESS.locality,
+    addressRegion: ADDRESS.region,
+    postalCode: ADDRESS.postalCode,
+    addressCountry: ADDRESS.country,
+  };
+}
 
 type Json = Record<string, unknown>;
 
@@ -35,12 +48,17 @@ export function organizationSchema(): Json {
     alternateName: 'TENKA',
     url: `${SITE_URL}/`,
     logo: `${SITE_URL}/images/brand/tenka-group.svg`,
+    image: `${SITE_URL}/images/og/tenka-group.jpg`,
     email: CONTACT_EMAIL,
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: LOCALITY,
-      addressRegion: REGION,
-      addressCountry: COUNTRY,
+    telephone: PHONE_E164,
+    address: postalAddress(),
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'sales',
+      telephone: PHONE_E164,
+      email: CONTACT_EMAIL,
+      areaServed: 'BR',
+      availableLanguage: ['Portuguese'],
     },
     areaServed: { '@type': 'Country', name: 'Brasil' },
     department: DIVISIONS.map((division) => ({
@@ -116,14 +134,13 @@ export function localBusinessSchema(): Json {
     name: SITE_NAME,
     url: canonicalFor('/contato'),
     email: CONTACT_EMAIL,
+    telephone: PHONE_E164,
+    image: `${SITE_URL}/images/og/tenka-group.jpg`,
     parentOrganization: { '@id': `${SITE_URL}/#organization` },
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: LOCALITY,
-      addressRegion: REGION,
-      addressCountry: COUNTRY,
-    },
+    address: postalAddress(),
     areaServed: { '@type': 'Country', name: 'Brasil' },
+    // Sem openingHours, priceRange nem aggregateRating: não temos o dado, e
+    // schema inventado some do rich result sem avisar — ou pior, fica.
   };
 }
 

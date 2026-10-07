@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
+import {
+  ADDRESS,
+  CONTACT_EMAIL,
+  PHONE_DISPLAY,
+  PHONE_E164,
+} from '../../config/contact';
 import { useSeo } from '../../seo/useSeo';
 
 /**
@@ -103,12 +109,27 @@ export default function SiteShell({
               Contato
             </p>
             <a
-              href="mailto:contato@tenka.com.br"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="mt-3 block text-sm text-white/80 transition-colors hover:text-white"
             >
-              contato@tenka.com.br
+              {CONTACT_EMAIL}
             </a>
-            <p className="mt-1 text-sm text-white/45">São Paulo — Brasil</p>
+            <a
+              href={`tel:${PHONE_E164}`}
+              className="mt-1 block text-sm text-white/80 transition-colors hover:text-white"
+            >
+              {PHONE_DISPLAY}
+            </a>
+            {/* NAP idêntico ao do JSON-LD e ao que vai no Google Business
+                Profile — endereço escrito diferente em cada lugar enfraquece
+                o sinal local em vez de reforçá-lo. */}
+            <address className="mt-2 text-sm not-italic leading-relaxed text-white/45">
+              {ADDRESS.street}
+              <br />
+              {ADDRESS.district}, {ADDRESS.locality} — {ADDRESS.region}
+              <br />
+              CEP {ADDRESS.postalCode}
+            </address>
           </div>
           {/* Só o primeiro nível. As páginas de serviço são alcançadas pelos
               hubs das divisões e pelos links relacionados de cada página — num

@@ -11,19 +11,20 @@
  * não executa JS) não vê nada.
  */
 
+import { COMPANY_NAME } from '../config/contact';
 import { SERVICE_ROUTES } from './services';
 
 export const SITE_URL = 'https://www.tenkagroup.com.br';
 
 /** Nome legal/comercial usado no JSON-LD e nos títulos. */
-export const SITE_NAME = 'TENKA Group';
+export const SITE_NAME = COMPANY_NAME;
 
-export const CONTACT_EMAIL = 'contato@tenka.com.br';
-
-/** Cidade/região atendida — usada no LocalBusiness e nas páginas locais. */
-export const LOCALITY = 'São Paulo';
-export const REGION = 'SP';
-export const COUNTRY = 'BR';
+/**
+ * Código de verificação do Search Console. Fica no manifesto porque o plugin de
+ * build precisa injetá-lo em toda rota — a verificação exige a tag na home, e
+ * mantê-la é condição para a propriedade continuar verificada.
+ */
+export const GOOGLE_SITE_VERIFICATION = 'Qrrjv-aviD9peB0KzntLbBg1kkLL4cqM4Iheb0z4mrc';
 
 export type ChangeFreq = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -155,17 +156,22 @@ const CORE_ROUTES: SeoRoute[] = [
   },
   {
     path: '/contato',
-    title: 'Contato — fale com a TENKA | São Paulo',
+    title: 'Contato — TENKA Group | Pinheiros, São Paulo',
     description:
-      'Fale com a divisão certa da TENKA: games e realidade virtual, 3D e branding, ou sites, sistemas e automações. Atendimento a partir de São Paulo.',
+      'Fale com a TENKA: WhatsApp (11) 98427-4134, grupotenka@gmail.com. R. Pais Leme, 215 — Pinheiros, São Paulo. Games e VR, 3D e branding, sites e sistemas.',
     h1: 'Fale com a TENKA',
     intro:
-      'Conte o que precisa entrar em operação e encaminhamos para a divisão certa. Atendemos a partir de São Paulo, para todo o Brasil.',
+      'Conte o que precisa entrar em operação e encaminhamos para a divisão certa. Ficamos em Pinheiros, São Paulo, e atendemos empresas em todo o Brasil.',
+    highlights: [
+      'WhatsApp e telefone: (11) 98427-4134',
+      'E-mail: grupotenka@gmail.com',
+      'Endereço: R. Pais Leme, 215 — Pinheiros, São Paulo — SP, 05424-150',
+    ],
     faq: [
       {
-        question: 'A TENKA atende fora de São Paulo?',
+        question: 'Onde fica a TENKA e vocês atendem fora de São Paulo?',
         answer:
-          'Sim. Projetos digitais — sites, sistemas, aplicativos, automações, 3D e branding — são entregues remotamente para todo o Brasil. Ativações e treinamentos com equipamento no local são atendidos na região metropolitana de São Paulo e, sob combinação, em outras praças.',
+          'A TENKA fica na R. Pais Leme, 215, em Pinheiros, São Paulo — SP. Projetos digitais — sites, sistemas, aplicativos, automações, 3D e branding — são entregues remotamente para todo o Brasil. Ativações e treinamentos com equipamento no local são atendidos na região metropolitana de São Paulo e, sob combinação, em outras praças.',
       },
       {
         question: 'Como funciona o orçamento?',

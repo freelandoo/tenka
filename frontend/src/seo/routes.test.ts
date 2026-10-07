@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GOOGLE_SITE_VERIFICATION,
   REDIRECTS,
   ROUTES,
   SITE_URL,
@@ -10,7 +11,15 @@ import {
 import { metaTagsFor } from './head';
 import { schemasFor } from './schema';
 import { SERVICE_CONTENT, SERVICE_ROUTES, serviceContentFor } from './services';
+import {
+  ADDRESS,
+  CONTACT_EMAIL,
+  PHONE_E164,
+  WHATSAPP_NUMBER,
+  hasWhatsapp,
+} from '../config/contact';
 import vercel from '../../vercel.json';
+import indexHtml from '../../index.html?raw';
 
 /**
  * O manifesto alimenta o HTML estático do build, o sitemap e o head em runtime.
@@ -101,6 +110,42 @@ describe('manifesto de SEO', () => {
     const types = schemasFor(routeFor('/contato')!).map((block) => block['@type']);
     expect(types).toContain('ProfessionalService');
     expect(types).toContain('FAQPage');
+  });
+});
+
+/**
+ * NAP e verificação: dois dados que, errados, não quebram nada visivelmente.
+ * Um telefone mal formatado some do rich result; a tag de verificação removida
+ * derruba a propriedade no Search Console semanas depois, sem aviso.
+ */
+describe('contato e verificação', () => {
+  it('mantém o telefone em E.164 e o número do wa.me só com dígitos', () => {
+    expect(PHONE_E164).toMatch(/^\+55\d{10,11}$/);
+    expect(WHATSAPP_NUMBER).toMatch(/^55\d{10,11}$/);
+    expect(PHONE_E164).toBe(`+${WHATSAPP_NUMBER}`);
+    expect(hasWhatsapp).toBe(true);
+  });
+
+  it('não deixa resto de placeholder nem do domínio antigo', () => {
+    expect(WHATSAPP_NUMBER).not.toBe('5511000000000');
+    expect(CONTACT_EMAIL).not.toContain('tenka.com.br');
+    expect(CONTACT_EMAIL).toContain('@');
+  });
+
+  it('publica o endereço completo no JSON-LD de LocalBusiness', () => {
+    const local = schemasFor(routeFor('/contato')!).find(
+      (block) => block['@type'] === 'ProfessionalService',
+    ) as Record<string, unknown>;
+    const address = local.address as Record<string, string>;
+    expect(address.streetAddress).toBe(ADDRESS.street);
+    expect(address.postalCode).toBe(ADDRESS.postalCode);
+    expect(address.addressLocality).toBe(ADDRESS.locality);
+    expect(local.telephone).toBe(PHONE_E164);
+  });
+
+  it('mantém a tag de verificação do Search Console no index.html', () => {
+    expect(indexHtml).toContain('name="google-site-verification"');
+    expect(indexHtml).toContain(GOOGLE_SITE_VERIFICATION);
   });
 });
 

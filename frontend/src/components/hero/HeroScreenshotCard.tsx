@@ -59,7 +59,7 @@ export default function HeroScreenshotCard({
           </div>
           <div className="flex h-5 max-w-[60%] flex-1 items-center rounded bg-white/[0.07] px-3">
             <span className="truncate text-[10px] font-medium tracking-wide text-white/45">
-              tenka.com.br{slide.ctaHref}
+              tenkagroup.com.br{slide.ctaHref}
             </span>
           </div>
         </div>

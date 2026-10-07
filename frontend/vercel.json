@@ -33,6 +33,12 @@
       "source": "/games/advergame-e-gamificacao",
       "destination": "/games/advergame-e-gamificacao/index.html"
     },
+    { "source": "/games/jogos-mobile", "destination": "/games/jogos-mobile/index.html" },
+    {
+      "source": "/games/jogos-de-navegador",
+      "destination": "/games/jogos-de-navegador/index.html"
+    },
+    { "source": "/studios/animacao-3d", "destination": "/studios/animacao-3d/index.html" },
     {
       "source": "/studios/maquete-eletronica-3d",
       "destination": "/studios/maquete-eletronica-3d/index.html"
@@ -53,6 +59,7 @@
       "source": "/tech/sistemas-sob-medida",
       "destination": "/tech/sistemas-sob-medida/index.html"
     },
+    { "source": "/tech/aplicativos", "destination": "/tech/aplicativos/index.html" },
     { "source": "/tech/sites", "destination": "/tech/sites/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

@@ -1,26 +1,43 @@
 /**
- * Canais de contato, em um só lugar.
+ * NAP (nome, endereço, telefone) e canais — fonte única.
  *
- * Antes disso o número de WhatsApp vivia escrito à mão dentro de
- * `tech/sections/FinalDeploySection.tsx` — e era um placeholder
- * (`5511000000000`), ou seja, todo CTA de WhatsApp do site apontava para um
- * número inexistente.
+ * Isto é SEO local, não só configuração: Google, Google Business Profile,
+ * diretórios e os motores de busca por IA cruzam nome, endereço e telefone
+ * entre si. Dois formatos diferentes do mesmo telefone em páginas diferentes
+ * enfraquecem o sinal. Por isso o endereço e o número existem num lugar só, e
+ * tudo mais — rodapé, JSON-LD, página de contato, botão de WhatsApp — deriva
+ * daqui.
  */
 
-export const CONTACT_EMAIL = 'contato@tenka.com.br';
+export const COMPANY_NAME = 'TENKA Group';
+export const CONTACT_EMAIL = 'grupotenka@gmail.com';
 
-/**
- * Número no formato wa.me (DDI + DDD + número, só dígitos).
- *
- * TODO(operador): trocar pelo número real de atendimento. Enquanto for o
- * placeholder, `hasWhatsapp` devolve false e a interface mostra e-mail no lugar
- * de um link que não funciona.
- */
-export const WHATSAPP_NUMBER = '5511000000000';
+/** Dígitos puros, formato wa.me (DDI + DDD + número). */
+export const WHATSAPP_NUMBER = '5511984274134';
 
-const PLACEHOLDER_NUMBERS = new Set(['5511000000000', '']);
+/** Formato E.164, para `telephone` do schema.org e para `tel:`. */
+export const PHONE_E164 = '+5511984274134';
 
-export const hasWhatsapp = !PLACEHOLDER_NUMBERS.has(WHATSAPP_NUMBER);
+/** Como o telefone aparece para o leitor. */
+export const PHONE_DISPLAY = '(11) 98427-4134';
+
+export const ADDRESS = {
+  street: 'R. Pais Leme, 215',
+  district: 'Pinheiros',
+  locality: 'São Paulo',
+  region: 'SP',
+  postalCode: '05424-150',
+  country: 'BR',
+} as const;
+
+/** Uma linha, o jeito que o endereço precisa aparecer em rodapé e diretório. */
+export const ADDRESS_LINE = `${ADDRESS.street} — ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}`;
+
+export const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+  `${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} - ${ADDRESS.region}, ${ADDRESS.postalCode}`,
+)}`;
+
+export const hasWhatsapp = /^\d{12,13}$/.test(WHATSAPP_NUMBER);
 
 export function whatsappUrl(message: string): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;

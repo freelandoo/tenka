@@ -2,7 +2,10 @@ import { useState } from 'react';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor } from '../seo/routes';
 import {
+  ADDRESS,
   CONTACT_EMAIL,
+  MAPS_URL,
+  PHONE_DISPLAY,
   hasWhatsapp,
   mailtoUrl,
   whatsappUrl,
@@ -61,9 +64,13 @@ export default function ContactPage() {
       brief || '—',
     ].join('\n');
 
-    window.location.href = hasWhatsapp
-      ? whatsappUrl(`Olá, TENKA! ${body}`)
-      : mailtoUrl(subject, body);
+    if (hasWhatsapp) {
+      // Nova aba: `location.href` descarta o formulário, e se a pessoa voltar
+      // o que ela digitou já era.
+      window.open(whatsappUrl(`Olá, TENKA! ${body}`), '_blank', 'noopener');
+    } else {
+      window.location.href = mailtoUrl(subject, body);
+    }
   }
 
   return (
@@ -139,32 +146,60 @@ export default function ContactPage() {
       </ShellSection>
 
       <ShellSection title="Canais diretos" accent={ACCENT}>
-        <dl className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <dt className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <a
+            href={whatsappUrl('Olá, TENKA! Vim pelo site.')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+              WhatsApp
+            </p>
+            <p className="mt-2 text-base font-semibold text-white">{PHONE_DISPLAY}</p>
+            <p className="mt-1 text-[13px] text-white/50">Resposta mais rápida</p>
+          </a>
+
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
               E-mail
-            </dt>
-            <dd className="mt-2">
-              <a
-                href={`mailto:${CONTACT_EMAIL}`}
-                className="text-sm text-white/85 transition-colors hover:text-white"
-              >
-                {CONTACT_EMAIL}
-              </a>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
-              Onde estamos
-            </dt>
-            <dd className="mt-2 text-sm text-white/85">
-              São Paulo — SP, Brasil
-              <span className="mt-1 block text-white/45">
-                Atendimento remoto para todo o Brasil
-              </span>
-            </dd>
-          </div>
-        </dl>
+            </p>
+            <p className="mt-2 break-all text-base font-semibold text-white">
+              {CONTACT_EMAIL}
+            </p>
+            <p className="mt-1 text-[13px] text-white/50">Para briefing e anexos</p>
+          </a>
+
+          <a
+            href={MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+              Endereço
+            </p>
+            {/* O mesmo texto do JSON-LD e do que vai no Google Business
+                Profile — é esse casamento que sustenta a busca local. */}
+            <address className="mt-2 text-sm not-italic leading-relaxed text-white/85">
+              {ADDRESS.street}
+              <br />
+              {ADDRESS.district}, {ADDRESS.locality} — {ADDRESS.region}
+              <br />
+              CEP {ADDRESS.postalCode}
+            </address>
+            <p className="mt-2 text-[13px] text-white/50">Ver no mapa →</p>
+          </a>
+        </div>
+
+        <p className="mt-6 max-w-2xl text-[14px] leading-[1.7] text-white/55">
+          Projetos digitais — sites, sistemas, aplicativos, automações, 3D e branding —
+          são entregues remotamente para todo o Brasil. Ativações e treinamentos com
+          equipamento no local saem de São Paulo.
+        </p>
       </ShellSection>
 
       <ShellSection title="Perguntas frequentes" accent={ACCENT}>

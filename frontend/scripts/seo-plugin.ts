@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import type { Plugin } from 'vite';
 import { metaTagsFor } from '../src/seo/head';
 import { schemasFor } from '../src/seo/schema';
+import { SERVICE_CONTENT } from '../src/seo/services';
+import { ADDRESS, CONTACT_EMAIL, PHONE_DISPLAY } from '../src/config/contact';
 import {
   NOINDEX_PREFIXES,
   ROUTES,
@@ -51,9 +53,11 @@ export function seoPlugin(): Plugin {
 
       await writeFile(join(outDir, 'robots.txt'), renderRobots(), 'utf8');
       await writeFile(join(outDir, 'sitemap.xml'), renderSitemap(), 'utf8');
+      await writeFile(join(outDir, 'llms.txt'), renderLlmsTxt(), 'utf8');
+      await writeFile(join(outDir, 'llms-full.txt'), renderLlmsFull(), 'utf8');
 
       this.info(
-        `SEO: ${ROUTES.length} rotas pré-renderizadas + robots.txt + sitemap.xml`,
+        `SEO: ${ROUTES.length} rotas pré-renderizadas + robots.txt + sitemap.xml + llms.txt`,
       );
     },
   };
@@ -118,15 +122,173 @@ function crawlableBody(route: SeoRoute): string {
   ].join('');
 }
 
+/**
+ * Crawlers de busca por IA, declarados um a um.
+ *
+ * `User-agent: *` já liberaria todos, mas ser explícito aqui tem duas funções:
+ * deixa registrado que a liberação é decisão e não descuido, e cobre os agentes
+ * que tratam `*` de forma conservadora. `Google-Extended` em particular não
+ * afeta o ranqueamento na busca comum — ele controla se o conteúdo pode
+ * aparecer nas respostas geradas por IA do Google, que é exatamente onde a
+ * TENKA quer ser citada.
+ */
+const AI_CRAWLERS = [
+  'GPTBot',
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'PerplexityBot',
+  'Perplexity-User',
+  'ClaudeBot',
+  'Claude-SearchBot',
+  'Claude-User',
+  'Google-Extended',
+  'Applebot-Extended',
+  'Bingbot',
+  'CCBot',
+  'cohere-ai',
+  'Meta-ExternalAgent',
+];
+
 function renderRobots(): string {
+  const disallow = NOINDEX_PREFIXES.map((prefix) => `Disallow: ${prefix}/`);
+
   return [
+    '# https://www.tenkagroup.com.br',
+    '',
     'User-agent: *',
     'Allow: /',
-    ...NOINDEX_PREFIXES.map((prefix) => `Disallow: ${prefix}/`),
+    ...disallow,
+    '',
+    '# Buscadores e assistentes com IA: liberados de propósito — queremos ser',
+    '# citados nas respostas geradas, não só nos dez links azuis.',
+    ...AI_CRAWLERS.flatMap((agent) => [
+      '',
+      `User-agent: ${agent}`,
+      'Allow: /',
+      ...disallow,
+    ]),
     '',
     `Sitemap: ${SITE_URL}/sitemap.xml`,
     '',
   ].join('\n');
+}
+
+/**
+ * llms.txt — índice do site em markdown, na convenção llmstxt.org.
+ *
+ * Um assistente que precisa responder "quem faz treinamento em VR em São Paulo"
+ * não deveria ter que rastrear e interpretar HTML com Three.js para descobrir o
+ * que a TENKA faz. Este arquivo entrega a mesma informação em texto limpo, com
+ * o link canônico de cada página — é o equivalente do sitemap para LLM.
+ */
+function renderLlmsTxt(): string {
+  const entry = (route: SeoRoute) =>
+    `- [${route.h1}](${canonicalFor(route.path)}): ${route.description}`;
+
+  // O hub da divisão encabeça a própria seção; só /projetos, /sobre e /contato
+  // são institucionais.
+  const division = (prefix: string) =>
+    ROUTES.filter(
+      (route) => route.path === prefix || route.path.startsWith(`${prefix}/`),
+    )
+      .map(entry)
+      .join('\n');
+
+  const institutional = TOP_LEVEL_ROUTES.filter((route) =>
+    ['/projetos', '/sobre', '/contato'].includes(route.path),
+  )
+    .map(entry)
+    .join('\n');
+
+  return `# TENKA Group
+
+> Grupo de tecnologia e entretenimento em São Paulo, organizado em três divisões: TENKA Games (jogos, ativações e treinamentos em realidade virtual), TENKA Studios (maquetes e animações 3D, mockup de produto, identidade visual e branding) e TENKA Tech (sites, sistemas sob medida, aplicativos e automações com IA).
+
+Atende empresas em todo o Brasil. Projetos digitais são entregues remotamente;
+ativações e treinamentos com equipamento no local são atendidos a partir de São
+Paulo. Endereço: ${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}.
+Contato: ${CONTACT_EMAIL}, ${PHONE_DISPLAY}.
+
+## TENKA Games — jogos e realidade virtual
+
+${division('/games')}
+
+## TENKA Studios — 3D, visualização e marca
+
+${division('/studios')}
+
+## TENKA Tech — software, sistemas e automação
+
+${division('/tech')}
+
+## Páginas institucionais
+
+${institutional}
+
+## Observações
+
+- Conteúdo completo em markdown: ${SITE_URL}/llms-full.txt
+- A área em ${SITE_URL}/painel é interna, exige login e não deve ser indexada.
+`;
+}
+
+/** O conteúdo das páginas em markdown, para citação direta sem rastrear HTML. */
+function renderLlmsFull(): string {
+  const pages = ROUTES.map((route) => {
+    const content = SERVICE_CONTENT.find((item) => item.path === route.path);
+    const parts = [
+      `## ${route.h1}`,
+      '',
+      `URL: ${canonicalFor(route.path)}`,
+      '',
+      route.intro,
+    ];
+
+    if (route.highlights?.length) {
+      parts.push('', ...route.highlights.map((item) => `- ${item}`));
+    }
+
+    if (content) {
+      parts.push('', `### ${content.problem.title}`, '', content.problem.body);
+      parts.push(
+        '',
+        '### O que entra no projeto',
+        '',
+        ...content.includes.map((item) => `- **${item.title}**: ${item.description}`),
+      );
+      parts.push(
+        '',
+        '### Como fazemos',
+        '',
+        ...content.process.map((step) => `${step.step}. **${step.title}**: ${step.description}`),
+      );
+      for (const section of content.sections ?? []) {
+        parts.push('', `### ${section.title}`, '', section.body);
+      }
+    }
+
+    if (route.faq?.length) {
+      parts.push('', '### Perguntas frequentes', '');
+      for (const item of route.faq) {
+        parts.push(`**${item.question}**`, '', item.answer, '');
+      }
+    }
+
+    return parts.join('\n');
+  });
+
+  return `# TENKA Group — conteúdo completo
+
+Nome: TENKA Group
+Site: ${SITE_URL}
+E-mail: ${CONTACT_EMAIL}
+Telefone: ${PHONE_DISPLAY}
+Endereço: ${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}, Brasil
+Atuação: Brasil, com base em São Paulo
+Última atualização: ${new Date().toISOString().slice(0, 10)}
+
+${pages.join('\n\n---\n\n')}
+`;
 }
 
 function renderSitemap(): string {

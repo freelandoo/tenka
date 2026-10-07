@@ -169,9 +169,128 @@ export const SERVICE_ROUTES: SeoRoute[] = [
     changefreq: 'monthly',
   },
 
+  {
+    path: '/games/jogos-mobile',
+    title: 'Desenvolvimento de jogos mobile (iOS e Android) | TENKA',
+    description:
+      'Desenvolvimento de jogos mobile para iOS e Android: protótipo da mecânica, produção, publicação nas lojas e evolução pós-lançamento. São Paulo.',
+    h1: 'Desenvolvimento de jogos mobile para iOS e Android',
+    intro:
+      'Jogos pensados para o gesto, o ritmo e a rotina do celular — do primeiro protótipo jogável até a publicação na App Store e no Google Play, com a performance calibrada para o aparelho que o seu público realmente tem.',
+    highlights: [
+      'Protótipo da mecânica central, testado antes de escalar produção',
+      'Produção completa — arte, código, áudio e interface',
+      'Publicação na App Store e no Google Play, incluindo o processo de revisão',
+      'Monetização e economia do jogo, quando o modelo pedir',
+      'Evolução pós-lançamento com base em dados de uso reais',
+    ],
+    ogImage: '/images/og/tenka-games.jpg',
+    faq: [
+      {
+        question: 'Quanto tempo leva para publicar um jogo mobile?',
+        answer:
+          'Depende muito do escopo, mas a sequência é sempre a mesma: semanas até um protótipo jogável da mecânica central, e a partir dele o cronograma real da produção. Começar pelo protótipo é o que impede descobrir no sexto mês que a mecânica não sustenta o jogo.',
+      },
+      {
+        question: 'Vocês publicam nas lojas ou a publicação é nossa?',
+        answer:
+          'Podemos conduzir a publicação, mas as contas de desenvolvedor na Apple e no Google ficam no nome do cliente. É o mesmo princípio do código e da infraestrutura: o ativo é de quem contratou, e isso evita a dependência que aparece quando o relacionamento muda.',
+      },
+      {
+        question: 'Nativo, Unity ou híbrido?',
+        answer:
+          'A escolha vem do jogo. Mecânicas com simulação, física e render pesado pedem engine. Jogos mais leves, com forte componente de interface e integração, muitas vezes saem melhor e mais baratos fora dela. Decidir a tecnologia antes de definir a mecânica é a origem da maior parte do retrabalho.',
+      },
+      {
+        question: 'Fazem jogo mobile para campanha de marca?',
+        answer:
+          'Fazemos, mas vale conversar sobre o formato: para campanha, um jogo de navegador costuma performar melhor, porque o usuário entra por um link em vez de instalar. App faz sentido quando a marca quer relação contínua, não um pico de campanha.',
+      },
+    ],
+    priority: 0.7,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/games/jogos-de-navegador',
+    title: 'Jogos de navegador em WebGL, sem instalação | TENKA',
+    description:
+      'Jogos de navegador em WebGL que abrem por link no celular e no desktop: campanhas, advergames, demonstrações de produto e experiências dentro do seu site.',
+    h1: 'Jogos de navegador em WebGL, acessíveis por link',
+    intro:
+      'Experiências jogáveis que abrem por link ou QR code, sem loja e sem instalação. É o formato com menor atrito que existe — e por isso o que melhor funciona para campanha, ativação digital e demonstração de produto.',
+    highlights: [
+      'WebGL rodando no navegador do celular e do desktop',
+      'Entrada por link ou QR code, sem instalação e sem cadastro obrigatório',
+      'Peso e carregamento tratados como requisito, porque campanha roda em 4G',
+      'Integração com site, campanha, CRM e mecânica de promoção',
+      'Medição de partidas, sessão e conversão desde o primeiro dia',
+    ],
+    ogImage: '/images/og/tenka-games.jpg',
+    faq: [
+      {
+        question: 'Jogo de navegador roda bem em celular?',
+        answer:
+          'Roda, desde que seja projetado para isso. O erro comum é produzir para desktop e só depois tentar encaixar no celular — aí o peso do carregamento e o consumo de bateria derrubam a taxa de conclusão. Definimos o aparelho-alvo no início e o orçamento técnico sai dele.',
+      },
+      {
+        question: 'Dá para colocar o jogo dentro do nosso site?',
+        answer:
+          'Sim, em página própria ou incorporado. Em campanha, a página própria costuma render mais, porque permite medir a origem do tráfego e otimizar o anúncio sem mexer no site.',
+      },
+      {
+        question: 'Quanto tempo o jogo fica no ar?',
+        answer:
+          'O tempo que a campanha precisar. Como é web, não depende de aprovação de loja nem de atualização do usuário: ajustes entram no ar no mesmo dia, o que é uma vantagem real quando a campanha está rodando.',
+      },
+    ],
+    priority: 0.7,
+    changefreq: 'monthly',
+  },
+
   // -------------------------------------------------------------------------
   // TENKA STUDIOS
   // -------------------------------------------------------------------------
+  {
+    path: '/studios/animacao-3d',
+    title: 'Animação 3D para produto, marca e campanha | TENKA Studios',
+    description:
+      'Produção de animação 3D: filme de produto, vinheta, abertura, explodida técnica e motion com direção de arte e acabamento cinematográfico. São Paulo.',
+    h1: 'Animação 3D para produto, marca e campanha',
+    intro:
+      'Filmes de produto, vinhetas e narrativas visuais construídos quadro a quadro — para mostrar o que câmera nenhuma alcança: o interior do produto, a escala real, o processo invisível, o que ainda não existe.',
+    highlights: [
+      'Filme de produto — o objeto em movimento, com acabamento publicitário',
+      'Explodida técnica — montagem, componentes e funcionamento interno',
+      'Vinheta e abertura — assinatura em movimento para a marca',
+      'Motion e finalização — trilha, sonoplastia e entrega por canal',
+      'Reaproveitamento — a mesma cena vira imagem parada e nova peça depois',
+    ],
+    ogImage: '/images/og/tenka-studios.jpg',
+    faq: [
+      {
+        question: 'Animação 3D ou filmagem?',
+        answer:
+          'Filmagem ganha quando o produto existe, o ambiente é fotogênico e a verdade documental importa. A animação ganha quando é preciso mostrar o que não dá para filmar: o interior de um equipamento, um processo microscópico, uma escala impossível, ou um produto que ainda está no projeto.',
+      },
+      {
+        question: 'Quanto tempo leva uma animação 3D?',
+        answer:
+          'O que define o prazo é a duração e a complexidade da cena, não só os segundos finais. Um filme de produto curto com uma cena controlada é bem mais rápido que trinta segundos com múltiplos ambientes. O storyboard aprovado é o que trava o prazo — mudança de roteiro depois dele refaz etapas inteiras.',
+      },
+      {
+        question: 'Vocês fazem a trilha e a locução?',
+        answer:
+          'Coordenamos a finalização completa, incluindo trilha, sonoplastia e locução por profissionais parceiros. A música usada é sempre licenciada — não entregamos peça com trilha sem licença, porque o problema aparece depois, na veiculação.',
+      },
+      {
+        question: 'A animação serve para feira e para redes ao mesmo tempo?',
+        answer:
+          'Serve, com recortes diferentes. A mesma produção rende a versão longa para o stand e os cortes verticais para redes. Planejar isso desde o storyboard custa quase nada; adaptar depois, com o projeto fechado, custa uma nova finalização.',
+      },
+    ],
+    priority: 0.8,
+    changefreq: 'monthly',
+  },
   {
     path: '/studios/maquete-eletronica-3d',
     title: 'Maquete eletrônica 3D para lançamentos | TENKA Studios',
@@ -379,6 +498,47 @@ export const SERVICE_ROUTES: SeoRoute[] = [
       },
     ],
     priority: 0.8,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/tech/aplicativos',
+    title: 'Desenvolvimento de aplicativos iOS e Android | TENKA Tech',
+    description:
+      'Desenvolvimento de aplicativos para iOS e Android: do protótipo à publicação nas lojas, com back-end, notificações, pagamentos e integrações. São Paulo.',
+    h1: 'Desenvolvimento de aplicativos para iOS e Android',
+    intro:
+      'Aplicativos úteis e consistentes, conectados ao mesmo ecossistema do seu produto. Do protótipo navegável à publicação nas lojas — incluindo o back-end, as integrações e a operação que o app precisa para funcionar de verdade.',
+    highlights: [
+      'iOS e Android a partir de uma base só, quando o caso permite',
+      'Back-end, API e autenticação — o app raramente é só a tela',
+      'Notificações, pagamentos e integrações com o que a empresa já usa',
+      'Publicação nas lojas, com o processo de revisão conduzido',
+      'Operação pós-lançamento — monitoramento, correção e evolução',
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
+    faq: [
+      {
+        question: 'Preciso mesmo de um aplicativo?',
+        answer:
+          'Com frequência, não. Se o uso é esporádico ou vem de campanha, um site rápido converte mais, porque não exige instalação. App compensa quando há uso recorrente, necessidade de funcionar offline, notificação como parte do produto, ou acesso a recursos do aparelho. Dizemos isso antes de orçar.',
+      },
+      {
+        question: 'Nativo ou multiplataforma?',
+        answer:
+          'Multiplataforma cobre bem a maioria dos aplicativos de negócio e reduz custo e prazo mantendo uma base de código. Nativo compensa quando há exigência pesada de performance gráfica, integração profunda com o sistema ou uso intensivo de hardware. A decisão sai dos requisitos, não da preferência.',
+      },
+      {
+        question: 'As contas das lojas ficam com quem?',
+        answer:
+          'Com o cliente. Conduzimos a publicação, mas a conta de desenvolvedor Apple e Google, o código e a infraestrutura ficam no nome de quem contratou.',
+      },
+      {
+        question: 'E depois de publicado?',
+        answer:
+          'App publicado é começo de operação, não fim de projeto: as lojas mudam requisitos, os sistemas operacionais atualizam e o uso real revela o que o teste não revelou. Oferecemos acompanhamento mensal, ou a entrega documentada para seguir com equipe própria.',
+      },
+    ],
+    priority: 0.75,
     changefreq: 'monthly',
   },
   {
@@ -654,6 +814,201 @@ export const SERVICE_CONTENT: ServiceContent[] = [
       { to: '/tech/sites', label: 'Landing page da campanha' },
     ],
     ctaLabel: 'Falar sobre um advergame',
+  },
+  {
+    path: '/games/jogos-mobile',
+    parent: '/games',
+    parentLabel: 'TENKA Games',
+    accent: GAMES_ACCENT,
+    problem: {
+      title: 'O jogo que ninguém abre uma segunda vez',
+      body: 'A maior parte dos jogos mobile morre não por falta de arte, mas por uma mecânica central que não sustenta o retorno. Isso aparece tarde quando a produção começa pela estética e deixa o teste para o fim. Começar pelo protótipo cru inverte o risco: se a mecânica não prende em cinza, nenhuma quantidade de polimento resolve.',
+    },
+    includes: [
+      {
+        title: 'Protótipo da mecânica primeiro',
+        description:
+          'Um trecho jogável, sem arte final, testado com gente de verdade. É a etapa mais barata para descobrir que a ideia não funciona.',
+      },
+      {
+        title: 'Produção completa',
+        description:
+          'Arte, código, áudio e interface avançando como um sistema só, com performance calibrada para o aparelho-alvo.',
+      },
+      {
+        title: 'Publicação conduzida',
+        description:
+          'App Store e Google Play, incluindo fichas, classificação indicativa e o processo de revisão — nas contas do cliente.',
+      },
+      {
+        title: 'Economia do jogo',
+        description:
+          'Quando o modelo pede monetização, ela é desenhada junto com a mecânica, não colada depois.',
+      },
+      {
+        title: 'Evolução com dados',
+        description:
+          'Onde o jogador para, onde desiste e onde volta — para a próxima versão ser decidida por uso real.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Imersão',
+        description: 'Objetivo, público, referência e o que define sucesso para este jogo.',
+      },
+      {
+        step: '02',
+        title: 'Protótipo',
+        description: 'A mecânica central jogável, testada antes de escalar a produção.',
+      },
+      {
+        step: '03',
+        title: 'Construção',
+        description: 'Arte, código, áudio e interação, com otimização contínua no aparelho real.',
+      },
+      {
+        step: '04',
+        title: 'Publicação',
+        description: 'Lojas, acompanhamento do lançamento e primeira rodada de ajustes.',
+      },
+    ],
+    related: [
+      { to: '/games/jogos-de-navegador', label: 'Jogos de navegador' },
+      { to: '/games/advergame-e-gamificacao', label: 'Advergame e gamificação' },
+      { to: '/tech/aplicativos', label: 'Aplicativos iOS e Android' },
+    ],
+    ctaLabel: 'Falar sobre um jogo mobile',
+  },
+  {
+    path: '/games/jogos-de-navegador',
+    parent: '/games',
+    parentLabel: 'TENKA Games',
+    accent: GAMES_ACCENT,
+    problem: {
+      title: 'Cada passo a mais derruba a participação pela metade',
+      body: 'Em campanha, o funil não morre no jogo — morre antes dele. Pedir instalação, cadastro ou atualização elimina a maior parte das pessoas que teriam jogado. O jogo de navegador existe para tirar esses passos do caminho: o visitante toca no link e já está dentro.',
+    },
+    includes: [
+      {
+        title: 'Entrada por link ou QR code',
+        description:
+          'Sem loja, sem instalação, sem cadastro obrigatório na porta. O cadastro vem depois, quando a pessoa já se interessou.',
+      },
+      {
+        title: 'Projetado para celular',
+        description:
+          'Aparelho-alvo definido no início. Produzir para desktop e adaptar depois é o que derruba a taxa de conclusão.',
+      },
+      {
+        title: 'Peso como requisito',
+        description:
+          'O orçamento de carregamento entra no projeto, porque campanha roda em 4G e em aparelho mediano.',
+      },
+      {
+        title: 'Integração com a campanha',
+        description:
+          'Site, CRM, mecânica de promoção e origem de tráfego ligados desde o começo.',
+      },
+      {
+        title: 'Ajuste no ar',
+        description:
+          'Sem aprovação de loja: uma correção entra no mesmo dia, o que importa muito com campanha rodando.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Objetivo',
+        description: 'O que a campanha precisa que aconteça, e em quanto tempo.',
+      },
+      {
+        step: '02',
+        title: 'Mecânica',
+        description: 'Protótipo cru da jogabilidade, testado no celular desde o primeiro dia.',
+      },
+      {
+        step: '03',
+        title: 'Produção',
+        description: 'Arte, código e integrações, com peso e carregamento medidos a cada entrega.',
+      },
+      {
+        step: '04',
+        title: 'No ar',
+        description: 'Publicação, acompanhamento durante a campanha e ajustes com dado real.',
+      },
+    ],
+    related: [
+      { to: '/games/advergame-e-gamificacao', label: 'Advergame e gamificação' },
+      { to: '/games/jogos-mobile', label: 'Jogos mobile' },
+      { to: '/tech/sites', label: 'Landing page da campanha' },
+    ],
+    ctaLabel: 'Falar sobre um jogo de navegador',
+  },
+  {
+    path: '/studios/animacao-3d',
+    parent: '/studios',
+    parentLabel: 'TENKA Studios',
+    accent: STUDIOS_ACCENT,
+    problem: {
+      title: 'O que a câmera não alcança',
+      body: 'Tem coisa que filmagem não resolve: o interior de um equipamento em funcionamento, a montagem de um produto peça por peça, uma escala que não cabe em lente nenhuma, ou um produto que ainda está no projeto. Nesses casos a animação não é alternativa estética à filmagem — é a única forma de mostrar.',
+    },
+    includes: [
+      {
+        title: 'Filme de produto',
+        description:
+          'O objeto em movimento, com luz, material e acabamento de peça publicitária.',
+      },
+      {
+        title: 'Explodida técnica',
+        description:
+          'Montagem, componentes e funcionamento interno — o argumento de venda que a foto não dá.',
+      },
+      {
+        title: 'Vinheta e abertura',
+        description:
+          'Assinatura em movimento, construída a partir do sistema visual da marca.',
+      },
+      {
+        title: 'Finalização completa',
+        description:
+          'Trilha licenciada, sonoplastia e locução, com entrega nos formatos de cada canal.',
+      },
+      {
+        title: 'Cena reaproveitável',
+        description:
+          'A mesma cena vira imagem parada, corte vertical e a próxima peça — sem recomeçar do zero.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Roteiro',
+        description: 'O que a peça precisa provar, em quantos segundos, e para qual canal.',
+      },
+      {
+        step: '02',
+        title: 'Storyboard',
+        description: 'Aprovação do percurso antes de produzir. É aqui que o prazo trava.',
+      },
+      {
+        step: '03',
+        title: 'Produção',
+        description: 'Modelagem, animação, materiais e luz, com prévias a cada etapa.',
+      },
+      {
+        step: '04',
+        title: 'Finalização',
+        description: 'Tratamento, trilha, som e entrega nos cortes de cada canal.',
+      },
+    ],
+    related: [
+      { to: '/studios/mockup-3d-de-produto', label: 'Mockup 3D de produto' },
+      { to: '/studios/maquete-eletronica-3d', label: 'Maquete eletrônica 3D' },
+      { to: '/games/ativacao-de-marca-em-realidade-virtual', label: 'Ativação de marca em VR' },
+    ],
+    ctaLabel: 'Falar sobre uma animação 3D',
   },
   {
     path: '/studios/maquete-eletronica-3d',
@@ -1005,6 +1360,71 @@ export const SERVICE_CONTENT: ServiceContent[] = [
       { to: '/tech', label: 'TENKA Tech' },
     ],
     ctaLabel: 'Falar sobre um sistema',
+  },
+  {
+    path: '/tech/aplicativos',
+    parent: '/tech',
+    parentLabel: 'TENKA Tech',
+    accent: TECH_ACCENT,
+    problem: {
+      title: 'O app que ninguém instala',
+      body: 'Muito projeto de aplicativo começa pela conclusão: "precisamos de um app". Aí descobre-se, depois de publicado, que o uso é esporádico e que a instalação era o maior obstáculo entre a empresa e o cliente — um site rápido teria convertido mais, por uma fração do custo. A pergunta certa não é como fazer o app, é se ele precisa existir.',
+    },
+    includes: [
+      {
+        title: 'A pergunta antes do projeto',
+        description:
+          'Se o caso se resolve melhor na web, dizemos isso antes de orçar. Vender um app desnecessário é o jeito mais rápido de perder o cliente seguinte.',
+      },
+      {
+        title: 'Uma base, duas plataformas',
+        description:
+          'iOS e Android a partir do mesmo código quando os requisitos permitem; nativo quando performance ou hardware exigem.',
+      },
+      {
+        title: 'O que fica atrás da tela',
+        description:
+          'Back-end, API, autenticação e permissões. O app raramente é só a interface, e é aqui que os projetos encalham.',
+      },
+      {
+        title: 'Notificações, pagamentos e integrações',
+        description:
+          'Com o que a empresa já usa — e com o tratamento de erro que mantém a operação de pé.',
+      },
+      {
+        title: 'Publicação e operação',
+        description:
+          'Processo de revisão das lojas conduzido, nas contas do cliente, e acompanhamento depois do lançamento.',
+      },
+    ],
+    process: [
+      {
+        step: '01',
+        title: 'Validar a necessidade',
+        description: 'Uso recorrente, offline, notificação ou hardware? Se não houver nenhum, a web resolve.',
+      },
+      {
+        step: '02',
+        title: 'Arquitetar',
+        description: 'Dados, autenticação, integrações e o que precisa funcionar sem conexão.',
+      },
+      {
+        step: '03',
+        title: 'Construir em fatias',
+        description: 'Versão utilizável cedo, em build de teste, antes de escalar o escopo.',
+      },
+      {
+        step: '04',
+        title: 'Publicar e operar',
+        description: 'Lojas, monitoramento e evolução — porque loja e sistema operacional mudam sozinhos.',
+      },
+    ],
+    related: [
+      { to: '/tech/sistemas-sob-medida', label: 'Sistema sob medida' },
+      { to: '/tech/automacoes-e-agentes-de-ia', label: 'Automação e agentes de IA' },
+      { to: '/games/jogos-mobile', label: 'Jogos mobile' },
+    ],
+    ctaLabel: 'Falar sobre um aplicativo',
   },
   {
     path: '/tech/sites',

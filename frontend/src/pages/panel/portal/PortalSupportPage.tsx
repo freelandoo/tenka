@@ -5,8 +5,7 @@ import {
   PortalHeader,
   PortalLoading,
 } from '../../../features/portal/PortalPieces';
-
-const SUPORTE_EMAIL = 'contato@tenka.com.br';
+import { CONTACT_EMAIL as SUPORTE_EMAIL } from '../../../config/contact';
 
 /**
  * Suporte — por onde o cliente fala com a TENKA.
