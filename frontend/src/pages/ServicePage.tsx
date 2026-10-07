@@ -30,7 +30,7 @@ export default function ServicePage() {
       breadcrumb={
         <nav
           aria-label="Trilha"
-          className="mb-5 text-[11px] uppercase tracking-[0.2em] text-white/35"
+          className="mb-5 text-[11px] uppercase tracking-[0.2em] text-white/55"
         >
           <Link to="/" className="transition-colors hover:text-white">
             Início
@@ -93,7 +93,7 @@ export default function ServicePage() {
           <dl className="mt-6 max-w-3xl divide-y divide-white/10 border-y border-white/10">
             {content.regulation.requirements.map((item) => (
               <div key={item.label} className="grid gap-1 py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
-                <dt className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45">
+                <dt className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
                   {item.label}
                 </dt>
                 <dd className="text-[14.5px] leading-[1.7] text-white/80">{item.value}</dd>
@@ -124,7 +124,7 @@ export default function ServicePage() {
             <p className="mt-3 text-[14px] leading-[1.75] text-white/65">
               {content.regulation.disclaimer}
             </p>
-            <p className="mt-3 text-[12.5px] leading-[1.7] text-white/40">
+            <p className="mt-3 text-[12.5px] leading-[1.7] text-white/55">
               Dados normativos conferidos em {content.regulation.checkedAt}. As normas
               regulamentadoras são alteradas periodicamente — confirme sempre a redação
               vigente no portal do Ministério do Trabalho e Emprego antes de planejar a
@@ -176,7 +176,7 @@ export default function ServicePage() {
                 <p className="mt-2 text-[13px] leading-[1.65] text-white/55">
                   {child.description}
                 </p>
-                <span className="mt-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 transition-colors group-hover:text-white">
+                <span className="mt-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition-colors group-hover:text-white">
                   Ver página →
                 </span>
               </Link>
@@ -195,7 +195,7 @@ export default function ServicePage() {
         </Link>
 
         <div className="mt-10">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/35">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
             Relacionado
           </p>
           <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-3">

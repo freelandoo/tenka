@@ -119,6 +119,54 @@ function crawlableBody(route: SeoRoute): string {
   // impedir. Quem lê a página sem executar JavaScript tem de receber a ressalva
   // junto com a afirmação, não depois dela.
   const content = SERVICE_CONTENT.find((item) => item.path === route.path);
+
+  /**
+   * Corpo da página de serviço no HTML estático.
+   *
+   * Antes daqui saía só H1 + intro + bullets: medido em 198 palavras e zero
+   * H2/H3 contra 469 palavras e 15 headings no DOM renderizado. Dois
+   * concorrentes diretos (Virtuatech e VRSchool, ambos WordPress) servem ~710
+   * palavras com hierarquia completa no HTML bruto — ou seja, quem não executa
+   * JavaScript via a TENKA com 3x menos conteúdo e sem estrutura.
+   *
+   * O Google renderiza JS e não se importa. Os crawlers de IA que não renderizam
+   * se importam, e eram justamente o público da camada de llms.txt.
+   */
+  const body = content
+    ? [
+        `<h2>${escapeHtml(content.problem.title)}</h2>`,
+        `<p>${escapeHtml(content.problem.body)}</p>`,
+        '<h2>O que entra no projeto</h2>',
+        ...content.includes.flatMap((item) => [
+          `<h3>${escapeHtml(item.title)}</h3>`,
+          `<p>${escapeHtml(item.description)}</p>`,
+        ]),
+        '<h2>Como fazemos</h2>',
+        '<ol>',
+        ...content.process.map(
+          (step) =>
+            `<li><h3>${escapeHtml(step.title)}</h3><p>${escapeHtml(step.description)}</p></li>`,
+        ),
+        '</ol>',
+        ...(content.sections ?? []).flatMap((section) => [
+          `<h2>${escapeHtml(section.title)}</h2>`,
+          `<p>${escapeHtml(section.body)}</p>`,
+        ]),
+      ].join('')
+    : '';
+
+  // As perguntas já vão no FAQPage JSON-LD, mas em texto elas também respondem
+  // à busca por long tail e dão ao modelo o par pergunta/resposta em prosa.
+  const faq = route.faq?.length
+    ? [
+        '<h2>Perguntas frequentes</h2>',
+        ...route.faq.flatMap((item) => [
+          `<h3>${escapeHtml(item.question)}</h3>`,
+          `<p>${escapeHtml(item.answer)}</p>`,
+        ]),
+      ].join('')
+    : '';
+
   const regulation = content?.regulation
     ? [
         `<h2>O que a ${escapeHtml(content.regulation.code)} exige</h2>`,
@@ -147,7 +195,9 @@ function crawlableBody(route: SeoRoute): string {
     `<h1>${escapeHtml(route.h1)}</h1>`,
     `<p>${escapeHtml(route.intro)}</p>`,
     items,
+    body,
     regulation,
+    faq,
     `<nav aria-label="Páginas da TENKA"><ul>${nav}</ul></nav>`,
     '<noscript><p>Este site usa JavaScript para as experiências interativas. ' +
       `Fale com a TENKA em <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> ` +

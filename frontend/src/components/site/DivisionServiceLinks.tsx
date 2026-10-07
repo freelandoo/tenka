@@ -55,7 +55,7 @@ export default function DivisionServiceLinks({
               <p className="mt-2 text-[13px] leading-[1.65] text-white/55">
                 {service.description}
               </p>
-              <span className="mt-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 transition-colors group-hover:text-white">
+              <span className="mt-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition-colors group-hover:text-white">
                 Ver página →
               </span>
             </Link>

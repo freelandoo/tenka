@@ -15,7 +15,7 @@ const PROJECTS = [
     title: 'Matéria em movimento',
     category: 'Animação 3D',
     description: 'Formas, materiais e luz dirigidos quadro a quadro para apresentar ideias com impacto.',
-    image: '/images/studios/project-animation.png',
+    image: '/images/studios/project-animation-1600.webp',
     alt: 'Forma escultural cromada entre tecidos vermelhos em uma composição de animação 3D',
   },
   {
@@ -23,7 +23,7 @@ const PROJECTS = [
     title: 'Objeto de desejo',
     category: 'Mockup digital',
     description: 'Produto virtual com acabamento publicitário antes mesmo de existir fisicamente.',
-    image: '/images/studios/project-product.png',
+    image: '/images/studios/project-product-1600.webp',
     alt: 'Mockup digital de um frasco preto com placa metálica e iluminação vermelha',
   },
   {
@@ -31,7 +31,7 @@ const PROJECTS = [
     title: 'Sistema de presença',
     category: 'Branding',
     description: 'Identidades que conectam estratégia, forma e aplicação em um sistema reconhecível.',
-    image: '/images/studios/project-branding.png',
+    image: '/images/studios/project-branding-1600.webp',
     alt: 'Sistema de identidade visual aplicado em papelaria preta, prata e acrílico vermelho',
   },
 ];
@@ -423,7 +423,7 @@ export default function CultureMachine() {
           data-ts-frame="OBJECT 04 / MATERIALIZAÇÃO"
           data-ts-focus-pad="7"
         >
-          <img src="/images/studios/hero-maquete.png" alt="" />
+          <img src="/images/studios/hero-maquete-1600.webp" alt="" />
           <span className="ts-promoter-shade" />
           <b className="ts-promoter-label ts-mono">OBJ_04 / MAQUETE</b>
         </div>
@@ -529,7 +529,7 @@ export default function CultureMachine() {
 
         <section id="processo" className="ts-section ts-process" aria-labelledby="process-title">
           <div className="ts-process-visual ts-reveal" data-ts-focus data-ts-frame="FRAME 086 / OBJETO" data-ts-focus-pad="6">
-            <img src="/images/studios/hero-maquete.png" alt="Maquete arquitetônica iluminada em vermelho no estúdio Tenka" />
+            <img src="/images/studios/hero-maquete-1600.webp" alt="Maquete arquitetônica iluminada em vermelho no estúdio Tenka" />
             <div className="ts-focus-frame" aria-hidden="true"><i /><i /><i /><i /></div>
             <p className="ts-mono">FOCO / DETALHE / PRESENÇA</p>
           </div>

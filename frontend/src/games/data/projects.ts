@@ -30,7 +30,7 @@ export const WORLD_PROJECTS: WorldProject[] = [
     status: 'EM PRODUÇÃO',
     technologies: ['Unreal Engine 5', 'Niagara', 'Houdini', 'Wwise'],
     image: {
-      src: '/images/games/project-eclipse.png',
+      src: '/images/games/project-eclipse-1600.webp',
       from: '#1a0800',
       to: '#7a2a05',
       glow: '#ff9a2e',
@@ -49,7 +49,7 @@ export const WORLD_PROJECTS: WorldProject[] = [
     status: 'PROTÓTIPO JOGÁVEL',
     technologies: ['Unity 6', 'C#', 'Shader Graph', 'FMOD'],
     image: {
-      src: '/images/games/project-fronteira.png',
+      src: '/images/games/project-fronteira-1600.webp',
       from: '#0d1116',
       to: '#3a4048',
       glow: '#c2ced9',
@@ -68,7 +68,7 @@ export const WORLD_PROJECTS: WorldProject[] = [
     status: 'EM PESQUISA',
     technologies: ['Unreal Engine 5', 'Blueprints', 'Blender', 'Wwise'],
     image: {
-      src: '/images/games/project-coracoes-ferro.png',
+      src: '/images/games/project-coracoes-ferro-1600.webp',
       from: '#180a05',
       to: '#6e2408',
       glow: '#ff7a1f',

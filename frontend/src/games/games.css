@@ -134,7 +134,7 @@
   position: absolute;
   z-index: -5;
   inset: -5%;
-  background: url('/images/games/hero-portal.png') center center / cover no-repeat;
+  background: url('/images/games/hero-portal-1600.webp') center center / cover no-repeat;
   transform: scale(1.04);
   animation: tg-drift 18s ease-in-out infinite alternate;
   will-change: transform;
@@ -223,7 +223,7 @@
 .tg-process-steps p { margin: 0; color: var(--tg-muted); line-height: 1.65; }
 
 .tg-contact { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 78dvh; overflow: hidden; padding: 100px 5vw; border-top: 1px solid var(--tg-line); text-align: center; isolation: isolate; }
-.tg-contact::before { content: ''; position: absolute; z-index: -2; inset: 0; opacity: 0.92; background: linear-gradient(rgba(13, 13, 13, 0.74), rgba(13, 13, 13, 0.9)), url('/images/games/project-eclipse.png') center 42% / cover; }
+.tg-contact::before { content: ''; position: absolute; z-index: -2; inset: 0; opacity: 0.92; background: linear-gradient(rgba(13, 13, 13, 0.74), rgba(13, 13, 13, 0.9)), url('/images/games/project-eclipse-1600.webp') center 42% / cover; }
 .tg-contact-orbit { position: absolute; z-index: -1; width: min(62vw, 820px); aspect-ratio: 1; border: 1px solid rgba(255, 100, 10, 0.3); border-radius: 50%; animation: tg-orbit 50s linear infinite; }
 .tg-contact > p:not(.tg-kicker) { max-width: 42rem; margin: 30px auto 0; }
 .tg-contact .tg-primary-button { margin-top: 38px; }

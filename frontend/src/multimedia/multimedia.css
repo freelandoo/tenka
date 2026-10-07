@@ -56,7 +56,7 @@
 .ts-menu-button { display: none; }
 
 .ts-hero { position: relative; display: flex; align-items: center; min-height: 100dvh; overflow: hidden; isolation: isolate; }
-.ts-hero-art { position: absolute; z-index: -6; inset: -10% -6%; background: url('/images/studios/hero-maquete.png') center center / cover no-repeat; transform: scale(1.08); will-change: transform; }
+.ts-hero-art { position: absolute; z-index: -6; inset: -10% -6%; background: url('/images/studios/hero-maquete-1600.webp') center center / cover no-repeat; transform: scale(1.08); will-change: transform; }
 .ts-hero-shade { position: absolute; z-index: -5; inset: 0; background: linear-gradient(90deg, rgba(11,11,13,.99) 0%, rgba(11,11,13,.9) 30%, rgba(11,11,13,.26) 61%, rgba(11,11,13,.08) 100%), linear-gradient(180deg, rgba(11,11,13,.4), transparent 28%, transparent 70%, var(--ts-bg)); }
 .ts-hero-grid { position: absolute; z-index: -4; inset: 0; opacity: .22; background-image: linear-gradient(rgba(242,240,236,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(242,240,236,.08) 1px, transparent 1px); background-size: 8vw 8vw; mask-image: linear-gradient(90deg, transparent 34%, #000 65%, transparent); }
 .ts-light { position: absolute; z-index: -3; width: 34vw; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(217,35,46,.18), transparent 66%); pointer-events: none; animation: ts-light-float 8s ease-in-out infinite alternate; }
@@ -127,7 +127,7 @@
 .ts-process-steps p { margin: 0; color: var(--ts-muted); line-height: 1.65; }
 
 .ts-contact { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 82dvh; overflow: hidden; padding: 110px 5vw; border-top: 1px solid var(--ts-line); text-align: center; isolation: isolate; }
-.ts-contact-art { position: absolute; z-index: -3; inset: -12% -8%; background: linear-gradient(rgba(11,11,13,.72),rgba(11,11,13,.92)), url('/images/studios/project-branding.png') center / cover; will-change: transform; }
+.ts-contact-art { position: absolute; z-index: -3; inset: -12% -8%; background: linear-gradient(rgba(11,11,13,.72),rgba(11,11,13,.92)), url('/images/studios/project-branding-1600.webp') center / cover; will-change: transform; }
 .ts-contact-orbits { position: absolute; z-index: -2; display: grid; place-items: center; width: min(68vw,920px); aspect-ratio: 1; will-change: transform, opacity; }
 .ts-contact-scan, .ts-contact-orbit-secondary { position: absolute; inset: 0; border: 1px solid rgba(217,35,46,.46); border-radius: 50%; animation: ts-rotate 30s linear infinite; }
 .ts-contact-scan::before, .ts-contact-scan::after { content: ''; position: absolute; inset: 16%; border: 1px dashed rgba(217,35,46,.3); border-radius: inherit; }

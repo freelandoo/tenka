@@ -63,7 +63,7 @@ export default function SobrePage() {
               <p className="mt-3 text-[13px] leading-[1.65] text-white/55">
                 {division.detail}
               </p>
-              <span className="mt-5 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/40 transition-colors group-hover:text-white">
+              <span className="mt-5 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition-colors group-hover:text-white">
                 Ver a divisão →
               </span>
             </Link>

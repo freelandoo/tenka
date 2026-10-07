@@ -20,7 +20,7 @@ const STUDIO_PIECES = [
     category: 'Animação 3D',
     description:
       'Formas, materiais e luz dirigidos quadro a quadro para apresentar ideias com impacto.',
-    image: '/images/studios/project-animation.png',
+    image: '/images/studios/project-animation-1600.webp',
     alt: 'Forma escultural cromada entre tecidos vermelhos em uma composição de animação 3D',
   },
   {
@@ -29,7 +29,7 @@ const STUDIO_PIECES = [
     category: 'Mockup digital de produto',
     description:
       'Produto virtual com acabamento publicitário antes mesmo de existir fisicamente.',
-    image: '/images/studios/project-product.png',
+    image: '/images/studios/project-product-1600.webp',
     alt: 'Mockup digital de um frasco preto com placa metálica e iluminação vermelha',
   },
   {
@@ -38,7 +38,7 @@ const STUDIO_PIECES = [
     category: 'Branding',
     description:
       'Identidades que conectam estratégia, forma e aplicação em um sistema reconhecível.',
-    image: '/images/studios/project-branding.png',
+    image: '/images/studios/project-branding-1600.webp',
     alt: 'Sistema de identidade visual aplicado em papelaria preta, prata e acrílico vermelho',
   },
 ];
@@ -75,7 +75,7 @@ export default function ProjetosPage() {
                 <p className="mt-2 text-[13px] leading-[1.65] text-white/60">
                   {project.description}
                 </p>
-                <p className="mt-3 text-[11px] text-white/35">
+                <p className="mt-3 text-[11px] text-white/55">
                   {project.technologies.join(' · ')}
                 </p>
               </div>

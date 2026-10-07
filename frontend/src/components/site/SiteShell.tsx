@@ -58,7 +58,15 @@ export default function SiteShell({
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#08090b]/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-5 py-4 sm:px-8">
           <Link to="/" aria-label="TENKA Group — página inicial" className="flex items-center">
-            <img src="/images/brand/tenka-group.svg" alt="" className="h-7 w-auto" />
+            {/* width/height explícitos: sem eles o navegador não reserva o
+                espaço do logo e o header salta quando o SVG chega. */}
+            <img
+              src="/images/brand/tenka-group.svg"
+              alt=""
+              width={120}
+              height={28}
+              className="h-7 w-auto"
+            />
           </Link>
           <nav aria-label="Divisões" className="hidden items-center gap-7 sm:flex">
             {DIVISION_LINKS.map((division) => (
@@ -105,7 +113,7 @@ export default function SiteShell({
       <footer className="border-t border-white/10 px-5 py-10 sm:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/55">
               Contato
             </p>
             <a
@@ -123,7 +131,7 @@ export default function SiteShell({
             {/* NAP idêntico ao do JSON-LD e ao que vai no Google Business
                 Profile — endereço escrito diferente em cada lugar enfraquece
                 o sinal local em vez de reforçá-lo. */}
-            <address className="mt-2 text-sm not-italic leading-relaxed text-white/45">
+            <address className="mt-2 text-sm not-italic leading-relaxed text-white/55">
               {ADDRESS.street}
               <br />
               {ADDRESS.district}, {ADDRESS.locality} — {ADDRESS.region}

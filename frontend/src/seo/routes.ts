@@ -79,7 +79,7 @@ const CORE_ROUTES: SeoRoute[] = [
     path: '/games',
     title: 'Jogos e treinamentos em realidade virtual | TENKA Games',
     description:
-      'A TENKA Games desenvolve jogos de navegador, jogos mobile, jogos em VR, ativações de marca em realidade virtual e treinamentos corporativos imersivos. São Paulo.',
+      'A TENKA Games cria jogos de navegador, jogos mobile e em VR, ativações de marca e treinamentos corporativos imersivos. São Paulo.',
     h1: 'Jogos, experiências e treinamentos em realidade virtual para empresas',
     intro:
       'A TENKA Games cria mundos jogáveis com objetivo de negócio: do advergame de campanha ao simulador de treinamento em realidade virtual. Prototipamos a mecânica central antes de escalar a produção, para que a experiência seja validada cedo e entregue com performance calibrada para cada dispositivo.',
@@ -140,6 +140,7 @@ const CORE_ROUTES: SeoRoute[] = [
     h1: 'Projetos da TENKA',
     intro:
       'Uma seleção do que as três divisões da TENKA já colocaram no ar — jogos e experiências imersivas, peças 3D e de marca, sites e sistemas em operação.',
+    ogImage: '/images/og/tenka-group.jpg',
     priority: 0.8,
     changefreq: 'monthly',
   },
@@ -151,6 +152,7 @@ const CORE_ROUTES: SeoRoute[] = [
     h1: 'Sobre a TENKA',
     intro:
       'A TENKA é um grupo de tecnologia e entretenimento sediado em São Paulo. Três divisões, um mesmo time de produção: Games, Studios e Tech. O que normalmente exigiria três fornecedores diferentes acontece sob a mesma direção.',
+    ogImage: '/images/og/tenka-group.jpg',
     priority: 0.6,
     changefreq: 'monthly',
   },
@@ -189,6 +191,7 @@ const CORE_ROUTES: SeoRoute[] = [
           'Sim, e é comum. Uma ativação em VR normalmente usa modelagem da Studios; um lançamento de produto junta mockup 3D, campanha e página. As divisões compartilham direção e produção, então não há repasse entre fornecedores.',
       },
     ],
+    ogImage: '/images/og/tenka-group.jpg',
     priority: 0.8,
     changefreq: 'monthly',
   },

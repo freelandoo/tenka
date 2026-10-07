@@ -127,7 +127,7 @@ export default function ContactPage() {
               rows={5}
               required
               placeholder="Objetivo, prazo e qualquer restrição que já exista."
-              className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+              className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:outline-none"
             />
           </label>
 
@@ -138,7 +138,7 @@ export default function ContactPage() {
           >
             {hasWhatsapp ? 'Enviar pelo WhatsApp' : 'Enviar por e-mail'}
           </button>
-          <p className="mt-3 text-[12px] text-white/40">
+          <p className="mt-3 text-[12px] text-white/55">
             O botão abre {hasWhatsapp ? 'o WhatsApp' : 'seu cliente de e-mail'} com a
             mensagem já montada — você revisa antes de enviar.
           </p>
@@ -153,7 +153,7 @@ export default function ContactPage() {
             rel="noopener noreferrer"
             className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
           >
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
               WhatsApp
             </p>
             <p className="mt-2 text-base font-semibold text-white">{PHONE_DISPLAY}</p>
@@ -164,7 +164,7 @@ export default function ContactPage() {
             href={`mailto:${CONTACT_EMAIL}`}
             className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
           >
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
               E-mail
             </p>
             <p className="mt-2 break-all text-base font-semibold text-white">
@@ -179,7 +179,7 @@ export default function ContactPage() {
             rel="noopener noreferrer"
             className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
           >
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
               Endereço
             </p>
             {/* O mesmo texto do JSON-LD e do que vai no Google Business
@@ -238,7 +238,7 @@ function Field({
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+        className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:outline-none"
       />
     </label>
   );

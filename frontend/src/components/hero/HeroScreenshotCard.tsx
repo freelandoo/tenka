@@ -35,9 +35,35 @@ export default function HeroScreenshotCard({
     setFailedUrl(null);
   }, [slide.imageUrl]);
 
-  const showEmbed = isEmbeddableUrl(slide.previewUrl);
+  /**
+   * O preview ao vivo só monta quando o card chega ao centro, e só depois que a
+   * página assentou.
+   *
+   * Antes, os três cards montavam `<iframe>` ao mesmo tempo: abrir a home
+   * carregava /games, /studios e /tech inteiros — medido em 15,7 MB e LCP de
+   * 21,2 s no mobile. `loading="lazy"` não ajudava porque os três estão no
+   * viewport. Agora o primeiro paint não carrega nenhum, e cada divisão só é
+   * buscada se o visitante parar nela.
+   *
+   * `mounted` é unidirecional de propósito: uma vez carregado, o preview não é
+   * desmontado ao trocar de slide — desmontar faria o iframe recarregar do zero
+   * a cada ida e volta do carrossel.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (mounted || role !== 'center') return;
+
+    const schedule =
+      window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 600));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const id = schedule(() => setMounted(true));
+    return () => cancel(id as never);
+  }, [role, mounted]);
+
+  const willEmbed = isEmbeddableUrl(slide.previewUrl);
+  const showEmbed = willEmbed && mounted;
   const showImage =
-    !showEmbed &&
+    !willEmbed &&
     isRenderableImageUrl(slide.imageUrl) &&
     slide.imageUrl !== failedUrl;
 
@@ -96,6 +122,10 @@ export default function HeroScreenshotCard({
               onError={() => setFailedUrl(slide.imageUrl)}
             />
           ) : (
+            // Enquanto o preview ainda não montou, fica só a cor sólida do
+            // card — o rótulo de placeholder é para quando não há nada
+            // configurado, não para o intervalo até o iframe carregar.
+            !willEmbed &&
             SHOW_PLACEHOLDER_LABELS && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-center">
                 <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/45">

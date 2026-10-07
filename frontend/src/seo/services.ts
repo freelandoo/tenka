@@ -527,7 +527,7 @@ export const SERVICE_ROUTES: SeoRoute[] = [
     path: '/studios/identidade-visual-e-branding',
     title: 'Identidade visual e branding para empresas | TENKA Studios',
     description:
-      'Criação de identidade visual, branding e logotipo: posicionamento, símbolo, paleta, tipografia, grafismos e manual de aplicação para a marca funcionar na prática.',
+      'Criação de identidade visual, branding e logotipo: posicionamento, símbolo, paleta, tipografia e manual de aplicação para a marca funcionar na prática.',
     h1: 'Identidade visual, branding e criação de logotipo',
     intro:
       'Uma marca que funciona do favicon ao letreiro. Posicionamento e personalidade primeiro, para que símbolo, cor e tipografia sejam decisão e não gosto — e um manual que faz a identidade sobreviver a quem for aplicá-la depois.',
@@ -695,7 +695,7 @@ export const SERVICE_ROUTES: SeoRoute[] = [
     path: '/tech/sites',
     title: 'Criação de sites rápidos e que convertem | TENKA Tech',
     description:
-      'Criação de sites institucionais, landing pages e portais com performance, SEO técnico e CMS para o time editar — construídos para converter, não só para existir.',
+      'Criação de sites institucionais, landing pages e portais com performance, SEO técnico e CMS para o time editar — feitos para converter, não só existir.',
     h1: 'Criação de sites institucionais e landing pages',
     intro:
       'Um site que carrega rápido, aparece na busca e conduz o visitante até o contato. Sem construtor pesado, sem página bonita que demora cinco segundos no 4G e sem depender de agência para trocar um parágrafo.',
