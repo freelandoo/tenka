@@ -9,7 +9,7 @@
  * daqui.
  */
 
-export const COMPANY_NAME = 'TENKA Group';
+export const COMPANY_NAME = 'Tenka Group';
 export const CONTACT_EMAIL = 'grupotenka@gmail.com';
 
 /** Dígitos puros, formato wa.me (DDI + DDD + número). */
@@ -21,7 +21,27 @@ export const PHONE_E164 = '+5511984274134';
 /** Como o telefone aparece para o leitor. */
 export const PHONE_DISPLAY = '(11) 98427-4134';
 
+/**
+ * Negócio com ÁREA DE ATENDIMENTO, não loja.
+ *
+ * A equipe trabalha a partir de Pinheiros, mas não recebe cliente no endereço —
+ * atendimento é remoto ou no cliente. Nesse caso o Google pede perfil de área
+ * de atendimento com o endereço oculto, e publicar logradouro no site
+ * contradiria a própria ficha: `streetAddress` no schema sinaliza um lugar que
+ * o cliente pode visitar.
+ *
+ * Por isso o logradouro e o CEP ficam aqui apenas para uso administrativo
+ * (nota fiscal, contrato, cadastro) e NÃO entram no site nem no JSON-LD. O que
+ * é público é a praça e a área atendida.
+ */
 export const ADDRESS = {
+  locality: 'São Paulo',
+  region: 'SP',
+  country: 'BR',
+} as const;
+
+/** Uso interno — nunca renderizado nem publicado em dado estruturado. */
+export const BILLING_ADDRESS = {
   street: 'R. Pais Leme, 215',
   district: 'Pinheiros',
   locality: 'São Paulo',
@@ -30,17 +50,21 @@ export const ADDRESS = {
   country: 'BR',
 } as const;
 
-/** Uma linha, o jeito que o endereço precisa aparecer em rodapé e diretório. */
-export const ADDRESS_LINE = `${ADDRESS.street} — ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}`;
+/** Como a praça aparece para o leitor. */
+export const LOCATION_LINE = `${ADDRESS.locality} — ${ADDRESS.region}, Brasil`;
 
-export const MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-  `${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} - ${ADDRESS.region}, ${ADDRESS.postalCode}`,
-)}`;
+/** Regiões atendidas presencialmente, espelhando a ficha do Google. */
+export const SERVICE_AREAS = [
+  'São Paulo',
+  'Região metropolitana de São Paulo',
+];
+
+/** Projetos digitais são entregues remotamente para todo o país. */
+export const REMOTE_AREA = 'Brasil';
 
 /**
- * Perfis oficiais. Alimentam o `sameAs` do Organization no JSON-LD: é assim que
- * buscador e motor de IA ligam o site, as redes e a ficha do Google Business
- * como sendo a mesma entidade, em vez de três TENKAs soltas.
+ * Perfis oficiais. Alimentam o `sameAs` do Organization: é assim que buscador e
+ * motor de IA ligam site, redes e ficha do Google como a mesma entidade.
  */
 export const SOCIAL_PROFILES = [
   'https://www.instagram.com/grupo.tenka/',

@@ -10,6 +10,8 @@ import {
   ADDRESS,
   CONTACT_EMAIL,
   PHONE_E164,
+  REMOTE_AREA,
+  SERVICE_AREAS,
   SOCIAL_PROFILES,
 } from '../config/contact';
 import {
@@ -20,16 +22,30 @@ import {
   type SeoRoute,
 } from './routes';
 
-/** Endereço postal completo — reaproveitado por Organization e LocalBusiness. */
+/**
+ * Endereço público: só praça, estado e país.
+ *
+ * Sem `streetAddress` nem `postalCode` de propósito. A TENKA é um negócio com
+ * área de atendimento — a equipe trabalha de Pinheiros mas não recebe cliente
+ * no endereço, e a ficha do Google é configurada com o endereço oculto.
+ * Publicar logradouro aqui diria ao buscador o contrário do que a ficha diz, e
+ * endereço sem atendimento presencial é causa comum de suspensão.
+ */
 function postalAddress() {
   return {
     '@type': 'PostalAddress',
-    streetAddress: ADDRESS.street,
     addressLocality: ADDRESS.locality,
     addressRegion: ADDRESS.region,
-    postalCode: ADDRESS.postalCode,
     addressCountry: ADDRESS.country,
   };
+}
+
+/** Onde há atendimento presencial, além da entrega remota nacional. */
+function areaServed() {
+  return [
+    { '@type': 'Country', name: REMOTE_AREA },
+    ...SERVICE_AREAS.map((name) => ({ '@type': 'City', name })),
+  ];
 }
 
 type Json = Record<string, unknown>;
@@ -140,7 +156,7 @@ export function localBusinessSchema(): Json {
     image: `${SITE_URL}/images/og/tenka-group.jpg`,
     parentOrganization: { '@id': `${SITE_URL}/#organization` },
     address: postalAddress(),
-    areaServed: { '@type': 'Country', name: 'Brasil' },
+    areaServed: areaServed(),
     // Sem openingHours, priceRange nem aggregateRating: não temos o dado, e
     // schema inventado some do rich result sem avisar — ou pior, fica.
   };

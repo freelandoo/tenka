@@ -2,10 +2,10 @@ import { useState } from 'react';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor } from '../seo/routes';
 import {
-  ADDRESS,
   CONTACT_EMAIL,
-  MAPS_URL,
+  LOCATION_LINE,
   PHONE_DISPLAY,
+  SERVICE_AREAS,
   hasWhatsapp,
   mailtoUrl,
   whatsappUrl,
@@ -173,26 +173,20 @@ export default function ContactPage() {
             <p className="mt-1 text-[13px] text-white/50">Para briefing e anexos</p>
           </a>
 
-          <a
-            href={MAPS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
-          >
+          <div className="rounded-lg border border-white/12 bg-white/[0.03] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
-              Endereço
+              Onde atendemos
             </p>
-            {/* O mesmo texto do JSON-LD e do que vai no Google Business
-                Profile — é esse casamento que sustenta a busca local. */}
-            <address className="mt-2 text-sm not-italic leading-relaxed text-white/85">
-              {ADDRESS.street}
-              <br />
-              {ADDRESS.district}, {ADDRESS.locality} — {ADDRESS.region}
-              <br />
-              CEP {ADDRESS.postalCode}
-            </address>
-            <p className="mt-2 text-[13px] text-white/50">Ver no mapa →</p>
-          </a>
+            {/* Área de atendimento, não endereço de visita: a equipe trabalha
+                de São Paulo e o atendimento é remoto ou no cliente. É o mesmo
+                que a ficha do Google declara. */}
+            <p className="mt-2 text-sm leading-relaxed text-white/85">
+              {LOCATION_LINE}
+            </p>
+            <p className="mt-2 text-[13px] text-white/55">
+              Presencial em {SERVICE_AREAS.join(' e ')}
+            </p>
+          </div>
         </div>
 
         <p className="mt-6 max-w-2xl text-[14px] leading-[1.7] text-white/55">

@@ -4,7 +4,12 @@ import type { Plugin } from 'vite';
 import { metaTagsFor } from '../src/seo/head';
 import { schemasFor } from '../src/seo/schema';
 import { SERVICE_CONTENT } from '../src/seo/services';
-import { ADDRESS, CONTACT_EMAIL, PHONE_DISPLAY } from '../src/config/contact';
+import {
+  CONTACT_EMAIL,
+  LOCATION_LINE,
+  PHONE_DISPLAY,
+  SERVICE_AREAS,
+} from '../src/config/contact';
 import {
   NOINDEX_PREFIXES,
   ROUTES,
@@ -284,13 +289,13 @@ function renderLlmsTxt(): string {
     .map(entry)
     .join('\n');
 
-  return `# TENKA Group
+  return `# Tenka Group
 
 > Grupo de tecnologia e entretenimento em São Paulo, organizado em três divisões: TENKA Games (jogos, ativações e treinamentos em realidade virtual), TENKA Studios (maquetes e animações 3D, mockup de produto, identidade visual e branding) e TENKA Tech (sites, sistemas sob medida, aplicativos e automações com IA).
 
 Atende empresas em todo o Brasil. Projetos digitais são entregues remotamente;
 ativações e treinamentos com equipamento no local são atendidos a partir de São
-Paulo. Endereço: ${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}.
+Paulo. Base: ${LOCATION_LINE}. Atendimento presencial em ${SERVICE_AREAS.join(' e ')}.
 Contato: ${CONTACT_EMAIL}, ${PHONE_DISPLAY}.
 
 ## TENKA Games — jogos e realidade virtual
@@ -381,13 +386,14 @@ function renderLlmsFull(): string {
     return parts.join('\n');
   });
 
-  return `# TENKA Group — conteúdo completo
+  return `# Tenka Group — conteúdo completo
 
-Nome: TENKA Group
+Nome: Tenka Group
 Site: ${SITE_URL}
 E-mail: ${CONTACT_EMAIL}
 Telefone: ${PHONE_DISPLAY}
-Endereço: ${ADDRESS.street}, ${ADDRESS.district}, ${ADDRESS.locality} — ${ADDRESS.region}, ${ADDRESS.postalCode}, Brasil
+Base: ${LOCATION_LINE}
+Atendimento presencial: ${SERVICE_AREAS.join(', ')}
 Atuação: Brasil, com base em São Paulo
 Última atualização: ${new Date().toISOString().slice(0, 10)}
 

@@ -190,15 +190,19 @@ describe('contato e verificação', () => {
     expect(CONTACT_EMAIL).toContain('@');
   });
 
-  it('publica o endereço completo no JSON-LD de LocalBusiness', () => {
+  it('publica praça e área atendida, sem logradouro, no LocalBusiness', () => {
     const local = schemasFor(routeFor('/contato')!).find(
       (block) => block['@type'] === 'ProfessionalService',
     ) as Record<string, unknown>;
     const address = local.address as Record<string, string>;
-    expect(address.streetAddress).toBe(ADDRESS.street);
-    expect(address.postalCode).toBe(ADDRESS.postalCode);
     expect(address.addressLocality).toBe(ADDRESS.locality);
+    expect(address.addressRegion).toBe(ADDRESS.region);
     expect(local.telephone).toBe(PHONE_E164);
+    // A TENKA é negócio de área de atendimento e a ficha do Google tem o
+    // endereço oculto. Publicar logradouro aqui diria o contrário ao buscador.
+    expect(address.streetAddress).toBeUndefined();
+    expect(address.postalCode).toBeUndefined();
+    expect(JSON.stringify(local)).not.toContain('Pais Leme');
   });
 
   it('mantém a tag de verificação do Search Console no index.html', () => {

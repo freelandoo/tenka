@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
 import {
-  ADDRESS,
   CONTACT_EMAIL,
+  LOCATION_LINE,
   PHONE_DISPLAY,
   PHONE_E164,
 } from '../../config/contact';
@@ -128,15 +128,13 @@ export default function SiteShell({
             >
               {PHONE_DISPLAY}
             </a>
-            {/* NAP idêntico ao do JSON-LD e ao que vai no Google Business
-                Profile — endereço escrito diferente em cada lugar enfraquece
-                o sinal local em vez de reforçá-lo. */}
+            {/* Praça e área atendida, não logradouro: a ficha do Google é de
+                área de atendimento com endereço oculto, e o site precisa dizer
+                a mesma coisa. */}
             <address className="mt-2 text-sm not-italic leading-relaxed text-white/55">
-              {ADDRESS.street}
+              {LOCATION_LINE}
               <br />
-              {ADDRESS.district}, {ADDRESS.locality} — {ADDRESS.region}
-              <br />
-              CEP {ADDRESS.postalCode}
+              Atendimento remoto para todo o Brasil
             </address>
           </div>
           {/* Só o primeiro nível. As páginas de serviço são alcançadas pelos

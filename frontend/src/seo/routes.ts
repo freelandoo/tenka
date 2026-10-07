@@ -60,10 +60,10 @@ export interface SeoRoute {
 const CORE_ROUTES: SeoRoute[] = [
   {
     path: '/',
-    title: 'TENKA Group — Games em VR, 3D, Branding, Sites e Sistemas',
+    title: 'Tenka Group — Games em VR, 3D, Branding, Sites e Sistemas',
     description:
       'Grupo TENKA: jogos e treinamentos em realidade virtual, maquetes e animações 3D, identidade visual e branding, sites, sistemas e automações. São Paulo.',
-    h1: 'TENKA Group — games em realidade virtual, 3D e branding, sites e sistemas',
+    h1: 'Tenka Group — games em realidade virtual, 3D e branding, sites e sistemas',
     intro:
       'A TENKA é um grupo de tecnologia e entretenimento em São Paulo, organizado em três divisões que trabalham juntas: TENKA Games (jogos, experiências e treinamentos em realidade virtual), TENKA Studios (maquetes 3D, animações 3D, mockup de produto, identidade visual e branding) e TENKA Tech (sites, sistemas sob medida, aplicativos e automações com IA).',
     highlights: [
@@ -134,7 +134,7 @@ const CORE_ROUTES: SeoRoute[] = [
   },
   {
     path: '/projetos',
-    title: 'Projetos e cases | TENKA Group',
+    title: 'Projetos e cases | Tenka Group',
     description:
       'Projetos entregues pelas divisões da TENKA: jogos e experiências em VR, maquetes e animações 3D, identidade visual, sites e sistemas sob medida.',
     h1: 'Projetos da TENKA',
@@ -158,22 +158,22 @@ const CORE_ROUTES: SeoRoute[] = [
   },
   {
     path: '/contato',
-    title: 'Contato — TENKA Group | Pinheiros, São Paulo',
+    title: 'Contato — Tenka Group | São Paulo',
     description:
-      'Fale com a TENKA: WhatsApp (11) 98427-4134, grupotenka@gmail.com. R. Pais Leme, 215 — Pinheiros, São Paulo. Games e VR, 3D e branding, sites e sistemas.',
+      'Fale com a TENKA: WhatsApp (11) 98427-4134, grupotenka@gmail.com. Games e realidade virtual, 3D e branding, sites e sistemas. Atendimento a partir de São Paulo.',
     h1: 'Fale com a TENKA',
     intro:
-      'Conte o que precisa entrar em operação e encaminhamos para a divisão certa. Ficamos em Pinheiros, São Paulo, e atendemos empresas em todo o Brasil.',
+      'Conte o que precisa entrar em operação e encaminhamos para a divisão certa. Atendemos a partir de São Paulo, para empresas em todo o Brasil.',
     highlights: [
       'WhatsApp e telefone: (11) 98427-4134',
       'E-mail: grupotenka@gmail.com',
-      'Endereço: R. Pais Leme, 215 — Pinheiros, São Paulo — SP, 05424-150',
+      'Base em São Paulo — SP, com atendimento remoto para todo o Brasil',
     ],
     faq: [
       {
-        question: 'Onde fica a TENKA e vocês atendem fora de São Paulo?',
+        question: 'A TENKA atende fora de São Paulo?',
         answer:
-          'A TENKA fica na R. Pais Leme, 215, em Pinheiros, São Paulo — SP. Projetos digitais — sites, sistemas, aplicativos, automações, 3D e branding — são entregues remotamente para todo o Brasil. Ativações e treinamentos com equipamento no local são atendidos na região metropolitana de São Paulo e, sob combinação, em outras praças.',
+          'Sim. A TENKA opera a partir de São Paulo e o atendimento é remoto ou no cliente — não recebemos visitas no escritório. Projetos digitais como sites, sistemas, aplicativos, automações, 3D e branding são entregues remotamente para todo o Brasil. Ativações e treinamentos com equipamento no local são atendidos em São Paulo e região metropolitana e, sob combinação, em outras praças.'
       },
       {
         question: 'Como funciona o orçamento?',
