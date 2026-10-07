@@ -5,6 +5,7 @@ import { gsap, ScrollTrigger } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useMultimediaLenis } from './hooks/useMultimediaLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
+import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
 import './multimedia.css';
 
@@ -548,6 +549,8 @@ export default function CultureMachine() {
             </ol>
           </div>
         </section>
+
+        <DivisionServiceLinks parent="/studios" accent="var(--ts-red, #D9232E)" />
 
         <section id="contato" className="ts-contact" aria-labelledby="contact-title">
           <div className="ts-contact-art" aria-hidden="true" />

@@ -9,6 +9,7 @@ import { WorldEngineBackground } from './components/WorldEngineBackground';
 import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import TenkaSymbol from '../components/TenkaSymbol';
+import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
 import './games.css';
 
@@ -356,6 +357,8 @@ export default function WorldForge() {
             </ol>
           </div>
         </section>
+
+        <DivisionServiceLinks parent="/games" accent="var(--tg-orange, #FF6A0A)" />
 
         <section id="contato" className="tg-contact" aria-labelledby="contact-title">
           <div className="tg-contact-orbit" aria-hidden="true" />

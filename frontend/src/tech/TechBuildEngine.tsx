@@ -5,6 +5,7 @@ import { gsap } from './lib/gsap';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTechLenis } from './hooks/useTechLenis';
 import TenkaSymbol from '../components/TenkaSymbol';
+import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
 import './tech.css';
 
@@ -255,6 +256,8 @@ export default function TechBuildEngine() {
             <svg viewBox="0 0 800 400"><path d="M400 200 130 78M400 200 670 78M400 200 130 322M400 200 670 322" /></svg>
           </div>
         </section>
+
+        <DivisionServiceLinks parent="/tech" accent="var(--tt-cyan, #00B8B3)" />
 
         <section id="contato" className="tt-contact" aria-labelledby="contact-title">
           <p className="tt-kicker tt-mono tt-reveal">03 / PRÓXIMO BUILD</p>

@@ -11,6 +11,8 @@
  * não executa JS) não vê nada.
  */
 
+import { SERVICE_ROUTES } from './services';
+
 export const SITE_URL = 'https://www.tenkagroup.com.br';
 
 /** Nome legal/comercial usado no JSON-LD e nos títulos. */
@@ -53,7 +55,8 @@ export interface SeoRoute {
   noindex?: boolean;
 }
 
-export const ROUTES: SeoRoute[] = [
+/** Home, divisões e institucionais. As páginas de serviço vêm de `services.ts`. */
+const CORE_ROUTES: SeoRoute[] = [
   {
     path: '/',
     title: 'TENKA Group — Games em VR, 3D, Branding, Sites e Sistemas',
@@ -184,6 +187,14 @@ export const ROUTES: SeoRoute[] = [
     changefreq: 'monthly',
   },
 ];
+
+export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES];
+
+/**
+ * Só home, divisões e institucionais — o que cabe num menu ou rodapé.
+ * Listar as 16 rotas ali transformaria o rodapé numa parede de slugs.
+ */
+export const TOP_LEVEL_ROUTES = CORE_ROUTES;
 
 /** Rotas que existem mas nunca devem ser indexadas (área interna). */
 export const NOINDEX_PREFIXES = ['/painel', '/admin'];

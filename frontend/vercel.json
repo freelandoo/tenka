@@ -21,6 +21,39 @@
     { "source": "/projetos", "destination": "/projetos/index.html" },
     { "source": "/sobre", "destination": "/sobre/index.html" },
     { "source": "/contato", "destination": "/contato/index.html" },
+    {
+      "source": "/games/treinamento-em-realidade-virtual",
+      "destination": "/games/treinamento-em-realidade-virtual/index.html"
+    },
+    {
+      "source": "/games/ativacao-de-marca-em-realidade-virtual",
+      "destination": "/games/ativacao-de-marca-em-realidade-virtual/index.html"
+    },
+    {
+      "source": "/games/advergame-e-gamificacao",
+      "destination": "/games/advergame-e-gamificacao/index.html"
+    },
+    {
+      "source": "/studios/maquete-eletronica-3d",
+      "destination": "/studios/maquete-eletronica-3d/index.html"
+    },
+    {
+      "source": "/studios/mockup-3d-de-produto",
+      "destination": "/studios/mockup-3d-de-produto/index.html"
+    },
+    {
+      "source": "/studios/identidade-visual-e-branding",
+      "destination": "/studios/identidade-visual-e-branding/index.html"
+    },
+    {
+      "source": "/tech/automacoes-e-agentes-de-ia",
+      "destination": "/tech/automacoes-e-agentes-de-ia/index.html"
+    },
+    {
+      "source": "/tech/sistemas-sob-medida",
+      "destination": "/tech/sistemas-sob-medida/index.html"
+    },
+    { "source": "/tech/sites", "destination": "/tech/sites/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -7,6 +7,7 @@ import {
   NOINDEX_PREFIXES,
   ROUTES,
   SITE_URL,
+  TOP_LEVEL_ROUTES,
   canonicalFor,
   type SeoRoute,
 } from '../src/seo/routes';
@@ -94,7 +95,14 @@ function crawlableBody(route: SeoRoute): string {
   const items = route.highlights?.length
     ? `<ul>${route.highlights.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '';
-  const nav = ROUTES.filter((other) => other.path !== route.path)
+  // Primeiro nível mais as irmãs da mesma divisão: dá ao crawler um caminho
+  // para tudo sem repetir as 16 rotas em cada página.
+  const parent = route.path.split('/').slice(0, 2).join('/');
+  const siblings = ROUTES.filter(
+    (other) => other.path !== route.path && other.path.startsWith(`${parent}/`),
+  );
+  const nav = [...TOP_LEVEL_ROUTES, ...siblings]
+    .filter((other) => other.path !== route.path)
     .map((other) => `<li><a href="${escapeAttr(other.path)}">${escapeHtml(other.h1)}</a></li>`)
     .join('');
 

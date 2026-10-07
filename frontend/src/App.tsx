@@ -4,7 +4,9 @@ import HomePage from './pages/HomePage';
 import ContactPage from './pages/ContactPage';
 import SobrePage from './pages/SobrePage';
 import ProjetosPage from './pages/ProjetosPage';
+import ServicePage from './pages/ServicePage';
 import NotFoundPage from './pages/NotFoundPage';
+import { SERVICE_ROUTES } from './seo/services';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 
@@ -108,6 +110,12 @@ export default function App() {
             </Suspense>
           }
         />
+        {/* Páginas de serviço — uma URL por intenção comercial. Todas usam o
+            mesmo template; o conteúdo vem de seo/services.ts, e o ServicePage
+            resolve qual é pelo pathname. */}
+        {SERVICE_ROUTES.map((route) => (
+          <Route key={route.path} path={route.path} element={<ServicePage />} />
+        ))}
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/projetos" element={<ProjetosPage />} />
         <Route path="/contato" element={<ContactPage />} />

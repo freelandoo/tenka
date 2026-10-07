@@ -9,6 +9,7 @@ import {
 } from './routes';
 import { metaTagsFor } from './head';
 import { schemasFor } from './schema';
+import { SERVICE_CONTENT, SERVICE_ROUTES, serviceContentFor } from './services';
 import vercel from '../../vercel.json';
 
 /**
@@ -100,6 +101,35 @@ describe('manifesto de SEO', () => {
     const types = schemasFor(routeFor('/contato')!).map((block) => block['@type']);
     expect(types).toContain('ProfessionalService');
     expect(types).toContain('FAQPage');
+  });
+});
+
+/**
+ * O site nasceu com /projetos e /sobre linkadas no menu sem existirem como
+ * rota — dois soft 404 servidos com HTTP 200. Agora que o conteúdo das páginas
+ * de serviço declara links internos em dados, o mesmo erro voltaria calado.
+ */
+describe('links internos das páginas de serviço', () => {
+  it('aponta todo link relacionado para uma rota que existe', () => {
+    for (const content of SERVICE_CONTENT) {
+      for (const link of content.related) {
+        expect(routeFor(link.to), `${content.path} → ${link.to}`).toBeDefined();
+      }
+      expect(routeFor(content.parent), `pai de ${content.path}`).toBeDefined();
+    }
+  });
+
+  it('mantém cada página de serviço sob a divisão que declara como pai', () => {
+    for (const content of SERVICE_CONTENT) {
+      expect(content.path.startsWith(`${content.parent}/`)).toBe(true);
+    }
+  });
+
+  it('dá a toda rota de serviço um conteúdo correspondente', () => {
+    for (const route of SERVICE_ROUTES) {
+      expect(serviceContentFor(route.path), `conteúdo de ${route.path}`).toBeDefined();
+      expect(route.faq?.length, `FAQ de ${route.path}`).toBeGreaterThan(0);
+    }
   });
 });
 

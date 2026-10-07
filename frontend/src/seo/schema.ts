@@ -11,6 +11,7 @@ import {
   COUNTRY,
   LOCALITY,
   REGION,
+  ROUTES,
   SITE_NAME,
   SITE_URL,
   canonicalFor,
@@ -77,14 +78,31 @@ export function serviceSchema(route: SeoRoute): Json | null {
   };
 }
 
-export function breadcrumbSchema(route: SeoRoute): Json | null {
+export function breadcrumbSchema(route: SeoRoute, all: SeoRoute[]): Json | null {
   if (route.path === '/') return null;
+
+  // Uma página de serviço vive sob a divisão (/games/treinamento-...), então a
+  // trilha tem três níveis. Derivamos do próprio caminho em vez de declarar o
+  // pai à mão, que é o tipo de duplicata que sai de sincronia.
+  const segments = route.path.split('/').filter(Boolean);
+  const trail: SeoRoute[] = [];
+  for (let i = 1; i <= segments.length; i += 1) {
+    const path = `/${segments.slice(0, i).join('/')}`;
+    const match = all.find((item) => item.path === path);
+    if (match) trail.push(match);
+  }
+
   return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Início', item: `${SITE_URL}/` },
-      { '@type': 'ListItem', position: 2, name: route.h1, item: canonicalFor(route.path) },
+      ...trail.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 2,
+        name: item.h1,
+        item: canonicalFor(item.path),
+      })),
     ],
   };
 }
@@ -127,7 +145,7 @@ export function schemasFor(route: SeoRoute): Json[] {
   const blocks: (Json | null)[] =
     route.path === '/'
       ? [organizationSchema(), websiteSchema()]
-      : [breadcrumbSchema(route), serviceSchema(route)];
+      : [breadcrumbSchema(route, ROUTES), serviceSchema(route)];
   if (route.path === '/contato') blocks.push(localBusinessSchema());
   blocks.push(faqSchema(route.faq));
   return blocks.filter((block): block is Json => block !== null);

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ROUTES } from '../../seo/routes';
+import { ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
 import { useSeo } from '../../seo/useSeo';
 
 /**
@@ -17,14 +17,31 @@ const DIVISION_LINKS = [
   { to: '/tech', label: 'Tech', accent: '#00B8B3' },
 ];
 
+const FOOTER_LABELS: Record<string, string> = {
+  '/': 'Home',
+  '/games': 'Games',
+  '/studios': 'Studios',
+  '/tech': 'Tech',
+  '/projetos': 'Projetos',
+  '/sobre': 'Sobre',
+  '/contato': 'Contato',
+};
+
 interface SiteShellProps {
   /** Caminho no manifesto de SEO — define head, H1 e intro da página. */
   path: string;
   accent: string;
+  /** Trilha, renderizada acima do título. Só as páginas de serviço usam. */
+  breadcrumb?: ReactNode;
   children?: ReactNode;
 }
 
-export default function SiteShell({ path, accent, children }: SiteShellProps) {
+export default function SiteShell({
+  path,
+  accent,
+  breadcrumb,
+  children,
+}: SiteShellProps) {
   const route = ROUTES.find((item) => item.path === path);
   useSeo(path);
 
@@ -59,8 +76,9 @@ export default function SiteShell({ path, accent, children }: SiteShellProps) {
       </header>
 
       <main className="mx-auto max-w-6xl px-5 pb-24 pt-14 sm:px-8 sm:pt-20">
+        {breadcrumb}
         <p
-          className="text-[11px] font-bold uppercase tracking-[0.35em]"
+          className="mt-1 text-[11px] font-bold uppercase tracking-[0.35em]"
           style={{ color: accent }}
         >
           TENKA GROUP
@@ -92,14 +110,17 @@ export default function SiteShell({ path, accent, children }: SiteShellProps) {
             </a>
             <p className="mt-1 text-sm text-white/45">São Paulo — Brasil</p>
           </div>
+          {/* Só o primeiro nível. As páginas de serviço são alcançadas pelos
+              hubs das divisões e pelos links relacionados de cada página — num
+              rodapé elas viram uma parede de slugs ilegível. */}
           <nav aria-label="Páginas" className="flex flex-wrap gap-x-6 gap-y-2">
-            {ROUTES.filter((item) => item.path !== path).map((item) => (
+            {TOP_LEVEL_ROUTES.filter((item) => item.path !== path).map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
                 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50 transition-colors hover:text-white"
               >
-                {item.path === '/' ? 'Home' : item.path.slice(1)}
+                {FOOTER_LABELS[item.path] ?? item.h1}
               </Link>
             ))}
           </nav>
