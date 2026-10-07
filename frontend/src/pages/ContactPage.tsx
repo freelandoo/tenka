@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor } from '../seo/routes';
+import { trackContactClick, trackLead } from '../lib/analytics';
 import {
   CONTACT_EMAIL,
   LOCATION_LINE,
@@ -64,6 +65,7 @@ export default function ContactPage() {
       brief || '—',
     ].join('\n');
 
+    trackLead(hasWhatsapp ? 'whatsapp' : 'email', `contato_${selected.id}`);
     if (hasWhatsapp) {
       // Nova aba: `location.href` descarta o formulário, e se a pessoa voltar
       // o que ela digitou já era.
@@ -151,6 +153,7 @@ export default function ContactPage() {
             href={whatsappUrl('Olá, TENKA! Vim pelo site.')}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackContactClick('whatsapp', 'contato_cartao')}
             className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">
@@ -162,6 +165,7 @@ export default function ContactPage() {
 
           <a
             href={`mailto:${CONTACT_EMAIL}`}
+            onClick={() => trackContactClick('email', 'contato_cartao')}
             className="rounded-lg border border-white/12 bg-white/[0.03] p-5 transition-colors hover:border-white/30 hover:bg-white/[0.06]"
           >
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">

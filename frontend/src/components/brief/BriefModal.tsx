@@ -10,6 +10,12 @@ import {
   whatsappUrl,
 } from '../../config/contact';
 import type { BriefConfig, BriefStep } from './briefConfig';
+import {
+  trackBriefOpen,
+  trackBriefStep,
+  trackContactClick,
+  trackLead,
+} from '../../lib/analytics';
 
 /**
  * Modal de briefing, em cinco passos, usado pelas três divisões.
@@ -62,6 +68,7 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
       previousFocus.current = document.activeElement as HTMLElement;
       setError(null);
       setSentVia(null);
+      trackBriefOpen(config.id);
       document.documentElement.style.overflow = 'hidden';
       requestAnimationFrame(() => {
         dialogRef.current
@@ -75,7 +82,7 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
     return () => {
       document.documentElement.style.overflow = '';
     };
-  }, [open]);
+  }, [open, config.id]);
 
   // Escape precisa fechar mesmo quando o foco caiu no body (logo depois de um
   // passo desmontar seus botões), por isso o listener vive no documento.
@@ -148,6 +155,8 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
 
   const submit = () => {
     const body = buildMessage();
+    const method = hasWhatsapp ? 'whatsapp' : 'email';
+    trackLead(method, `brief_${config.id}`);
     if (hasWhatsapp) {
       window.open(whatsappUrl(body), '_blank', 'noopener');
       setSentVia('whatsapp');
@@ -167,6 +176,7 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
       return;
     }
     setError(null);
+    trackBriefStep(config.id, step + 1, current.id);
     if (step < steps.length - 1) setStep(step + 1);
     else submit();
   };
@@ -436,6 +446,7 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
                           href={whatsappUrl('Olá, TENKA! Vim pelo site.')}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackContactClick('whatsapp', `brief_${config.id}`)}
                           className="inline-flex items-center gap-1 text-[var(--brief-text)] underline underline-offset-4"
                         >
                           <MessageCircle size={12} aria-hidden="true" />
@@ -446,12 +457,17 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
                     )}
                     <a
                       href={`mailto:${CONTACT_EMAIL}`}
+                      onClick={() => trackContactClick('email', `brief_${config.id}`)}
                       className="text-[var(--brief-text)] underline underline-offset-4"
                     >
                       {CONTACT_EMAIL}
                     </a>
                     {' · '}
-                    <a href="/contato" className="text-[var(--brief-text)] underline underline-offset-4">
+                    <a
+                      href="/contato"
+                      onClick={() => trackContactClick('page', `brief_${config.id}`)}
+                      className="text-[var(--brief-text)] underline underline-offset-4"
+                    >
                       página de contato
                     </a>
                   </p>

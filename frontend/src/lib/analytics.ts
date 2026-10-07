@@ -54,3 +54,54 @@ export function sendPageview(pathname: string): void {
     page_title: document.title,
   });
 }
+
+/**
+ * Eventos de negócio.
+ *
+ * `generate_lead` é um evento recomendado do GA4, não um nome inventado: o
+ * Analytics já entende a semântica e ele aparece nos relatórios de geração de
+ * lead sem configuração extra. Os demais são personalizados.
+ *
+ * Nenhum deles vira "principal evento" por código — isso é uma flag marcada na
+ * interface do GA4 (Administrador › Eventos › estrela). O código só garante que
+ * o evento exista e chegue com os parâmetros certos.
+ */
+export type LeadMethod = 'whatsapp' | 'email';
+export type ContactMethod = LeadMethod | 'phone' | 'page';
+
+export function trackEvent(name: string, params: Record<string, unknown> = {}): void {
+  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!shouldTrack(window.location.pathname)) return;
+
+  window.gtag('event', name, {
+    ...params,
+    // O caminho entra em todo evento para a pergunta que importa no SEO:
+    // qual página originou o contato.
+    page_path: window.location.pathname,
+  });
+}
+
+/** Briefing enviado ou formulário de contato submetido. */
+export function trackLead(method: LeadMethod, source: string): void {
+  trackEvent('generate_lead', { method, source });
+}
+
+/** Clique num canal direto — WhatsApp, e-mail, telefone ou página de contato. */
+export function trackContactClick(method: ContactMethod, location: string): void {
+  trackEvent('contact_click', { method, location });
+}
+
+/** Abertura do modal de briefing, por divisão. */
+export function trackBriefOpen(division: string): void {
+  trackEvent('brief_open', { division });
+}
+
+/**
+ * Passo concluído do briefing.
+ *
+ * É o que responde onde as pessoas desistem de um formulário de cinco passos —
+ * sem isso só se sabe quantos começaram e quantos terminaram.
+ */
+export function trackBriefStep(division: string, stepIndex: number, stepId: string): void {
+  trackEvent('brief_step', { division, step_index: stepIndex, step_id: stepId });
+}

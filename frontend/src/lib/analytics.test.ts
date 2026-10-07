@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GA_MEASUREMENT_ID, shouldTrack } from './analytics';
+import { GA_MEASUREMENT_ID, shouldTrack, trackContactClick, trackLead } from './analytics';
 import indexHtml from '../../index.html?raw';
 
 /**
@@ -26,5 +26,26 @@ describe('Google Analytics', () => {
     expect(shouldTrack('/admin')).toBe(false);
     // Não pode pegar rota que só começa com as mesmas letras.
     expect(shouldTrack('/paineis-solares')).toBe(true);
+  });
+
+  it('manda generate_lead e contact_click com os parametros que importam', () => {
+    const hits: { name: string; params: Record<string, unknown> }[] = [];
+    (window as unknown as { gtag: unknown }).gtag = (
+      _cmd: string,
+      name: string,
+      params: Record<string, unknown>,
+    ) => hits.push({ name, params });
+
+    trackLead('whatsapp', 'brief_games');
+    trackContactClick('email', 'rodape');
+
+    expect(hits[0].name).toBe('generate_lead');
+    expect(hits[0].params.method).toBe('whatsapp');
+    expect(hits[0].params.source).toBe('brief_games');
+    expect(hits[1].name).toBe('contact_click');
+    expect(hits[1].params.method).toBe('email');
+    // page_path em todo evento: e o que responde qual pagina originou o lead.
+    expect(hits[0].params).toHaveProperty('page_path');
+    expect(hits[1].params).toHaveProperty('page_path');
   });
 });

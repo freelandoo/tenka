@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
+import { trackContactClick } from '../../lib/analytics';
 import {
   CONTACT_EMAIL,
   LOCATION_LINE,
@@ -81,6 +82,7 @@ export default function SiteShell({
           </nav>
           <Link
             to="/contato"
+            onClick={() => trackContactClick('page', 'header')}
             className="rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#08090b] transition-opacity hover:opacity-85"
             style={{ backgroundColor: accent }}
           >
@@ -118,12 +120,14 @@ export default function SiteShell({
             </p>
             <a
               href={`mailto:${CONTACT_EMAIL}`}
+              onClick={() => trackContactClick('email', 'rodape')}
               className="mt-3 block text-sm text-white/80 transition-colors hover:text-white"
             >
               {CONTACT_EMAIL}
             </a>
             <a
               href={`tel:${PHONE_E164}`}
+              onClick={() => trackContactClick('phone', 'rodape')}
               className="mt-1 block text-sm text-white/80 transition-colors hover:text-white"
             >
               {PHONE_DISPLAY}
