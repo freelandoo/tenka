@@ -161,7 +161,8 @@ export const POLICY_SECTIONS: PolicySection[] = [
     title: '7. Transferência internacional de dados',
     body: [
       'Os fornecedores citados na seção 6 são empresas estrangeiras e processam dados fora do Brasil, principalmente nos Estados Unidos. Isso caracteriza transferência internacional, tratada nos arts. 33 a 36 da LGPD e regulamentada pela Resolução CD/ANPD nº 19/2024.',
-      'A transferência se apoia nos instrumentos contratuais oferecidos por esses fornecedores, incluindo cláusulas-padrão contratuais. Mediante solicitação pelo canal da seção 1, disponibilizamos informações sobre os instrumentos aplicáveis, respeitados os segredos comercial e industrial.',
+      'Para cada um desses serviços, a transferência se apoia nos termos de proteção de dados e nos instrumentos contratuais disponibilizados pelo próprio fornecedor e aceitos no momento da contratação do serviço.',
+      'Mediante solicitação pelo canal da seção 1, informamos quais instrumentos se aplicam a cada fornecedor, respeitados os segredos comercial e industrial. Se você preferir não ter seus dados de navegação transferidos, pode recusar a medição conforme a seção 5 — nesse caso, nenhum dado de navegação é enviado ao Google Analytics.',
     ],
   },
   {
@@ -223,7 +224,8 @@ export const POLICY_SECTIONS: PolicySection[] = [
   {
     title: '12. Encarregado pelo tratamento de dados',
     body: [
-      'O canal de comunicação com o encarregado, previsto no art. 41 da LGPD, é grupotenka@gmail.com. Pedidos, reclamações e dúvidas sobre dados pessoais recebidos por esse endereço são encaminhados ao responsável designado.',
+      'Em atendimento ao art. 41 da LGPD, o encarregado pelo tratamento de dados pessoais da Tenka Group é João Victor Bispo de Oliveira, Representante do Comercial e Cofundador.',
+      'O canal de comunicação com o encarregado é grupotenka@gmail.com. Pedidos, reclamações e dúvidas sobre dados pessoais recebidos nesse endereço são encaminhados a ele.',
     ],
   },
   {

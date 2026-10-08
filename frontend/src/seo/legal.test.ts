@@ -95,3 +95,36 @@ describe('consentimento de cookies', () => {
     expect(indexHtml).toContain("= 'denied'");
   });
 });
+
+/**
+ * O art. 41 exige divulgar a IDENTIDADE do encarregado, não só um e-mail.
+ * Política com "entre em contato pelo nosso e-mail" e nenhum nome é a forma
+ * mais comum de descumprir esse artigo achando que cumpriu.
+ */
+describe('encarregado (art. 41)', () => {
+  it('nomeia uma pessoa, não só um canal', () => {
+    const enc = POLICY_SECTIONS.find((s) => s.title.includes('Encarregado'));
+    expect(enc).toBeDefined();
+    const texto = (enc!.body ?? []).join(' ');
+    expect(texto).toContain('João Victor Bispo de Oliveira');
+    expect(texto).toMatch(/@/); // e o canal de contato
+  });
+});
+
+/**
+ * A seção de transferência internacional não pode afirmar instrumento que não
+ * foi verificado. Para o Google Analytics o Google usa termos entre
+ * controladores, e não ficou confirmado que as cláusulas-padrão do Anexo II da
+ * Resolução ANPD 19/2024 se aplicam a esse produto — então a política descreve
+ * o fato da transferência sem alegar o instrumento específico.
+ */
+describe('transferência internacional', () => {
+  it('não alega cláusulas-padrão sem verificação', () => {
+    const ti = POLICY_SECTIONS.find((s) => s.title.includes('Transferência'));
+    const texto = (ti!.body ?? []).join(' ');
+    expect(texto).toContain('Resolução CD/ANPD nº 19/2024');
+    expect(texto.toLowerCase()).not.toContain('incluindo cláusulas-padrão');
+    // Precisa oferecer a saída prática: recusar a medição evita a transferência.
+    expect(texto.toLowerCase()).toContain('recusar a medição');
+  });
+});
