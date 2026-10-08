@@ -36,12 +36,15 @@ describe('Google Analytics', () => {
       params: Record<string, unknown>,
     ) => hits.push({ name, params });
 
-    trackLead('whatsapp', 'brief_games');
+    trackLead('whatsapp', 'brief_games', true);
     trackContactClick('email', 'rodape');
 
     expect(hits[0].name).toBe('generate_lead');
     expect(hits[0].params.method).toBe('whatsapp');
     expect(hits[0].params.source).toBe('brief_games');
+    // `stored` separa lead gravado de handoff às cegas. Sem ele, o relatório
+    // conta como conversão o WhatsApp que o navegador bloqueou.
+    expect(hits[0].params.stored).toBe(true);
     expect(hits[1].name).toBe('contact_click');
     expect(hits[1].params.method).toBe('email');
     // page_path em todo evento: e o que responde qual pagina originou o lead.

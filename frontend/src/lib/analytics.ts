@@ -81,9 +81,21 @@ export function trackEvent(name: string, params: Record<string, unknown> = {}): 
   });
 }
 
-/** Briefing enviado ou formulário de contato submetido. */
-export function trackLead(method: LeadMethod, source: string): void {
-  trackEvent('generate_lead', { method, source });
+/**
+ * Briefing enviado ou formulário de contato submetido.
+ *
+ * `stored` diz se o lead ficou gravado no backend. Até existir `POST /leads`,
+ * este evento era disparado na INTENÇÃO de enviar — abrir o WhatsApp contava
+ * como conversão mesmo quando a janela era bloqueada e ninguém do outro lado
+ * recebia nada. O relatório mostrava leads que nunca chegaram.
+ *
+ * Com o parâmetro, o GA4 passa a separar as duas coisas: `stored: true` é lead
+ * recuperável (está no banco, dá para dar retorno mesmo se o WhatsApp falhou);
+ * `stored: false` é handoff às cegas. Se o segundo grupo crescer, o problema
+ * está no backend, não no funil — e agora isso é visível.
+ */
+export function trackLead(method: LeadMethod, source: string, stored: boolean): void {
+  trackEvent('generate_lead', { method, source, stored });
 }
 
 /** Clique num canal direto — WhatsApp, e-mail, telefone ou página de contato. */

@@ -11,6 +11,7 @@ import { notificationRoutes } from './modules/notifications';
 import { userRoutes } from './modules/users';
 import { portalRoutes } from './modules/portal';
 import { clientRoutes } from './modules/clients';
+import { leadRoutes } from './modules/leads';
 import { costRoutes } from './modules/costs';
 import { eventRoutes } from './modules/events';
 import { whatsappRoutes } from './modules/whatsapp';
@@ -41,6 +42,8 @@ async function main(): Promise<void> {
   // Portal do cliente (/me/*): a única superfície aberta a `role: 'client'`.
   await app.register(portalRoutes);
   await app.register(clientRoutes);
+  // Leads do site: `POST /leads` é público (ver modules/leads.ts).
+  await app.register(leadRoutes);
   await app.register(costRoutes);
   await app.register(eventRoutes);
   await app.register(whatsappRoutes);

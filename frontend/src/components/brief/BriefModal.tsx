@@ -10,6 +10,7 @@ import {
   whatsappUrl,
 } from '../../config/contact';
 import type { BriefConfig, BriefStep } from './briefConfig';
+import { saveLead } from '../../lib/api/leads';
 import {
   trackBriefOpen,
   trackBriefStep,
@@ -27,12 +28,14 @@ import {
  * Mudança importante em relação ao original: o envio **não** era enviado. O
  * modal antigo fazia `console.log` do briefing e mostrava "Transmissão
  * recebida", ou seja, todo lead preenchido ali era descartado em silêncio e a
- * pessoa saía achando que tinha falado com a TENKA. Agora a submissão abre o
- * WhatsApp (ou o e-mail, se o número ainda não estiver configurado) com a
- * mensagem montada, e o estado de sucesso diz o que de fato aconteceu.
+ * pessoa saía achando que tinha falado com a TENKA. Depois disso a submissão
+ * passou a abrir o WhatsApp (ou o e-mail) com a mensagem montada.
  *
- * ponytail: segue sem backend. Quando existir um `POST /leads` público, trocar
- * `submit()` por um fetch e manter WhatsApp/e-mail como alternativa visível.
+ * Agora o briefing também é gravado em `POST /leads` antes do handoff. O
+ * WhatsApp continua sendo o canal — o banco é a rede de segurança para quando
+ * a janela é bloqueada, o desktop não tem o app ou o cliente de e-mail não está
+ * configurado. Nessas situações o lead existia, a pessoa achava que tinha
+ * falado com a TENKA, e não chegava nada do outro lado.
  */
 
 export interface BriefModalProps {
@@ -153,20 +156,33 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
     return lines.join('\n');
   };
 
-  const submit = () => {
+  const submit = async () => {
     const body = buildMessage();
     const method = hasWhatsapp ? 'whatsapp' : 'email';
-    trackLead(method, `brief_${config.id}`);
-    if (hasWhatsapp) {
-      window.open(whatsappUrl(body), '_blank', 'noopener');
-      setSentVia('whatsapp');
-    } else {
-      window.location.href = mailtoUrl(config.subject, body);
-      setSentVia('email');
-    }
+
+    // O WhatsApp abre ANTES do await: depois dele o navegador já não trata a
+    // chamada como consequência do clique e o bloqueador de popup barra a aba.
+    if (hasWhatsapp) window.open(whatsappUrl(body), '_blank', 'noopener');
+    setSentVia(method);
     requestAnimationFrame(() => {
       dialogRef.current?.querySelector<HTMLElement>('button')?.focus();
     });
+
+    const stored = await saveLead({
+      source: `brief_${config.id}`,
+      division: config.id,
+      name: contact.name.trim(),
+      email: normalizeEmailInput(contact.email),
+      company: contact.company.trim(),
+      message: body,
+      answers,
+    });
+    trackLead(method, `brief_${config.id}`, stored);
+
+    // O e-mail navega a aba atual, então vai por último — `keepalive` em
+    // `saveLead` garante que a gravação sobrevive à troca de URL, mas não há
+    // motivo para disputar com ela.
+    if (!hasWhatsapp) window.location.href = mailtoUrl(config.subject, body);
   };
 
   const next = () => {
@@ -178,7 +194,7 @@ export default function BriefModal({ open, onClose, config }: BriefModalProps) {
     setError(null);
     trackBriefStep(config.id, step + 1, current.id);
     if (step < steps.length - 1) setStep(step + 1);
-    else submit();
+    else void submit();
   };
 
   const back = () => {

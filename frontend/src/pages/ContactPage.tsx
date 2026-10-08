@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor } from '../seo/routes';
+import { isValidEmail, normalizeEmailInput } from '../features/panel/format';
+import { saveLead } from '../lib/api/leads';
 import { trackContactClick, trackLead } from '../lib/analytics';
 import {
   CONTACT_EMAIL,
@@ -18,11 +20,15 @@ const ACCENT = '#FF7A30';
  * `/contato` era um PlaceholderPage com "em construção" — a página mais
  * comercial do site, vazia.
  *
- * ponytail: o envio monta uma mensagem pronta e abre WhatsApp ou e-mail. Não há
- * endpoint público de lead no backend (tudo em `/clients` é adminOnly/staffOnly),
- * e criar um exige rota pública + validação + rate limit + anti-spam +
- * notificação. Upgrade: `POST /leads` público e trocar `handleSubmit` por um
- * fetch, mantendo os dois canais como fallback.
+ * O envio monta uma mensagem pronta e abre WhatsApp ou e-mail — e, desde
+ * `POST /leads`, grava o lead antes do handoff. O WhatsApp segue sendo o canal;
+ * o banco é o que impede o lead de sumir quando a janela é bloqueada ou o
+ * cliente de e-mail não está configurado.
+ *
+ * O e-mail passou a ser obrigatório por causa disso: até aqui o formulário
+ * coletava nome, empresa e texto, e a identidade de quem enviou vinha do
+ * próprio número do WhatsApp. Com o registro em banco, um lead sem e-mail e sem
+ * handoff concluído é uma linha que não dá para responder.
  */
 
 const DIVISIONS = [
@@ -49,30 +55,50 @@ const FAQ = routeFor('/contato')?.faq ?? [];
 export default function ContactPage() {
   const [division, setDivision] = useState('games');
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [brief, setBrief] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const selected = DIVISIONS.find((item) => item.id === division) ?? DIVISIONS[0];
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!isValidEmail(email)) {
+      setError('Informe um e-mail válido para podermos responder.');
+      return;
+    }
+    setError(null);
+
     const subject = `Projeto — ${selected.label}`;
     const body = [
       `Divisão: ${selected.label}`,
       `Nome: ${name || '—'}`,
+      `E-mail: ${normalizeEmailInput(email)}`,
       `Empresa: ${company || '—'}`,
       '',
       brief || '—',
     ].join('\n');
 
-    trackLead(hasWhatsapp ? 'whatsapp' : 'email', `contato_${selected.id}`);
+    const method = hasWhatsapp ? 'whatsapp' : 'email';
     if (hasWhatsapp) {
-      // Nova aba: `location.href` descarta o formulário, e se a pessoa voltar
-      // o que ela digitou já era.
+      // Nova aba, e antes do await: `location.href` descarta o formulário, e
+      // depois do await o navegador deixa de tratar a abertura como resultado
+      // do clique — o bloqueador de popup barra a janela.
       window.open(whatsappUrl(`Olá, TENKA! ${body}`), '_blank', 'noopener');
-    } else {
-      window.location.href = mailtoUrl(subject, body);
     }
+
+    const stored = await saveLead({
+      source: 'contato',
+      division: selected.id,
+      name: name.trim(),
+      email: normalizeEmailInput(email),
+      company: company.trim(),
+      message: body,
+    });
+    trackLead(method, `contato_${selected.id}`, stored);
+
+    if (!hasWhatsapp) window.location.href = mailtoUrl(subject, body);
   }
 
   return (
@@ -115,7 +141,14 @@ export default function ContactPage() {
           </fieldset>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <Field label="Seu nome" value={name} onChange={setName} />
+            <Field label="Seu nome" value={name} onChange={setName} required />
+            <Field
+              label="Seu e-mail"
+              value={email}
+              onChange={setEmail}
+              type="email"
+              required
+            />
             <Field label="Empresa" value={company} onChange={setCompany} />
           </div>
 
@@ -140,6 +173,11 @@ export default function ContactPage() {
           >
             {hasWhatsapp ? 'Enviar pelo WhatsApp' : 'Enviar por e-mail'}
           </button>
+          {error && (
+            <p role="alert" className="mt-3 text-[13px] text-[#FF7A30]">
+              {error}
+            </p>
+          )}
           <p className="mt-3 text-[12px] text-white/55">
             O botão abre {hasWhatsapp ? 'o WhatsApp' : 'seu cliente de e-mail'} com a
             mensagem já montada — você revisa antes de enviar.
@@ -222,10 +260,14 @@ function Field({
   label,
   value,
   onChange,
+  type = 'text',
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  type?: 'text' | 'email';
+  required?: boolean;
 }) {
   return (
     <label className="block">
@@ -233,8 +275,9 @@ function Field({
         {label}
       </span>
       <input
-        type="text"
+        type={type}
         value={value}
+        required={required}
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 w-full rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:outline-none"
       />
