@@ -134,6 +134,10 @@
       "destination": "/tech/sites/quanto-custa/index.html"
     },
     {
+      "source": "/politica-de-privacidade",
+      "destination": "/politica-de-privacidade/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

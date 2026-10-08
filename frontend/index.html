@@ -31,6 +31,31 @@
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+
+      // Consent Mode v2. Os padroes precisam ser definidos ANTES do config,
+      // senao o gtag ja dispara uma medicao antes de saber a escolha de quem
+      // recusou numa visita anterior.
+      //
+      // analytics_storage nasce 'granted' porque a medicao de audiencia se
+      // apoia em legitimo interesse (orientacao da ANPD para medicao limitada
+      // a padroes e tendencias). Os de publicidade nascem negados: nao sao
+      // usados hoje e, se um dia o Google Ads for vinculado, o padrao ja
+      // protege. Quem recusou tem a escolha lida do localStorage aqui.
+      var tenkaAnalytics = 'granted';
+      try {
+        if (localStorage.getItem('tenka.consent.analytics') === 'denied') {
+          tenkaAnalytics = 'denied';
+        }
+      } catch (e) {
+        // Janela anonima ou storage bloqueado: segue o padrao.
+      }
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: tenkaAnalytics
+      });
+
       gtag('js', new Date());
       gtag('config', 'G-XWSJ1D2BXZ', { send_page_view: false });
     </script>

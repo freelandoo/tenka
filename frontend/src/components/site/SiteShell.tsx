@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
+import { LEGAL_NAV_ROUTES, ROUTES, TOP_LEVEL_ROUTES } from '../../seo/routes';
 import { trackContactClick } from '../../lib/analytics';
 import {
   CONTACT_EMAIL,
@@ -32,6 +32,7 @@ const FOOTER_LABELS: Record<string, string> = {
   '/projetos': 'Projetos',
   '/sobre': 'Sobre',
   '/contato': 'Contato',
+  '/politica-de-privacidade': 'Privacidade',
 };
 
 interface SiteShellProps {
@@ -145,7 +146,7 @@ export default function SiteShell({
               hubs das divisões e pelos links relacionados de cada página — num
               rodapé elas viram uma parede de slugs ilegível. */}
           <nav aria-label="Páginas" className="flex flex-wrap gap-x-6 gap-y-2">
-            {TOP_LEVEL_ROUTES.filter((item) => item.path !== path).map((item) => (
+            {[...TOP_LEVEL_ROUTES, ...LEGAL_NAV_ROUTES].filter((item) => item.path !== path).map((item) => (
               <Link
                 key={item.path}
                 to={item.path}

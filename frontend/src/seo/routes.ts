@@ -12,6 +12,7 @@
  */
 
 import { COMPANY_NAME } from '../config/contact';
+import { LEGAL_ROUTES } from './legal';
 import { SERVICE_ROUTES } from './services';
 
 export const SITE_URL = 'https://www.tenkagroup.com.br';
@@ -197,13 +198,16 @@ const CORE_ROUTES: SeoRoute[] = [
   },
 ];
 
-export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES];
+export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES, ...LEGAL_ROUTES];
 
 /**
  * Só home, divisões e institucionais — o que cabe num menu ou rodapé.
  * Listar as 16 rotas ali transformaria o rodapé numa parede de slugs.
  */
 export const TOP_LEVEL_ROUTES = CORE_ROUTES;
+
+/** Páginas legais — ficam no rodapé, fora do menu principal. */
+export const LEGAL_NAV_ROUTES = LEGAL_ROUTES;
 
 /** Rotas que existem mas nunca devem ser indexadas (área interna). */
 export const NOINDEX_PREFIXES = ['/painel', '/admin'];

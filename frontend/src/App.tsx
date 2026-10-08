@@ -5,11 +5,13 @@ import ContactPage from './pages/ContactPage';
 import SobrePage from './pages/SobrePage';
 import ProjetosPage from './pages/ProjetosPage';
 import ServicePage from './pages/ServicePage';
+import PoliticaPrivacidadePage from './pages/PoliticaPrivacidadePage';
 import NotFoundPage from './pages/NotFoundPage';
 import { SERVICE_ROUTES } from './seo/services';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { usePageviews } from './lib/usePageviews';
+import ConsentBanner from './components/site/ConsentBanner';
 
 // The Games experience bundles Three.js/GSAP/Lenis — lazy-loaded so the rest
 // of the site pays nothing for it.
@@ -75,6 +77,7 @@ export default function App() {
     // Envolve TODAS as rotas: um erro que escape aqui deixaria o #root vazio, e
     // o usuário veria só o fundo laranja do index.html, sem nada para fazer.
     <RouteErrorBoundary>
+      <ConsentBanner />
       <Routes>
         <Route path="/" element={<HomePage />} />
         {/* A antiga área /admin era pública e sem autenticação. Ela virou
@@ -122,6 +125,7 @@ export default function App() {
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/projetos" element={<ProjetosPage />} />
         <Route path="/contato" element={<ContactPage />} />
+        <Route path="/politica-de-privacidade" element={<PoliticaPrivacidadePage />} />
         <Route
           path="/painel/*"
           element={
