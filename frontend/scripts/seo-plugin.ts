@@ -4,6 +4,7 @@ import type { Plugin } from 'vite';
 import { metaTagsFor } from '../src/seo/head';
 import { schemasFor } from '../src/seo/schema';
 import { SERVICE_CONTENT } from '../src/seo/services';
+import { POLICY_REVIEWED_AT, POLICY_SECTIONS } from '../src/seo/legal';
 import {
   CONTACT_EMAIL,
   LOCATION_LINE,
@@ -110,7 +111,10 @@ function crawlableBody(route: SeoRoute): string {
   const siblings = ROUTES.filter(
     (other) => other.path !== route.path && other.path.startsWith(`${parent}/`),
   );
-  const nav = [...TOP_LEVEL_ROUTES, ...siblings]
+  // A política entra na navegação: sem link no HTML estático ela dependeria
+  // só do sitemap para ser descoberta.
+  const legal = ROUTES.filter((other) => other.path === '/politica-de-privacidade');
+  const nav = [...TOP_LEVEL_ROUTES, ...siblings, ...legal]
     .filter((other) => other.path !== route.path)
     .map((other) => `<li><a href="${escapeAttr(other.path)}">${escapeHtml(other.h1)}</a></li>`)
     .join('');
@@ -172,6 +176,34 @@ function crawlableBody(route: SeoRoute): string {
       ].join('')
     : '';
 
+  /**
+   * Política de privacidade no HTML estático.
+   *
+   * Ela não é página de serviço, então não tinha `body` e saía com título certo
+   * e corpo vazio — o texto só aparecia depois do JavaScript. Para documento
+   * legal isso pesa mais que para página de marketing: o art. 9 da LGPD fala em
+   * acesso facilitado à informação, e política que depende de JS para existir
+   * não atende bem esse critério.
+   */
+  const policy =
+    route.path === '/politica-de-privacidade'
+      ? [
+          `<p>Última revisão: ${escapeHtml(POLICY_REVIEWED_AT)}</p>`,
+          ...POLICY_SECTIONS.flatMap((section) => [
+            `<h2>${escapeHtml(section.title)}</h2>`,
+            ...(section.body ?? []).map((p) => `<p>${escapeHtml(p)}</p>`),
+            section.items?.length
+              ? `<dl>${section.items
+                  .map(
+                    (item) =>
+                      `<dt>${escapeHtml(item.term)}</dt><dd>${escapeHtml(item.detail)}</dd>`,
+                  )
+                  .join('')}</dl>`
+              : '',
+          ]),
+        ].join('')
+      : '';
+
   const regulation = content?.regulation
     ? [
         `<h2>O que a ${escapeHtml(content.regulation.code)} exige</h2>`,
@@ -201,6 +233,7 @@ function crawlableBody(route: SeoRoute): string {
     `<p>${escapeHtml(route.intro)}</p>`,
     items,
     body,
+    policy,
     regulation,
     faq,
     `<nav aria-label="Páginas da TENKA"><ul>${nav}</ul></nav>`,

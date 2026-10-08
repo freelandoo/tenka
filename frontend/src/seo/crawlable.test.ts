@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { SERVICE_CONTENT } from './services';
+import { POLICY_SECTIONS } from './legal';
 
 /**
  * Verifica o que o build EMITE, não o que o React renderiza.
@@ -80,5 +81,33 @@ maybe('HTML estático em geral', () => {
     for (const page of SERVICE_CONTENT) {
       expect(readRoute(page.path), page.path).not.toContain('contato@tenka.com.br');
     }
+  });
+});
+
+/**
+ * A política saiu do primeiro build com título certo e corpo vazio: o texto
+ * vivia só no componente React. Para documento legal isso pesa — o art. 9 da
+ * LGPD fala em acesso facilitado, e a suíte anterior só olhava páginas de
+ * serviço, então não acusou.
+ */
+maybe('HTML estático da política de privacidade', () => {
+  const html = () => readRoute('/politica-de-privacidade');
+
+  it('serve o texto completo, não só o título', () => {
+    const h = html();
+    for (const section of POLICY_SECTIONS) {
+      expect(h, `falta a seção "${section.title}"`).toContain(section.title);
+    }
+  });
+
+  it('traz o encarregado nomeado e a base legal', () => {
+    const h = html();
+    expect(h).toContain('João Victor Bispo de Oliveira');
+    expect(h).toContain('leg');  // legítimo interesse, com acento escapado ou não
+    expect(h.toLowerCase()).toContain('transfer');
+  });
+
+  it('linka a política a partir de outra rota', () => {
+    expect(readRoute('/contato')).toContain('/politica-de-privacidade');
   });
 });
