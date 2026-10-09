@@ -219,7 +219,9 @@ describe('SubscriptionList', () => {
 
   it('admin ativa uma mensalidade inativa somente após a confirmação', async () => {
     const project = makeProject({ id: 'b', subscription_active: false });
-    mockedFetchFinance.mockResolvedValue(makeFinance(project, 'inactive'));
+    const finance = makeFinance(project, 'inactive');
+    finance.subscription!.next_due_date = '2026-11-10';
+    mockedFetchFinance.mockResolvedValue(finance);
     render(
       <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={vi.fn()} />,
     );
@@ -232,8 +234,47 @@ describe('SubscriptionList', () => {
     await waitFor(() => expect(mockedSaveSubscription).toHaveBeenCalledWith('b', {
       amountCents: 29_990,
       dueDay: 10,
+      nextDueDate: '2026-11-10',
       activate: true,
     }));
+  });
+
+  it('envia para o backend o mês de início escolhido na ativação', async () => {
+    const project = makeProject({ id: 'b', subscription_active: false });
+    const finance = makeFinance(project, 'inactive');
+    finance.subscription!.next_due_date = '2026-10-10';
+    mockedFetchFinance.mockResolvedValue(finance);
+    render(
+      <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Gerenciar mensalidade inativa/i }));
+    expect(await screen.findByRole('heading', { name: 'Reativar mensalidade?' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Mês de início'), { target: { value: '2026-11' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sim, reativar' }));
+
+    await waitFor(() => expect(mockedSaveSubscription).toHaveBeenCalledWith('b', expect.objectContaining({
+      nextDueDate: '2026-11-10',
+      activate: true,
+    })));
+  });
+
+  it('avisa quando o mês escolhido já passou e oferece o próximo ciclo', async () => {
+    const project = makeProject({ id: 'b', subscription_active: false });
+    const finance = makeFinance(project, 'inactive');
+    finance.subscription!.next_due_date = '2026-09-10';
+    mockedFetchFinance.mockResolvedValue(finance);
+    render(
+      <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Gerenciar mensalidade inativa/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/vencimento de 10\/09\/2026 já passou/i);
+    expect(screen.getByRole('button', { name: 'Sim, reativar' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Usar próximo ciclo' }));
+
+    expect(screen.getByLabelText('Mês de início')).not.toHaveValue('2026-09');
+    expect(screen.getByRole('button', { name: 'Sim, reativar' })).not.toBeDisabled();
   });
 
   it('colaborador vê os valores mas não altera a recorrência', () => {

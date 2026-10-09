@@ -50,6 +50,45 @@ function localIsoDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function monthlyDueDate(month: string, dueDay: number): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  const day = Math.min(dueDay, daysInMonth(year, monthNumber));
+  return `${match[1]}-${match[2]}-${String(day).padStart(2, '0')}`;
+}
+
+function followingMonthlyDueDate(dueDate: string, dueDay: number): string {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(dueDate);
+  if (!match) return '';
+  let year = Number(match[1]);
+  let month = Number(match[2]) + 1;
+  if (month === 13) {
+    year += 1;
+    month = 1;
+  }
+  return monthlyDueDate(`${year}-${String(month).padStart(2, '0')}`, dueDay);
+}
+
+function nextAvailableMonthlyDueDate(dueDate: string, dueDay: number, minDate: string): string {
+  let next = dueDate;
+  for (let i = 0; i < 36 && next && next < minDate; i += 1) {
+    next = followingMonthlyDueDate(next, dueDay);
+  }
+  return next;
+}
+
+function formatDateLabel(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
 /**
  * Mensalidades — todas as recorrências cadastradas, num lugar só.
  *
@@ -88,6 +127,7 @@ export function SubscriptionList({
   const [manageFinance, setManageFinance] = useState<ProjectFinance | null>(null);
   const [manageLoading, setManageLoading] = useState(false);
   const [manageBusy, setManageBusy] = useState(false);
+  const [activationDueDate, setActivationDueDate] = useState('');
   const paymentsRequest = useRef(0);
   const currentCompetence = useRef(competence);
   currentCompetence.current = competence;
@@ -115,6 +155,16 @@ export function SubscriptionList({
     () => subscribeRealtime(['subscription_payments'], () => void loadPayments()),
     [loadPayments],
   );
+  useEffect(() => {
+    const subscription = manageFinance?.subscription;
+    setActivationDueDate(subscription && subscription.status !== 'active'
+      ? subscription.next_due_date
+      : '');
+  }, [
+    manageFinance?.subscription?.id,
+    manageFinance?.subscription?.next_due_date,
+    manageFinance?.subscription?.status,
+  ]);
 
   // Só projetos COM mensalidade cadastrada; maior valor primeiro, e as ativas
   // antes das desligadas para o que está rendendo ficar no topo.
@@ -242,6 +292,7 @@ export function SubscriptionList({
         const input: financeService.SubscriptionInput = {
           amountCents: subscription.amount_cents,
           dueDay: subscription.due_day,
+          nextDueDate: activationDueDate || subscription.next_due_date,
           activate: true,
         };
         try {
@@ -409,19 +460,28 @@ export function SubscriptionList({
                 </div>
               </>
             ) : manageFinance?.subscription ? (
-              <>
+              (() => {
+                const subscription = manageFinance.subscription;
+                const isActivating = subscription.status !== 'active';
+                const selectedDueDate = activationDueDate || subscription.next_due_date;
+                const today = localIsoDate();
+                const selectedDateIsPast = isActivating && Boolean(selectedDueDate) && selectedDueDate < today;
+                const suggestedDueDate = selectedDateIsPast
+                  ? nextAvailableMonthlyDueDate(selectedDueDate, subscription.due_day, today)
+                  : '';
+                return <>
                 <div>
                   <p className="panel-eyebrow">Mensalidade · {manageProject.name}</p>
                   <h2 id="subscription-status-title">
-                    {manageFinance.subscription.status === 'active'
+                    {subscription.status === 'active'
                       ? 'Desativar mensalidade?'
-                      : manageFinance.subscription.asaas_subscription_id
+                      : subscription.asaas_subscription_id
                         ? 'Reativar mensalidade?'
                         : 'Ativar mensalidade?'}
                   </h2>
                 </div>
 
-                {manageFinance.subscription.status === 'active' ? (
+                {subscription.status === 'active' ? (
                   <div className="subscription-confirm__impact">
                     <strong>O que acontece ao desativar</strong>
                     <p>As próximas cobranças deixam de ser geradas até você reativar.</p>
@@ -430,8 +490,43 @@ export function SubscriptionList({
                 ) : (
                   <div className="subscription-confirm__impact">
                     <strong>O que acontece ao ativar</strong>
-                    <p>O Asaas começará a gerar as próximas cobranças de {formatCurrencyFromCents(manageFinance.subscription.amount_cents)}, com vencimento no dia {manageFinance.subscription.due_day}.</p>
+                    <p>O Asaas começará a gerar as próximas cobranças de {formatCurrencyFromCents(subscription.amount_cents)}, com vencimento no dia {subscription.due_day}.</p>
                     <p>O histórico anterior permanece inalterado.</p>
+                  </div>
+                )}
+
+                {isActivating && (
+                  <div className="subscription-confirm__field">
+                    <label htmlFor="subscription-start-month">Mês de início</label>
+                    <input
+                      id="subscription-start-month"
+                      type="month"
+                      value={selectedDueDate.slice(0, 7)}
+                      disabled={manageBusy || subscription.status === 'pending_activation'}
+                      onChange={(event) => setActivationDueDate(
+                        monthlyDueDate(event.target.value, subscription.due_day),
+                      )}
+                    />
+                    <p>
+                      Primeira cobrança em {formatDateLabel(selectedDueDate)}. Depois o ciclo segue todo mês no dia {subscription.due_day}.
+                    </p>
+                  </div>
+                )}
+
+                {selectedDateIsPast && (
+                  <div className="finance-warning subscription-confirm__warning" role="alert">
+                    <span>
+                      O vencimento de {formatDateLabel(selectedDueDate)} já passou. Para começar sem cobrança retroativa,
+                      use {formatDateLabel(suggestedDueDate)}.
+                    </span>
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn--ghost"
+                      disabled={manageBusy || !suggestedDueDate}
+                      onClick={() => setActivationDueDate(suggestedDueDate)}
+                    >
+                      Usar próximo ciclo
+                    </button>
                   </div>
                 )}
 
@@ -452,9 +547,9 @@ export function SubscriptionList({
                   </button>
                   <button
                     type="button"
-                    className={`panel-btn ${manageFinance.subscription.status === 'active' ? 'panel-btn--danger' : 'panel-btn--primary'}`}
-                    disabled={manageBusy || manageFinance.subscription.status === 'pending_activation' || (
-                      manageFinance.subscription.status !== 'active' && (
+                    className={`panel-btn ${subscription.status === 'active' ? 'panel-btn--danger' : 'panel-btn--primary'}`}
+                    disabled={manageBusy || subscription.status === 'pending_activation' || selectedDateIsPast || (
+                      subscription.status !== 'active' && (
                         !manageFinance.configured || !manageFinance.project.client_id || !manageFinance.project.cpf_cnpj
                       )
                     )}
@@ -462,16 +557,17 @@ export function SubscriptionList({
                   >
                     {manageBusy
                       ? 'Processando…'
-                      : manageFinance.subscription.status === 'active'
+                      : subscription.status === 'active'
                         ? 'Sim, desativar'
-                        : manageFinance.subscription.status === 'pending_activation'
+                        : subscription.status === 'pending_activation'
                           ? 'Ativação em andamento'
-                          : manageFinance.subscription.asaas_subscription_id
+                          : subscription.asaas_subscription_id
                             ? 'Sim, reativar'
                             : 'Sim, ativar'}
                   </button>
                 </div>
-              </>
+              </>;
+              })()
             ) : (
               <>
                 <h2 id="subscription-status-title">Mensalidade indisponível</h2>

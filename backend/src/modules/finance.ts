@@ -687,9 +687,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           return 'current-payment-not-synced' as const;
         }
         const isStartingCycle = parsed.data.activate && previous?.status !== 'active';
-        let nextDueDate = isStartingCycle
-          ? nextMonthlyDueDate(parsed.data.dueDay)
-          : parsed.data.nextDueDate ?? preview.next.dueDate;
+        let nextDueDate = parsed.data.nextDueDate
+          ?? (isStartingCycle ? nextMonthlyDueDate(parsed.data.dueDay) : preview.next.dueDate);
         if (isStartingCycle) {
           const settled = await client.query<{ status: string }>(
             `select status from public.subscription_payments
