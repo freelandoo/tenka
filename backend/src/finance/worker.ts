@@ -289,12 +289,14 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext):
   if (!ctx.client_id) throw new Error('Vincule um cliente ao projeto antes de ativar a assinatura.');
   const cpfCnpj = (ctx.cpf_cnpj ?? '').replace(/\D/g, '');
   if (!cpfCnpj) throw new Error('Informe o CPF/CNPJ do cliente antes de ativar a assinatura.');
+  const hasEmail = Boolean(ctx.client_email);
+  const hasPhone = Boolean(ctx.client_phone.replace(/\D/g, ''));
   const externalReference = `tenka-client:${ctx.client_id}`;
   const input = {
     name: ctx.client_name,
     cpfCnpj,
-    email: ctx.client_email || undefined,
-    mobilePhone: ctx.client_phone.replace(/\D/g, '') || undefined,
+    email: hasEmail ? ctx.client_email : undefined,
+    mobilePhone: hasPhone ? ctx.client_phone.replace(/\D/g, '') : undefined,
     externalReference,
   };
   const customer = ctx.asaas_customer_id
@@ -306,15 +308,17 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext):
   }
   const notifications = currentNotifications.data.map((notification) => ({
     id: notification.id,
-    enabled: true,
-    emailEnabledForCustomer: true,
-    smsEnabledForCustomer: true,
+    enabled: hasEmail || hasPhone,
+    emailEnabledForCustomer: hasEmail,
+    smsEnabledForCustomer: hasPhone,
     phoneCallEnabledForCustomer: false,
     whatsappEnabledForCustomer: false,
   }));
   const needsUpdate = currentNotifications.data.some((notification) =>
-    !notification.enabled || !notification.emailEnabledForCustomer ||
-    !notification.smsEnabledForCustomer || notification.phoneCallEnabledForCustomer ||
+    notification.enabled !== (hasEmail || hasPhone) ||
+    notification.emailEnabledForCustomer !== hasEmail ||
+    notification.smsEnabledForCustomer !== hasPhone ||
+    notification.phoneCallEnabledForCustomer ||
     notification.whatsappEnabledForCustomer);
   if (needsUpdate) await asaas.updateCustomerNotifications(customer.id, notifications);
   await getPool().query(
@@ -325,6 +329,23 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext):
     [ctx.client_id, customer.id],
   );
   return customer.id;
+}
+
+function todayInSaoPaulo(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function providerDueDate(dueDate: string): string {
+  const today = todayInSaoPaulo();
+  return dueDate < today ? today : dueDate;
 }
 
 async function projectPaymentContext(operation: Operation): Promise<ProjectPaymentContext> {
@@ -429,11 +450,12 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   if (!ctx.due_date) throw new Error('Defina o vencimento antes de gerar a cobrança.');
   const customerId = await ensureCustomer(ctx);
   const externalReference = ctx.external_reference ?? `project-payment:${ctx.id}`;
+  const dueDate = providerDueDate(ctx.due_date);
   const input = {
     customer: customerId,
     billingType: ctx.billing_type || 'UNDEFINED',
     value: ctx.amount_cents / 100,
-    dueDate: ctx.due_date,
+    dueDate,
     externalReference,
     description: `${ctx.project_name} — ${ctx.name}`.slice(0, 500),
   };

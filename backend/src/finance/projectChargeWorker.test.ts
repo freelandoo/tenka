@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const hoisted = vi.hoisted(() => ({
   queries: [] as Array<{ sql: string; values: unknown[] }>,
   asaasPaymentId: null as string | null,
+  clientEmail: 'cliente@example.com',
+  clientPhone: '11999999999',
+  dueDate: '2026-10-10',
   asaas: {
     updateCustomer: vi.fn(),
     listCustomerNotifications: vi.fn(),
@@ -33,10 +36,10 @@ vi.mock('../db/pool', () => ({
     if (sql.includes('from public.project_payments pp')) return { rows: [{
       id: '77777777-7777-4777-8777-777777777777',
       project_id: 'project-1', project_name: 'Site', name: 'Entrada', description: '',
-      amount_cents: 200_000, due_date: '2026-10-10', status: 'pending',
+      amount_cents: 200_000, due_date: hoisted.dueDate, status: 'pending',
       billing_type: 'PIX', sync_status: 'queued', external_reference: null,
       asaas_payment_id: hoisted.asaasPaymentId, financial_plan_status: 'active', client_id: 'client-1',
-      client_name: 'Cliente', client_email: 'cliente@example.com', client_phone: '11999999999',
+      client_name: 'Cliente', client_email: hoisted.clientEmail, client_phone: hoisted.clientPhone,
       cpf_cnpj: '12345678909', asaas_customer_id: 'cus_1',
     }] };
     return { rows: [], rowCount: 1 };
@@ -60,6 +63,9 @@ describe('worker de cobranças de projeto', () => {
   beforeEach(() => {
     hoisted.queries.length = 0;
     hoisted.asaasPaymentId = null;
+    hoisted.clientEmail = 'cliente@example.com';
+    hoisted.clientPhone = '11999999999';
+    hoisted.dueDate = '2026-10-10';
     vi.clearAllMocks();
     hoisted.asaas.updateCustomer.mockResolvedValue({ id: 'cus_1' });
     hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
@@ -114,6 +120,51 @@ describe('worker de cobranças de projeto', () => {
     expect(hoisted.asaas.createPayment).toHaveBeenCalled();
   });
 
+  it('emite cobrança para cliente sem email usando telefone e SMS', async () => {
+    hoisted.clientEmail = '';
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
+      id: 'not_1', customer: 'cus_1', enabled: true,
+      emailEnabledForCustomer: true, smsEnabledForCustomer: false,
+      phoneCallEnabledForCustomer: false, whatsappEnabledForCustomer: false,
+      event: 'PAYMENT_CREATED',
+    }] });
+    hoisted.asaas.updateCustomerNotifications.mockResolvedValue({ notifications: [] });
+
+    await executeOperation(operation('create_project_charge'));
+
+    expect(hoisted.asaas.updateCustomer).toHaveBeenCalledWith('cus_1', expect.objectContaining({
+      email: undefined,
+      mobilePhone: '11999999999',
+    }));
+    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
+      id: 'not_1', enabled: true, emailEnabledForCustomer: false,
+      smsEnabledForCustomer: true, phoneCallEnabledForCustomer: false,
+      whatsappEnabledForCustomer: false,
+    }]);
+    expect(hoisted.asaas.createPayment).toHaveBeenCalled();
+  });
+
+  it('emite cobrança sem aviso automático quando cliente não tem canal de contato', async () => {
+    hoisted.clientEmail = '';
+    hoisted.clientPhone = '';
+    hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
+      id: 'not_1', customer: 'cus_1', enabled: true,
+      emailEnabledForCustomer: true, smsEnabledForCustomer: true,
+      phoneCallEnabledForCustomer: false, whatsappEnabledForCustomer: true,
+      event: 'PAYMENT_CREATED',
+    }] });
+    hoisted.asaas.updateCustomerNotifications.mockResolvedValue({ notifications: [] });
+
+    await executeOperation(operation('create_project_charge'));
+
+    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
+      id: 'not_1', enabled: false, emailEnabledForCustomer: false,
+      smsEnabledForCustomer: false, phoneCallEnabledForCustomer: false,
+      whatsappEnabledForCustomer: false,
+    }]);
+    expect(hoisted.asaas.createPayment).toHaveBeenCalled();
+  });
+
   it('bloqueia a emissão quando o Asaas não retorna configuração de avisos', async () => {
     hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [] });
 
@@ -132,6 +183,22 @@ describe('worker de cobranças de projeto', () => {
     await expect(executeOperation(operation('create_project_charge'))).resolves.toBe('pay_existing');
 
     expect(hoisted.asaas.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('usa a data de hoje no Asaas quando a cobrança local já venceu antes da emissão', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-09T15:00:00.000Z'));
+    hoisted.dueDate = '2026-09-30';
+
+    try {
+      await executeOperation(operation('create_project_charge'));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(hoisted.asaas.createPayment).toHaveBeenCalledWith(expect.objectContaining({
+      dueDate: '2026-10-09',
+    }));
   });
 
   it('cancela no Asaas e preserva a linha local como cancelada', async () => {
