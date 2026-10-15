@@ -9,6 +9,7 @@ import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import BriefModal from '../components/brief/BriefModal';
 import { STUDIOS_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
+import { useHashScroll } from '../hooks/useHashScroll';
 import StudioSection from './portfolio/StudioSection';
 import './multimedia.css';
 
@@ -118,6 +119,8 @@ export default function CultureMachine() {
   const [briefOpen, setBriefOpen] = useState(false);
 
   useSeo('/studios');
+
+  useHashScroll();
 
   useEffect(() => {
     const previousHtml = document.documentElement.style.backgroundColor;

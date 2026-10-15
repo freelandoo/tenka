@@ -9,6 +9,7 @@ import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import BriefModal from '../components/brief/BriefModal';
 import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
+import { useHashScroll } from '../hooks/useHashScroll';
 import ProductsLive from './portfolio/ProductsLive';
 import './tech.css';
 
@@ -128,6 +129,8 @@ export default function TechBuildEngine() {
   const [briefOpen, setBriefOpen] = useState(false);
 
   useSeo('/tech');
+
+  useHashScroll();
 
   useEffect(() => {
     const previousHtml = document.documentElement.style.backgroundColor;

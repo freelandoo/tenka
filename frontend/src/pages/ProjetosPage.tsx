@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { WORLD_PROJECTS } from '../games/data/projects';
+import CaseArchive from '../components/site/CaseArchive';
 
 const ACCENT = '#FF7A30';
 
@@ -46,6 +47,14 @@ const STUDIO_PIECES = [
 export default function ProjetosPage() {
   return (
     <SiteShell path="/projetos" accent={ACCENT}>
+      <ShellSection title="Arquivo TENKA — cases no ar" accent={ACCENT}>
+        <p className="mb-7 max-w-2xl text-[15px] leading-[1.75] text-white/70">
+          Projetos em produção, abertos peça por peça nas páginas de cada divisão: passe o mouse para ver em movimento e
+          entre para girar, jogar e colecionar.
+        </p>
+        <CaseArchive />
+      </ShellSection>
+
       <ShellSection title="TENKA Games — universos próprios" accent="#FF6A0A">
         <div className="grid gap-6 md:grid-cols-3">
           {WORLD_PROJECTS.map((project) => (
@@ -128,25 +137,24 @@ export default function ProjetosPage() {
         </Link>
       </ShellSection>
 
-      <ShellSection title="TENKA Tech — em publicação" accent="#00B8B3">
+      <ShellSection title="TENKA Tech — produtos no ar" accent="#00B8B3">
         <p className="max-w-2xl text-[15px] leading-[1.75] text-white/70">
-          Os sistemas e plataformas em operação estão sendo publicados aqui conforme a
-          liberação de cada cliente. Para ver o que já está rodando, fale com a gente —
-          mostramos em uma conversa.
+          Freelandoo, comunidades, condomínios, o CRM do Coliseu e a Innovation Week rodando ao vivo — com o que cada
+          produto faz e a stack por trás.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <Link
-            to="/tech"
+          <a
+            href="/tech#produtos"
             className="inline-flex min-h-[44px] items-center rounded-full border border-white/25 px-6 text-[11px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:bg-white/10"
           >
-            Ver a TENKA Tech
-          </Link>
+            Ver os produtos
+          </a>
           <Link
             to="/contato"
             className="inline-flex min-h-[44px] items-center rounded-full px-6 text-[11px] font-bold uppercase tracking-[0.18em] text-[#08090b] transition-opacity hover:opacity-85"
             style={{ backgroundColor: ACCENT }}
           >
-            Pedir um case
+            Pedir um projeto
           </Link>
         </div>
       </ShellSection>

@@ -12,6 +12,7 @@ import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import TenkaSymbol from '../components/TenkaSymbol';
 import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
+import { useHashScroll } from '../hooks/useHashScroll';
 import PortfolioSection from './portfolio/PortfolioSection';
 import './games.css';
 
@@ -116,6 +117,7 @@ export default function WorldForge() {
   // Head (título, description, canonical, og:, JSON-LD) vem do manifesto em
   // src/seo/routes.ts — o mesmo que o build usa para gerar /games/index.html.
   useSeo('/games');
+  useHashScroll();
 
   useEffect(() => {
     const previousBackground = document.body.style.backgroundColor;
