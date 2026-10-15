@@ -1,0 +1,126 @@
+/* Fliperama da landing (prefixo arc-). Mesmo desenho do gabinete do portfólio da TENKA. */
+
+.arcade {
+  position: relative;
+  padding: clamp(80px, 12vw, 160px) var(--gutter);
+  background: linear-gradient(180deg, transparent, rgba(3, 3, 3, 0.92) 18%, var(--bg));
+}
+.arc-head {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 4vw;
+  align-items: end;
+  max-width: 1300px;
+  margin: 0 auto 44px;
+}
+.arc-head .kicker { grid-column: 1 / -1; margin: 0; }
+.arc-head .display { margin: 0; }
+.arc-head .lead { margin: 0; }
+
+.arc-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 80px);
+  align-items: start;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.arc-cabinet {
+  width: min(430px, 88vw);
+  padding: 14px 14px 0;
+  background: linear-gradient(180deg, #1b1715, #0e0c0b);
+  border: 1px solid #2c2522;
+  border-radius: 18px 18px 6px 6px;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 22, 22, 0.08), 0 0 80px rgba(255, 22, 22, 0.14);
+}
+.arc-marquee {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #7a0d0d, var(--red), #7a0d0d);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-align: center;
+  text-shadow: 0 0 12px rgba(255, 220, 220, 0.9);
+  box-shadow: 0 0 28px rgba(255, 22, 22, 0.45);
+}
+.arc-screen {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  max-height: 74vh;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #000;
+  box-shadow: inset 0 0 0 3px #050505, inset 0 0 40px rgba(255, 22, 22, 0.18);
+}
+.arc-screen iframe { display: block; width: 100%; height: 100%; border: 0; }
+.arc-start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 50% 55%, rgba(255, 22, 22, 0.3), transparent 60%),
+    url('/innovation-week/deck/astronaut.webp') center 30% / 70% no-repeat,
+    #050508;
+}
+.arc-start b {
+  padding: 16px 44px;
+  background: var(--red);
+  font: 800 24px/1 var(--font-display);
+  letter-spacing: 0.2em;
+  box-shadow: 0 0 40px rgba(255, 22, 22, 0.55);
+  transition: transform var(--t-micro) ease;
+}
+.arc-start:hover b { transform: scale(1.05); }
+.arc-start .mono { font-size: 10px; letter-spacing: 0.26em; color: rgba(255, 255, 255, 0.75); }
+.arc-blink { color: #ffd2cc !important; animation: arc-blink 1.1s steps(2, start) infinite; }
+@keyframes arc-blink { to { visibility: hidden; } }
+.arc-base { display: flex; justify-content: center; gap: 46px; padding: 16px 0 18px; }
+.arc-base i { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff6b6b, #b30d0d); box-shadow: 0 4px 0 #5a0505; }
+
+.arc-side { display: flex; flex-direction: column; gap: 26px; }
+.arc-rank { padding: 22px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); }
+.arc-rank-title { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 10px; letter-spacing: 0.24em; color: #ff4d4d; }
+.arc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px var(--red); animation: arc-pulse 1.4s ease-in-out infinite; }
+@keyframes arc-pulse { 50% { opacity: 0.25; } }
+.arc-rank ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.arc-rank li { display: grid; grid-template-columns: 34px 1fr auto; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.arc-rank li:first-child b { color: #ffd45e; }
+.arc-rank li .mono { font-size: 12px; color: var(--grey); }
+.arc-rank li b { font: 800 20px/1 var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; }
+.arc-rank-empty { margin: 0; color: var(--grey); }
+.arc-rank-total { margin: 14px 0 0; font-size: 10px; letter-spacing: 0.2em; color: #ff4d4d; }
+.arc-notes { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; color: var(--grey); line-height: 1.7; }
+.arc-notes b { display: block; color: var(--white); font-weight: 600; }
+.arc-cta {
+  align-self: flex-start;
+  padding: 16px 22px;
+  border: 1px solid rgba(245, 245, 243, 0.3);
+  color: var(--white);
+  font-size: 11px;
+  letter-spacing: 0.17em;
+  text-decoration: none;
+  transition: background var(--t-micro) ease, border-color var(--t-micro) ease;
+}
+.arc-cta:hover { border-color: var(--red); background: var(--red); }
+
+@media (max-width: 860px) {
+  .arc-head,
+  .arc-body { grid-template-columns: 1fr; }
+  .arc-cabinet { margin-inline: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arc-blink,
+  .arc-dot { animation: none; }
+}

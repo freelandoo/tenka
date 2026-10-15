@@ -16,6 +16,7 @@ import { initLabelFallback } from './ui/labelFallback.ts';
 import { initArCta } from './ui/arCta.ts';
 import { initUnitScanCta } from './ui/unitScanCta.ts';
 import { initActivation } from './ui/activation.ts';
+import { initArcade } from './ui/arcade.ts';
 import { initSfx, soundToggle } from './audio/sfx.ts';
 import { Stage } from './scene/Stage.ts';
 import { EnergyPortal } from './scene/EnergyPortal.ts';
@@ -142,6 +143,7 @@ const releaseLanding = () => {
 initArCta({ renderer: stage?.renderer ?? null, portal, reduced: perf.reducedMotion, pauseLanding, resumeLanding });
 // Chegou sem serial: oferece ler o QR do pote aqui mesmo.
 initUnitScanCta({ identity, pauseLanding, resumeLanding });
+initArcade({ pauseLanding, resumeLanding });
 
 // Loop do DOM (leve): só roda quando algo muda (scroll/resize) ou para a scanline.
 let pending = false;

@@ -315,6 +315,41 @@
         </div>
       </section>
 
+      <!-- FLIPERAMA: o jogo dentro da página, com o ranking ao vivo do evento -->
+      <section id="arcade" class="arcade" aria-labelledby="arcade-title">
+        <div class="arc-head">
+          <p class="kicker mono">05 // MISSÃO — ASTRONAUT JETPACK</p>
+          <h2 class="display" id="arcade-title">Jogue aqui <em>mesmo.</em></h2>
+          <p class="lead">Segure para subir, solte para cair. Quem ativou a embalagem pelo QR entra no ranking ao vivo do evento — o mesmo jogo, sem instalar nada.</p>
+        </div>
+        <div class="arc-body">
+          <div class="arc-cabinet">
+            <div class="arc-marquee mono">ASTRONAUT JETPACK</div>
+            <div class="arc-screen" id="arc-screen">
+              <button type="button" class="arc-start" id="arc-start">
+                <span class="mono arc-blink">INSIRA UMA FICHA</span>
+                <b>JOGAR</b>
+                <span class="mono">SEGURE PARA SUBIR · SOLTE PARA CAIR</span>
+              </button>
+            </div>
+            <div class="arc-base" aria-hidden="true"><i></i><i></i></div>
+          </div>
+          <aside class="arc-side">
+            <div class="arc-rank">
+              <p class="mono arc-rank-title">RANKING AO VIVO <span class="arc-dot" aria-hidden="true"></span></p>
+              <ol id="arc-rank-list"></ol>
+              <p class="arc-rank-empty" id="arc-rank-empty">O ranking aparece aqui assim que os primeiros voos forem registrados.</p>
+              <p class="mono arc-rank-total" id="arc-rank-total" hidden></p>
+            </div>
+            <ul class="arc-notes">
+              <li><b>Recorde que não dá para forjar.</b> O servidor sorteia a semente da partida e confere se a distância é possível no tempo jogado.</li>
+              <li><b>Parte da embalagem.</b> O jogo é uma etapa da experiência: rótulo 3D, realidade aumentada, área do membro e telão do evento.</li>
+            </ul>
+            <a class="arc-cta mono" href="%BASE_URL%ranking">VER O RANKING COMPLETO ↗</a>
+          </aside>
+        </div>
+      </section>
+
       <footer class="site-foot mono">
         <span>INNOVATION WEEK 2026</span>
         <span>INDEMETAL GRÁFICOS</span>
