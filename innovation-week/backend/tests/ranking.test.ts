@@ -46,6 +46,7 @@ async function play(member: string, distance: number) {
   const { runId } = (await (await post('/api/game/start', { sessionId: randomUUID(), member })).json()) as { runId: string };
   await db.query(`update game_runs set started_at = now() - interval '10 minutes' where id = $1`, [runId]);
   return (await (await post('/api/game/finish', { runId, distance, fuel: 0, pickups: 0 })).json()) as {
+    ok?: boolean;
     best: number;
     rank: number | null;
     frozen: boolean;
@@ -83,7 +84,7 @@ test('ranking: encerrar congela em 5 min; até lá as partidas contam', async ()
   assert.equal((await top()).closesAt, r.closesAt);
 });
 
-test('ranking: congelado ninguém ganha pontos, e reabrir não devolve essas partidas', async () => {
+test('ranking: congelado ninguém ganha pontos; iniciar começa uma rodada nova, zerada', async () => {
   await expire();
   const p = await play(members[0], 500);
   assert.equal(p.frozen, true);
@@ -95,11 +96,22 @@ test('ranking: congelado ninguém ganha pontos, e reabrir não devolve essas par
   assert.deepEqual(t.top.map((x) => x.best), [200]);
   assert.equal(t.total, 1);
 
-  const open = (await (await admin('open')).json()) as { closesAt: string | null; frozen: boolean };
-  assert.deepEqual([open.closesAt, open.frozen], [null, false]);
+  const open = (await (await admin('open')).json()) as { closesAt: string | null; frozen: boolean; round: number };
+  assert.deepEqual([open.closesAt, open.frozen, open.round], [null, false, 2]);
   t = await top();
-  assert.deepEqual(t.top.map((x) => x.best), [200]);
-  assert.equal((await play(members[1], 250)).frozen, false);
+  assert.deepEqual([t.top.length, t.total], [0, 0]);
+  const me = (await (await post('/api/game/me', { member: members[0] })).json()) as { best: number | null; rank: number | null };
+  assert.deepEqual([me.best, me.rank], [null, null]);
+
+  assert.deepEqual(await play(members[1], 50), { ok: true, best: 50, rank: 1, frozen: false });
+  assert.equal((await play(members[0], 40)).rank, 2);
   t = await top();
-  assert.deepEqual(t.top.map((x) => x.best), [250, 200]);
+  assert.deepEqual(t.top.map((x) => x.best), [50, 40]);
+});
+
+test('ranking: iniciar durante a contagem só cancela, sem zerar', async () => {
+  await admin('close');
+  const r = (await (await admin('open')).json()) as { closesAt: string | null; round: number };
+  assert.deepEqual([r.closesAt, r.round], [null, 2]);
+  assert.deepEqual((await top()).top.map((x) => x.best), [50, 40]);
 });

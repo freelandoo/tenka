@@ -1,6 +1,7 @@
 // Encerramento do ranking do Astronaut Jetpack (área admin). "Encerrar" pede à API
 // para congelar o ranking em 5 minutos e abre o modal com a contagem; "Iniciar"
-// cancela a contagem ou reabre o ranking. O relógio usa a hora do servidor.
+// cancela a contagem ou, já congelado, começa uma rodada nova e zerada. O relógio
+// usa a hora do servidor.
 
 import { adminGet, adminPost } from './session.ts';
 
@@ -42,7 +43,8 @@ function paint() {
   const status = $('#ad-rank-status');
   if (state === 'open') status.innerHTML = '<b>ABERTO</b> · partidas somam pontos';
   else if (state === 'closing') status.innerHTML = `CONGELA EM <b>${clock(ms!)}</b>`;
-  else status.innerHTML = '<b>CONGELADO</b> · ninguém ganha pontos';
+  else status.innerHTML = '<b>CONGELADO</b> · iniciar começa um ranking novo, zerado';
+  $('#ad-rank-open').textContent = state === 'frozen' ? 'INICIAR NOVO RANKING ›' : 'INICIAR RANKING ›';
   $('#ad-modal-label').textContent = state === 'frozen' ? 'RANKING CONGELADO' : 'CONGELA EM';
   $('#ad-modal-clock').textContent = clock(ms ?? 0);
 }
@@ -76,6 +78,8 @@ export function initRanking() {
     else paint();
   };
   open.onclick = async () => {
+    const frozen = $('#ad-rank').dataset.state === 'frozen';
+    if (frozen && !confirm('Começar um ranking novo, zerado? O ranking atual sai da tela (fica guardado no banco).')) return;
     open.disabled = true;
     if (!(await send('open'))) paint();
   };
