@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useInView } from './useInView';
+import { useInView } from '../../hooks/useInView';
 
 interface TopEntry {
   crew: number;

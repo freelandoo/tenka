@@ -9,6 +9,7 @@ import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import BriefModal from '../components/brief/BriefModal';
 import { STUDIOS_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
+import StudioSection from './portfolio/StudioSection';
 import './multimedia.css';
 
 const PROJECTS = [
@@ -447,6 +448,7 @@ export default function CultureMachine() {
         <BrandMark official />
         <nav className={menuOpen ? 'ts-nav is-open' : 'ts-nav'} aria-label="Navegação Tenka Studios">
           <button type="button" onClick={() => navigate('projetos')}>PROJETOS</button>
+          <button type="button" onClick={() => navigate('estudio')}>ESTÚDIO</button>
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>
           <button type="button" onClick={() => navigate('processo')}>PROCESSO</button>
           <button type="button" onClick={() => navigate('contato')}>CONTATO</button>
@@ -507,9 +509,11 @@ export default function CultureMachine() {
           </div>
         </section>
 
+        <StudioSection />
+
         <section id="servicos" className="ts-section ts-services" aria-labelledby="services-title">
           <div className="ts-services-intro ts-reveal">
-            <p className="ts-kicker ts-mono">02 / O QUE CRIAMOS</p>
+            <p className="ts-kicker ts-mono">03 / O QUE CRIAMOS</p>
             <h2 id="services-title" data-ts-focus data-ts-frame="FRAME 063 / SERVIÇOS">Do conceito<br />à presença.</h2>
             <p>Um estúdio multidisciplinar para construir a imagem antes da matéria — e a marca antes da percepção.</p>
           </div>
@@ -538,7 +542,7 @@ export default function CultureMachine() {
           </div>
           <div className="ts-process-copy">
             <div className="ts-reveal">
-              <p className="ts-kicker ts-mono">03 / COMO CONSTRUÍMOS</p>
+              <p className="ts-kicker ts-mono">04 / COMO CONSTRUÍMOS</p>
               <h2 id="process-title" data-ts-focus data-ts-frame="FRAME 092 / PROCESSO">Ver antes.<br />Decidir melhor.</h2>
               <p>O processo transforma abstração em decisões visíveis. Cada etapa reduz ruído e aumenta a precisão da próxima.</p>
             </div>
@@ -564,7 +568,7 @@ export default function CultureMachine() {
             <div className="ts-contact-orbit-secondary"><i /><i /><i /></div>
             <div className="ts-contact-orbit-core" />
           </div>
-          <p className="ts-kicker ts-mono ts-reveal">04 / PRÓXIMA CRIAÇÃO</p>
+          <p className="ts-kicker ts-mono ts-reveal">05 / PRÓXIMA CRIAÇÃO</p>
           <h2 id="contact-title" className="ts-reveal" data-ts-focus data-ts-frame="FRAME 108 / CONTATO">Vamos dar forma<br />à sua ideia?</h2>
           <p className="ts-reveal">Conte o que precisa existir. A gente transforma intenção em imagem, objeto, espaço ou marca.</p>
           <button type="button" className="ts-primary-button ts-mono ts-reveal" onClick={() => setBriefOpen(true)}>INICIAR UM PROJETO <span aria-hidden="true">↗</span></button>

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { FIGHTERS, PIPELINE, type Fighter, type PipelineStep } from './data';
-import { useInView } from './useInView';
+import { useInView } from '../../hooks/useInView';
 
 const LabStage = lazy(() => import('./LabStage'));
 
