@@ -131,6 +131,24 @@ export class Stage {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Altura da câmera sem tremor: um pouco acima do centro, para o HUD ficar sobre o céu e não sobre o percurso. */
+  private baseCamY() {
+    return (TUNING.floor + TUNING.ceiling) / 2 + (this.viewHeight - 15.5) * 0.1;
+  }
+
+  /**
+   * Faixa da tela (px, a partir do topo) ocupada pela frente da laje do chão,
+   * das luzes de pista até a base da laje ou da tela.
+   */
+  floorBand() {
+    const h = this.host.clientHeight;
+    const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+    const z = 1.7; // quina da frente da laje (ver railLayer)
+    const toPx = (y: number) => h / 2 - ((y - this.baseCamY()) / ((this.camera.position.z - z) * tan)) * (h / 2);
+    const top = toPx(TUNING.floor - 0.3);
+    return { top, bottom: Math.min(h, toPx(TUNING.floor - 4)) };
+  }
+
   /** Meia largura visível a uma profundidade z (para reciclar cenário). */
   halfWidthAt(z: number) {
     return (this.camera.position.z - z) * Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * this.camera.aspect;
@@ -143,10 +161,8 @@ export class Stage {
   /** Posiciona a câmera seguindo o astronauta (x interpolado) e desenha. */
   render(playerX: number, dt: number, time: number) {
     const cam = this.camera;
-    const mid = (TUNING.floor + TUNING.ceiling) / 2;
-    // Um pouco acima do centro: o HUD fica sobre o céu, não sobre o percurso.
     cam.position.x = playerX + this.viewWidth * (0.5 - PLAYER_SCREEN_X);
-    cam.position.y = mid + (this.viewHeight - 15.5) * 0.1;
+    cam.position.y = this.baseCamY();
     if (this.shake > 0.001) {
       cam.position.x += Math.sin(time * 71) * this.shake * 0.35;
       cam.position.y += Math.cos(time * 53) * this.shake * 0.35;

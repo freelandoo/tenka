@@ -92,6 +92,33 @@ body.jg {
   cursor: pointer;
 }
 
+/* Marca TENKA Games na frente da laje do chão (faixa medida em main.ts). */
+.jg-brand {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: var(--jg-floor-top, calc(100% - 70px));
+  height: var(--jg-floor-h, 70px);
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+.jg-brand:hover {
+  opacity: 1;
+}
+.jg-brand:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
+}
+.jg-brand img {
+  display: block;
+  width: clamp(96px, 28vw, 140px);
+  height: auto;
+  max-height: calc(100% - 12px);
+}
+
 /* ---------------------------------------------------------------- HUD */
 
 .jg-hud {
@@ -247,7 +274,8 @@ html[data-sound='off'] .on {
   position: absolute;
   z-index: 3;
   left: 50%;
-  bottom: calc(var(--safe-b) + 34px);
+  /* Logo acima da linha do chão: a faixa abaixo dela é da marca TENKA Games. */
+  bottom: calc(100% - var(--jg-floor-top, calc(100% - 34px)) + 14px);
   transform: translateX(-50%);
   margin: 0;
   width: max-content;

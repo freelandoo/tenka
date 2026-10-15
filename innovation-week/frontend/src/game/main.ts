@@ -88,6 +88,10 @@ function onResize() {
   const h = stage.renderer.domElement.height;
   fire.setViewport(h, stage.camera.fov);
   smoke.setViewport(h, stage.camera.fov);
+  // Marca TENKA Games centrada na faixa escura sob as luzes do chão.
+  const band = stage.floorBand();
+  frame.style.setProperty('--jg-floor-top', `${band.top}px`);
+  frame.style.setProperty('--jg-floor-h', `${Math.max(0, band.bottom - band.top)}px`);
 }
 new ResizeObserver(onResize).observe(frame);
 onResize();
