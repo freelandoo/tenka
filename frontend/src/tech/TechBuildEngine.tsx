@@ -9,6 +9,7 @@ import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import BriefModal from '../components/brief/BriefModal';
 import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
+import ProductsLive from './portfolio/ProductsLive';
 import './tech.css';
 
 const SERVICES = [
@@ -194,6 +195,7 @@ export default function TechBuildEngine() {
         <BrandMark official />
         <nav className={menuOpen ? 'is-open' : ''} aria-label="Navegação Tenka Tech">
           <button type="button" onClick={() => navigate('servicos')}>SERVIÇOS</button>
+          <button type="button" onClick={() => navigate('produtos')}>PRODUTOS</button>
           <button type="button" onClick={() => navigate('metodo')}>MÉTODO</button>
           <button type="button" onClick={() => navigate('contato')}>CONTATO</button>
         </nav>
@@ -242,9 +244,11 @@ export default function TechBuildEngine() {
           </div>
         </section>
 
+        <ProductsLive />
+
         <section id="metodo" className="tt-method" aria-labelledby="method-title">
           <div className="tt-method-copy tt-reveal">
-            <p className="tt-kicker tt-mono">02 / BUILD SYSTEM</p>
+            <p className="tt-kicker tt-mono">03 / BUILD SYSTEM</p>
             <h2 id="method-title">DO PROBLEMA<br />À OPERAÇÃO.</h2>
             <p>Sem separar estratégia, design e engenharia em silos. As decisões atravessam o mesmo sistema até chegar ao usuário.</p>
           </div>
@@ -263,7 +267,7 @@ export default function TechBuildEngine() {
         <DivisionServiceLinks parent="/tech" accent="var(--tt-cyan, #00B8B3)" />
 
         <section id="contato" className="tt-contact" aria-labelledby="contact-title">
-          <p className="tt-kicker tt-mono tt-reveal">03 / PRÓXIMO BUILD</p>
+          <p className="tt-kicker tt-mono tt-reveal">04 / PRÓXIMO BUILD</p>
           <h2 id="contact-title" className="tt-reveal">O QUE PRECISA<br />ENTRAR EM OPERAÇÃO?</h2>
           <p className="tt-reveal">Conte o desafio. A gente organiza produto, tecnologia e execução em um caminho claro.</p>
           <button type="button" className="tt-button tt-mono tt-reveal" onClick={() => setBriefOpen(true)}>COMEÇAR UM PROJETO <span aria-hidden="true">↗</span></button>
