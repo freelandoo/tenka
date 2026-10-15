@@ -64,10 +64,11 @@ export function initArcade({ pauseLanding, resumeLanding }: ArcadeOptions) {
   const isFull = () => document.fullscreenElement === screen || screen.classList.contains('is-full');
   const toggle = document.createElement('button');
   toggle.type = 'button';
-  toggle.className = 'arc-fs mono';
+  toggle.className = 'arc-fs';
   const syncToggle = () => {
     const full = isFull();
-    toggle.textContent = full ? '✕ SAIR' : '⤢ TELA CHEIA';
+    toggle.textContent = full ? '✕' : '⤢';
+    toggle.title = full ? 'Sair da tela cheia' : 'Tela cheia';
     toggle.setAttribute('aria-label', full ? 'Sair da tela cheia' : 'Jogar em tela cheia');
     document.documentElement.classList.toggle('arc-locked', screen.classList.contains('is-full'));
   };

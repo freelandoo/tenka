@@ -76,23 +76,38 @@
 }
 html.arc-locked,
 html.arc-locked body { overflow: hidden; }
+/* main é um stacking context (z-index 5) abaixo do HUD (10): sem isso o overlay
+   do jogo ficaria preso embaixo do header da TENKA. */
+html.arc-locked main { z-index: 2000; }
+html.arc-locked .hud,
+html.arc-locked .progress { visibility: hidden; }
 .arc-fs {
+  /* Abaixo da distância, alinhado à esquerda: no topo o HUD do jogo ocupa a
+     largura toda (distância à esquerda, combustível/pausa/som à direita). */
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 92px;
+  left: 16px;
   z-index: 2;
-  padding: 8px 11px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
   background: rgba(5, 5, 8, 0.72);
   color: #fff;
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
   transition: background var(--t-micro) ease, border-color var(--t-micro) ease;
 }
 .arc-fs:hover { border-color: var(--red); background: var(--red); }
 .arc-screen:fullscreen .arc-fs,
-.arc-screen.is-full .arc-fs { top: calc(env(safe-area-inset-top, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px); }
+.arc-screen.is-full .arc-fs {
+  top: calc(env(safe-area-inset-top, 0px) + 92px);
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+}
 .arc-start {
   position: absolute;
   inset: 0;
@@ -121,7 +136,12 @@ html.arc-locked body { overflow: hidden; }
 .arc-start .mono { font-size: 10px; letter-spacing: 0.26em; color: rgba(255, 255, 255, 0.75); }
 .arc-blink { color: #ffd2cc !important; animation: arc-blink 1.1s steps(2, start) infinite; }
 @keyframes arc-blink { to { visibility: hidden; } }
-.arc-base { display: flex; justify-content: center; gap: 46px; padding: 16px 0 18px; }
+.arc-base { display: flex; justify-content: center; align-items: center; gap: 28px; padding: 16px 0 18px; }
+/* Marca TENKA Games no painel do gabinete, entre os botões: leva ao site. */
+.arc-brand { display: block; padding: 6px 4px; opacity: 0.92; transition: opacity var(--t-micro) ease, transform var(--t-micro) ease; }
+.arc-brand:hover { opacity: 1; transform: scale(1.04); }
+.arc-brand:focus-visible { outline: 2px solid var(--white); outline-offset: 4px; }
+.arc-brand img { display: block; width: clamp(108px, 30vw, 132px); height: auto; }
 .arc-base i { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff6b6b, #b30d0d); box-shadow: 0 4px 0 #5a0505; }
 
 .arc-side { display: flex; flex-direction: column; gap: 26px; }
