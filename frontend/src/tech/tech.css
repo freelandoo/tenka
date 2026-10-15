@@ -16,3 +16,4 @@
 .tt-division-logo{display:block;width:clamp(162px,14vw,192px);height:auto}
 .tt-footer .tt-division-logo{width:148px}
 @media(max-width:760px){.tt-division-logo{width:150px}}
+.tt-labs{position:relative;padding-top:clamp(120px,13vw,200px);border-top:1px solid var(--tt-line)}.tt-labs-intro{width:min(1480px,calc(100% - 10vw));margin:0 auto}@media(max-width:760px){.tt-labs-intro{width:calc(100% - 40px)}}

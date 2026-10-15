@@ -1,0 +1,104 @@
+/* Palco do Sistema Coliseu no tema "Industrial Coliseum" (prefixo cl-). */
+
+.cl-stage { position: absolute; inset: 0; padding: 46px 22px 22px; overflow: hidden; color: #e7e8ea; font-family: 'Sora', 'Archivo', sans-serif; background: radial-gradient(70% 60% at 100% 0%, rgba(168, 40, 36, 0.18), transparent 70%), #121316; }
+.cl-plate { padding: 12px; border: 1px solid #2a2e34; border-radius: 6px; background: #16181b; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 24px rgba(0, 0, 0, 0.35); }
+.cl-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #2a2e34; }
+.cl-header img { width: 40px; height: 40px; object-fit: contain; }
+.cl-header p { margin: 0; font: 700 1.1rem/1 'Oswald', sans-serif; letter-spacing: 0.06em; }
+.cl-header span { font: 600 0.62rem/1.6 'Oswald', sans-serif; letter-spacing: 0.16em; color: #c8302b; }
+.cl-header em { margin-left: auto; font: 400 0.5rem/1 'IBM Plex Mono', monospace; font-style: normal; letter-spacing: 0.16em; color: #6b7077; }
+.cl-col { margin: 0 0 8px; font: 600 0.62rem/1 'Oswald', sans-serif; letter-spacing: 0.16em; color: #9aa0a6; }
+
+/* captação */
+.cl-kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.cl-card { margin-top: 6px; padding: 8px 9px; border-left: 3px solid #c8302b; border-radius: 4px; background: #24282e; animation: cl-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.cl-card b { display: block; font-size: 0.72rem; }
+.cl-card span { font-size: 0.56rem; color: #9aa0a6; }
+@keyframes cl-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.cl-funnel { display: grid; gap: 5px; margin-top: 18px; }
+.cl-funnel i { display: block; height: 14px; margin: 0 auto; border-radius: 3px; background: linear-gradient(90deg, #6e1a18, #c8302b); animation: cl-grow 700ms cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: center; }
+@keyframes cl-grow { from { transform: scaleX(0); } }
+
+/* matrícula */
+.cl-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cl-plan { margin: 0; font: 700 1.1rem/1 'Oswald', sans-serif; letter-spacing: 0.06em; }
+.cl-plans span { font-size: 0.6rem; color: #6b7077; }
+.cl-plans .is-picked { border-color: #c8302b; box-shadow: 0 0 0 1px rgba(168, 40, 36, 0.4), 0 0 24px rgba(200, 48, 43, 0.25); }
+.cl-plans .is-picked span { color: #c8302b; }
+.cl-belt { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.cl-belt li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #2a2e34; border-radius: 6px; background: #16181b; font-size: 0.8rem; color: #6b7077; transition: color 300ms ease, border-color 300ms ease, background 300ms ease; }
+.cl-belt i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #3a3f47; font: 600 0.7rem 'Oswald', sans-serif; font-style: normal; }
+.cl-belt .is-now { color: #e7e8ea; border-color: #c8302b; background: #2a1413; }
+.cl-belt .is-now i { border-color: #c8302b; color: #c8302b; }
+.cl-belt .is-done { color: #b9c0c6; }
+.cl-belt .is-done i { background: #3f9d6b; border-color: #3f9d6b; color: #fff; }
+
+/* cobrança */
+.cl-table { display: grid; gap: 6px; }
+.cl-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'who pill' 'note note'; gap: 4px 10px; padding: 10px; border-radius: 4px; background: #1c1f23; animation: cl-in 460ms both; }
+.cl-row b { grid-area: who; font-size: 0.8rem; }
+.cl-row em { grid-area: note; font-style: normal; font-size: 0.6rem; color: #9aa0a6; }
+.cl-pill { grid-area: pill; padding: 3px 8px; border-radius: 3px; font: 600 0.56rem/1.4 'Oswald', sans-serif; letter-spacing: 0.1em; }
+.cl-pill--ok { background: rgba(63, 157, 107, 0.18); color: #6fd39d; }
+.cl-pill--warn { background: rgba(199, 154, 58, 0.18); color: #e2b75a; }
+.cl-pill--bad { background: rgba(200, 48, 43, 0.2); color: #ff6f69; }
+.cl-pill--info { background: rgba(63, 127, 174, 0.2); color: #79b3e0; }
+.cl-webhook { margin: 14px 0 0; font: 400 0.56rem/1.5 'IBM Plex Mono', monospace; color: #6b7077; letter-spacing: 0.04em; }
+
+/* retenção */
+.cl-buckets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cl-bucket p { margin: 0; font: 600 0.8rem/1 'Oswald', sans-serif; letter-spacing: 0.12em; color: #9aa0a6; }
+.cl-bucket p b { display: block; font: 700 3rem/1 'Oswald', sans-serif; color: #e7e8ea; }
+.cl-bucket > span { font-size: 0.62rem; color: #6b7077; }
+.cl-bucket em { display: block; margin-top: 12px; font: 600 0.62rem/1 'Oswald', sans-serif; font-style: normal; letter-spacing: 0.14em; color: #c8302b; }
+.cl-dots { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 12px; min-height: 40px; }
+.cl-dots i { width: 10px; height: 10px; border-radius: 50%; background: #c79a3a; animation: cl-in 300ms both; }
+.cl-bucket--bad .cl-dots i { background: #c8302b; }
+.cl-bucket--deep .cl-dots i { background: #6e1a18; box-shadow: 0 0 0 1px #c8302b; }
+
+/* catraca */
+.cl-access { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 10px; }
+.cl-face { display: grid; justify-items: center; text-align: center; }
+.cl-face p { margin: 10px 0 2px; font: 600 0.7rem/1 'Oswald', sans-serif; letter-spacing: 0.12em; }
+.cl-face span { font-size: 0.6rem; color: #9aa0a6; }
+.cl-face-scan { position: relative; width: 120px; height: 150px; border: 2px solid #c8302b; border-radius: 50% / 42%; background: radial-gradient(circle at 50% 40%, #2a2e34, #121316); overflow: hidden; }
+.cl-face-scan i { position: absolute; left: 0; right: 0; height: 2px; background: #ff3b33; box-shadow: 0 0 12px #ff3b33; animation: cl-scan 1.6s ease-in-out infinite alternate; }
+@keyframes cl-scan { from { top: 10%; } to { top: 88%; } }
+.cl-event { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'pill who' 'pill note'; gap: 0 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2e34; animation: cl-in 360ms both; }
+.cl-event .cl-pill { grid-area: pill; }
+.cl-event b { grid-area: who; font-size: 0.76rem; }
+.cl-event em { grid-area: note; font-style: normal; font-size: 0.58rem; color: #9aa0a6; }
+
+/* painel do aluno (Freelandoo Fitness) */
+.cl-stage--fit { background: radial-gradient(70% 60% at 50% 0%, rgba(255, 106, 10, 0.25), transparent 70%), #1a0b04; font-family: 'Archivo', sans-serif; }
+.cl-fit-head { padding: 18px; border: 1.5px solid #ff7a1a; background: linear-gradient(180deg, #3a1606, #1a0b04); box-shadow: 0 0 30px rgba(255, 106, 10, 0.3); }
+.cl-fit-head span { display: inline-block; padding: 4px 8px; background: #ff7a1a; color: #1a0b04; font: 900 0.56rem/1 'Archivo', sans-serif; letter-spacing: 0.12em; }
+.cl-fit-head p { margin: 10px 0 6px; font: 400 2.6rem/1 'Anton', sans-serif; color: #fff1e6; }
+.cl-fit-head small { color: #e3b996; font-size: 0.78rem; }
+.cl-fit-cpf { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px; border: 1.5px solid rgba(255, 122, 26, 0.6); }
+.cl-fit-cpf span { font: 800 0.6rem 'Archivo', sans-serif; letter-spacing: 0.12em; color: #ff7a1a; }
+.cl-fit-cpf b { flex: 1; font: 500 0.9rem 'IBM Plex Mono', monospace; color: #fff1e6; }
+.cl-fit-cpf em { padding: 8px 12px; background: #ff7a1a; color: #1a0b04; font: 900 0.6rem 'Archivo', sans-serif; font-style: normal; letter-spacing: 0.12em; }
+.cl-fit-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.cl-fit-stats div { padding: 14px; border: 1.5px solid rgba(255, 122, 26, 0.45); background: rgba(0, 0, 0, 0.3); }
+.cl-fit-stats b { display: block; font: 900 0.66rem/1 'Archivo', sans-serif; letter-spacing: 0.12em; color: #ff9a4d; }
+.cl-fit-stats span { font-size: 0.66rem; color: #e3b996; }
+.cl-fit-stats i { display: block; height: 6px; margin-top: 12px; background: linear-gradient(90deg, #ff7a1a 60%, rgba(255, 122, 26, 0.2) 60%); animation: cl-grow 900ms both; transform-origin: left; }
+.cl-fit-note { margin: 14px 0 0; font: 400 0.58rem/1.4 'IBM Plex Mono', monospace; color: #b8875f; }
+
+@media (max-width: 899px) {
+  .cl-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cl-buckets,
+  .cl-access,
+  .cl-fit-stats { grid-template-columns: 1fr; }
+  .cl-face-scan { width: 90px; height: 112px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-card,
+  .cl-funnel i,
+  .cl-row,
+  .cl-dots i,
+  .cl-event,
+  .cl-face-scan i,
+  .cl-fit-stats i { animation: none; }
+}

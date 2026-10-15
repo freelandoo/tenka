@@ -1,0 +1,52 @@
+/* Palco da Innovation Week ao vivo (prefixo iwv-). */
+
+.iwv-stage { position: absolute; inset: 0; padding: 52px 26px 24px; overflow: hidden; color: #f5f5f3; background: radial-gradient(60% 60% at 70% 40%, rgba(255, 22, 22, 0.16), transparent 70%), #030303; }
+.iwv-stage--live { padding: 40px 0 0; display: flex; flex-direction: column; }
+.iwv-chrome { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid rgba(245, 245, 243, 0.12); font: 500 0.56rem/1 'IBM Plex Mono', monospace; color: #929292; }
+.iwv-chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(245, 245, 243, 0.18); }
+.iwv-chrome span { margin-left: 8px; }
+.iwv-chrome b { margin-left: auto; padding: 4px 8px; background: #ff1616; color: #fff; letter-spacing: 0.2em; }
+.iwv-stage--live iframe { flex: 1; width: 100%; border: 0; }
+.iwv-label { margin: 0; font: 500 0.62rem/1.4 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: #ff3030; }
+.iwv-foot { position: absolute; left: 26px; bottom: 22px; color: #929292; }
+
+.iwv-url { margin: 16px 0 26px; font: 500 clamp(0.8rem, 1.5vw, 1.15rem)/1.6 'IBM Plex Mono', monospace; word-break: break-all; color: #929292; }
+.iwv-url span { color: #f5f5f3; }
+.iwv-seg b { color: #ff3030; }
+.iwv-parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.iwv-parts li { padding: 16px; border: 1px solid rgba(255, 48, 48, 0.55); background: rgba(255, 22, 22, 0.06); opacity: 0; animation: iwv-in 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.iwv-parts b { display: block; font: 400 2.6rem/1 'Archivo Black', sans-serif; color: #ff1616; }
+.iwv-parts span { display: block; margin-top: 6px; font: 500 0.6rem/1 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: #929292; }
+.iwv-parts em { display: block; margin-top: 10px; font: 600 1rem/1 'IBM Plex Mono', monospace; font-style: normal; }
+@keyframes iwv-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.iwv-try { position: absolute; right: 26px; bottom: 18px; padding: 10px 14px; border: 1px solid #ff1616; color: #f5f5f3; font: 600 0.6rem/1 'IBM Plex Mono', monospace; letter-spacing: 0.16em; text-decoration: none; }
+.iwv-try:hover { background: #ff1616; }
+
+.iwv-status { margin: 14px 0 18px; font: 400 clamp(2.6rem, 6vw, 4.4rem)/1 'Archivo Black', sans-serif; color: #929292; }
+.iwv-status.is-ok { color: #3ddc84; text-shadow: 0 0 24px rgba(61, 220, 132, 0.4); }
+.iwv-status.is-down { color: #ff4d4d; }
+.iwv-kv { display: flex; flex-wrap: wrap; gap: 14px 34px; margin: 0; }
+.iwv-kv dt { font: 500 0.56rem/1 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: #929292; text-transform: uppercase; }
+.iwv-kv dd { margin: 6px 0 0; font: 600 1rem/1 'IBM Plex Mono', monospace; }
+.iwv-bars { position: absolute; left: 26px; right: 26px; bottom: 26px; height: 34%; display: flex; align-items: flex-end; gap: 6px; border-bottom: 1px solid rgba(245, 245, 243, 0.16); }
+.iwv-bars i { flex: 1; max-width: 40px; background: linear-gradient(180deg, #ff3030, rgba(255, 22, 22, 0.25)); animation: iwv-in 400ms both; }
+.iwv-bars i.is-down { background: #555; }
+
+.iwv-rank { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.iwv-rank li { display: grid; grid-template-columns: 40px 1fr auto; grid-template-areas: 'pos name best' 'pos crew best'; align-items: center; gap: 2px 12px; padding: 12px 14px; border: 1px solid rgba(245, 245, 243, 0.12); background: rgba(255, 255, 255, 0.02); opacity: 0; animation: iwv-in 460ms forwards; }
+.iwv-rank li:first-child { border-color: rgba(255, 212, 94, 0.6); }
+.iwv-rank li:first-child b { color: #ffd45e; }
+.iwv-rank span { grid-area: pos; font: 500 0.8rem 'IBM Plex Mono', monospace; color: #929292; }
+.iwv-rank b { grid-area: name; font: 400 1.3rem/1 'Archivo Black', sans-serif; }
+.iwv-rank em { grid-area: crew; font: 500 0.56rem 'IBM Plex Mono', monospace; font-style: normal; letter-spacing: 0.16em; color: #929292; }
+.iwv-rank strong { grid-area: best; font: 400 1.4rem/1 'Archivo Black', sans-serif; color: #ff3030; }
+.iwv-empty { color: #929292; margin-top: 18px; }
+
+@media (max-width: 899px) {
+  .iwv-parts { grid-template-columns: 1fr; }
+  .iwv-try { position: static; display: inline-block; margin-top: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iwv-parts li,
+  .iwv-rank li { animation: none; opacity: 1; }
+}

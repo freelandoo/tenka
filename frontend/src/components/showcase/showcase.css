@@ -1,0 +1,158 @@
+/* Laboratório de projeto (prefixo sl-). Cada tema define as variáveis e a
+   decoração da faixa; o layout é um só. */
+
+.sl {
+  --sl-bg: #0d0d0d;
+  --sl-surface: rgba(255, 255, 255, 0.015);
+  --sl-line: rgba(242, 240, 235, 0.14);
+  --sl-text: #f2f0eb;
+  --sl-muted: #9b9892;
+  --sl-accent: #ff640a;
+  --sl-accent-ink: #0d0d0d;
+  --sl-display: 'Barlow Condensed', sans-serif;
+  --sl-body: 'Archivo', sans-serif;
+  --sl-mono: 'IBM Plex Mono', monospace;
+  --sl-stage-bg: linear-gradient(180deg, #151313, #0a0a0a);
+  --sl-radius: 0px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: clamp(90px, 10vw, 160px);
+  padding: clamp(60px, 7vw, 110px) max(5vw, calc((100% - 1480px) / 2));
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font-family: var(--sl-body);
+}
+.sl::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+
+.sl-head { display: grid; grid-template-columns: 1fr 1.4fr; gap: 5vw; align-items: end; margin-bottom: 34px; }
+.sl-kicker { grid-column: 1 / -1; margin: 0; font: 500 0.62rem/1.4 var(--sl-mono); letter-spacing: 0.22em; color: var(--sl-accent); text-transform: uppercase; }
+.sl-head h3 { margin: 0; font: 700 clamp(2.4rem, 4.4vw, 4.8rem)/0.9 var(--sl-display); letter-spacing: -0.03em; text-transform: uppercase; }
+.sl-intro { margin: 0; max-width: 46rem; color: var(--sl-muted); line-height: 1.75; }
+
+.sl-body { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr); gap: 22px; }
+.sl-stage {
+  position: relative;
+  min-height: clamp(460px, 62vh, 680px);
+  overflow: hidden;
+  border: 1px solid var(--sl-line);
+  border-radius: var(--sl-radius);
+  background: var(--sl-stage-bg);
+}
+.sl-stage-inner { position: absolute; inset: 0; animation: sl-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes sl-in { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+.sl-hud {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; justify-content: space-between;
+  padding: 14px 16px; font: 500 0.58rem/1 var(--sl-mono); letter-spacing: 0.2em; color: var(--sl-muted); pointer-events: none;
+}
+
+.sl-panel { display: flex; flex-direction: column; gap: 22px; }
+.sl-steps { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sl-steps button {
+  position: relative; display: flex; width: 100%; align-items: center; gap: 14px; overflow: hidden;
+  padding: 14px 16px; border: 1px solid var(--sl-line); border-radius: var(--sl-radius); background: var(--sl-surface); color: var(--sl-text);
+  font: 700 1.2rem/1 var(--sl-display); letter-spacing: 0.03em; text-align: left; text-transform: uppercase; cursor: pointer;
+  transition: border-color 250ms ease, background 250ms ease;
+}
+.sl-num { font: 400 0.6rem/1 var(--sl-mono); color: var(--sl-muted); }
+.sl-steps button:hover { border-color: color-mix(in srgb, var(--sl-text) 35%, transparent); }
+.sl-steps button.is-active { border-color: var(--sl-accent); background: color-mix(in srgb, var(--sl-accent) 13%, transparent); }
+.sl-steps button.is-active .sl-num { color: var(--sl-accent); }
+.sl-steps button i { position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: var(--sl-accent); transform-origin: left; animation: sl-progress linear forwards; }
+@keyframes sl-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.sl-explain { min-height: 8rem; }
+.sl-explain h4 { margin: 0 0 8px; font: 700 1.6rem/1 var(--sl-display); text-transform: uppercase; }
+.sl-explain p { margin: 0; color: var(--sl-muted); line-height: 1.7; font-size: 0.95rem; }
+.sl-aside { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--sl-line); }
+.sl-facts { display: flex; flex-wrap: wrap; gap: 12px 26px; margin: 0; }
+.sl-facts dt { font: 500 0.54rem/1.3 var(--sl-mono); letter-spacing: 0.18em; color: var(--sl-muted); text-transform: uppercase; }
+.sl-facts dd { margin: 4px 0 0; font-size: 0.95rem; }
+.sl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.sl-chips span { padding: 5px 9px; border: 1px solid var(--sl-line); border-radius: var(--sl-radius); font: 500 0.56rem/1 var(--sl-mono); letter-spacing: 0.08em; color: var(--sl-muted); }
+.sl-link { display: inline-block; margin-top: 16px; padding: 13px 18px; border: 1px solid var(--sl-accent); border-radius: var(--sl-radius); color: var(--sl-text); font: 600 0.62rem/1 var(--sl-mono); letter-spacing: 0.18em; text-decoration: none; text-transform: uppercase; }
+.sl-link:hover { background: var(--sl-accent); color: var(--sl-accent-ink); }
+.sl-note { margin: 12px 0 0; font: 400 0.6rem/1.5 var(--sl-mono); letter-spacing: 0.08em; color: var(--sl-muted); }
+
+/* ---------- Temas ---------- */
+
+/* EVO BRAZIL: templo noturno, rosa neon, letreiro japonês */
+.sl-theme-evo {
+  --sl-bg: #0b0609; --sl-line: rgba(255, 46, 136, 0.22); --sl-text: #fff3f8; --sl-muted: #c9a9b8; --sl-accent: #ff2e88; --sl-accent-ink: #fff;
+  --sl-display: 'Anton', sans-serif; --sl-stage-bg: #050204;
+}
+.sl-theme-evo::before {
+  background:
+    radial-gradient(60% 50% at 85% 10%, rgba(255, 46, 136, 0.18), transparent 70%),
+    radial-gradient(40% 40% at 10% 90%, rgba(255, 120, 40, 0.12), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255, 46, 136, 0.05) 0 1px, transparent 1px 80px);
+}
+.sl-theme-evo .sl-head h3 { font-weight: 400; letter-spacing: 0.01em; text-shadow: 0 0 30px rgba(255, 46, 136, 0.35); }
+
+/* Innovation Week: preto espacial, vermelho, HUD técnico */
+.sl-theme-iw {
+  --sl-bg: #030303; --sl-line: rgba(245, 245, 243, 0.12); --sl-text: #f5f5f3; --sl-muted: #929292; --sl-accent: #ff1616; --sl-accent-ink: #fff;
+  --sl-display: 'Archivo Black', 'Archivo', sans-serif; --sl-stage-bg: #000;
+}
+.sl-theme-iw::before {
+  background:
+    radial-gradient(50% 60% at 70% 50%, rgba(255, 22, 22, 0.14), transparent 70%),
+    linear-gradient(rgba(245, 245, 243, 0.035) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, rgba(245, 245, 243, 0.035) 1px, transparent 1px) 0 0 / 64px 64px;
+}
+.sl-theme-iw .sl-head h3,
+.sl-theme-iw .sl-steps button,
+.sl-theme-iw .sl-explain h4 { font-weight: 400; letter-spacing: -0.02em; }
+.sl-theme-iw .sl-head h3 em { font-style: normal; color: var(--sl-accent); }
+
+/* Casa Views: pele Reality — preto, branco, rosa, cantos cortados, máquina de escrever */
+.sl-theme-reality {
+  --sl-bg: #050505; --sl-line: rgba(244, 244, 240, 0.16); --sl-text: #f4f4f0; --sl-muted: rgba(244, 244, 240, 0.6); --sl-accent: #ff007a; --sl-accent-ink: #fff;
+  --sl-display: 'Archivo', sans-serif; --sl-mono: 'Space Mono', 'IBM Plex Mono', monospace; --sl-stage-bg: #050505;
+}
+.sl-theme-reality::before {
+  background:
+    linear-gradient(115deg, transparent 0 62%, rgba(255, 0, 122, 0.16) 62% 63.5%, transparent 63.5%),
+    linear-gradient(rgba(244, 244, 240, 0.045) 1px, transparent 1px) 0 0 / 46px 46px,
+    linear-gradient(90deg, rgba(244, 244, 240, 0.045) 1px, transparent 1px) 0 0 / 46px 46px;
+}
+.sl-theme-reality .sl-head h3,
+.sl-theme-reality .sl-steps button,
+.sl-theme-reality .sl-explain h4 { font-weight: 900; font-stretch: 125%; font-variation-settings: 'wdth' 125; letter-spacing: -0.02em; }
+.sl-theme-reality .sl-steps button { font-size: 0.95rem; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+.sl-theme-reality .sl-stage { clip-path: polygon(26px 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%, 0 26px); }
+
+/* Freelandoo: preto quente, amarelo, colmeia, Anton */
+.sl-theme-freelandoo {
+  --sl-bg: #0e0b04; --sl-line: rgba(245, 197, 24, 0.24); --sl-text: #fff8e6; --sl-muted: #c2b48c; --sl-accent: #f5c518; --sl-accent-ink: #0e0b04;
+  --sl-display: 'Anton', sans-serif; --sl-stage-bg: radial-gradient(70% 70% at 50% 0%, #2a2005, #0e0b04 70%);
+}
+.sl-theme-freelandoo::before {
+  background:
+    radial-gradient(50% 50% at 90% 0%, rgba(245, 197, 24, 0.16), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='98' viewBox='0 0 56 98'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 32L0 82V66l28 16 28-16v16L28 98z' fill='none' stroke='%23f5c518' stroke-opacity='0.06'/%3E%3C/svg%3E");
+}
+.sl-theme-freelandoo .sl-head h3,
+.sl-theme-freelandoo .sl-steps button,
+.sl-theme-freelandoo .sl-explain h4 { font-weight: 400; letter-spacing: 0.01em; }
+.sl-theme-freelandoo .sl-steps button.is-active { box-shadow: 4px 4px 0 var(--sl-accent); }
+
+/* Coliseu: industrial — cinza escuro, vermelho fosco, Oswald + Sora */
+.sl-theme-coliseu {
+  --sl-bg: #0e0f11; --sl-surface: #16181b; --sl-line: #2a2e34; --sl-text: #e7e8ea; --sl-muted: #9aa0a6; --sl-accent: #c8302b; --sl-accent-ink: #fff;
+  --sl-display: 'Oswald', 'Barlow Condensed', sans-serif; --sl-body: 'Sora', 'Archivo', sans-serif; --sl-stage-bg: #121316; --sl-radius: 6px;
+}
+.sl-theme-coliseu::before {
+  background:
+    radial-gradient(45% 55% at 0% 100%, rgba(168, 40, 36, 0.22), transparent 70%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 14px);
+}
+
+@media (max-width: 899px) {
+  .sl { padding: 70px 20px; }
+  .sl-head,
+  .sl-body { grid-template-columns: 1fr; }
+  .sl-stage { min-height: 420px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sl-stage-inner { animation: none; }
+}

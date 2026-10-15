@@ -54,7 +54,7 @@ const CASES: ArchiveCase[] = [
     summary: 'O astronauta e o Lutador do Coliseu no mesmo motor de holograma. Gire e colecione.',
     href: '/studios#estudio',
     cta: 'Colecionar',
-    poster: '/portfolio/studios/holo/coliseu-1024.webp',
+    poster: '/portfolio/studios/holo/chamber-1024.webp',
   },
   {
     title: 'Casa Views',
@@ -63,8 +63,7 @@ const CASES: ArchiveCase[] = [
     summary: 'A pele "Reality" de um reality social em tempo real: rankings, loja e RA.',
     href: '/studios#estudio',
     cta: 'Ver a identidade',
-    poster: '/portfolio/studios/conveniencia.webp',
-    video: '/portfolio/studios/conveniencia.mp4',
+    poster: '/portfolio/studios/holo/coliseu-1024.webp',
   },
   {
     title: 'Freelandoo',
@@ -73,8 +72,7 @@ const CASES: ArchiveCase[] = [
     summary: 'Marketplace com afiliados, comunidades, condomínios e academias — em produção.',
     href: '/tech#produtos',
     cta: 'Ver rodando',
-    poster: '/portfolio/tech/home.webp',
-    video: '/portfolio/tech/home.mp4',
+    poster: '/portfolio/tech/freelandoo/bento-11.webp',
   },
   {
     title: 'Sistema Coliseu',
@@ -83,8 +81,7 @@ const CASES: ArchiveCase[] = [
     summary: 'Captação, matrícula, cobrança e retenção, com Asaas, WhatsApp e catraca facial.',
     href: '/tech#produtos',
     cta: 'Ver rodando',
-    poster: '/portfolio/tech/coliseu.webp',
-    video: '/portfolio/tech/coliseu.mp4',
+    poster: '/portfolio/tech/coliseu/hero.webp',
   },
 ];
 

@@ -10,7 +10,7 @@ import BriefModal from '../components/brief/BriefModal';
 import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import { useHashScroll } from '../hooks/useHashScroll';
-import ProductsLive from './portfolio/ProductsLive';
+import TechLabs from './portfolio/TechLabs';
 import './tech.css';
 
 const SERVICES = [
@@ -247,7 +247,7 @@ export default function TechBuildEngine() {
           </div>
         </section>
 
-        <ProductsLive />
+        <TechLabs />
 
         <section id="metodo" className="tt-method" aria-labelledby="method-title">
           <div className="tt-method-copy tt-reveal">

@@ -91,31 +91,6 @@
 .tp-lab-roster button.is-active img { opacity: 1; filter: none; transform: scale(1.05); }
 .tp-lab-roster button.is-active { border-color: var(--tp-accent); box-shadow: inset 0 -3px 0 var(--tp-accent); }
 
-/* ---------- Case EVO BRAZIL (travelling) ---------- */
-.tp-evo { position: relative; margin-top: clamp(90px, 10vw, 160px); overflow: hidden; }
-.tp-evo-track { display: flex; align-items: center; gap: 3vw; height: 100vh; margin: 0; padding: 0 5vw; list-style: none; width: max-content; will-change: transform; }
-.tp-evo-intro { flex: 0 0 min(36vw, 560px); }
-.tp-evo-intro h3 { margin: 0 0 22px; font: 700 clamp(2.6rem, 4.6vw, 5.2rem)/0.9 'Barlow Condensed', sans-serif; letter-spacing: -0.04em; text-transform: uppercase; }
-.tp-evo-intro h3 span { color: var(--tg-orange); }
-.tp-evo-intro > p:not(.tg-kicker) { margin: 0; color: var(--tg-muted); line-height: 1.75; }
-.tp-evo-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin: 30px 0 0; }
-.tp-evo-facts dt { font-size: 0.56rem; letter-spacing: 0.18em; color: var(--tg-muted); }
-.tp-evo-facts dd { margin: 6px 0 0; font-size: 1.05rem; color: var(--tg-text); }
-.tp-evo-hint { display: inline-block; margin-top: 34px; font-size: 0.62rem; letter-spacing: 0.24em; color: var(--tg-orange); animation: tp-nudge 1.8s ease-in-out infinite; }
-@keyframes tp-nudge { 50% { transform: translateX(8px); } }
-
-.tp-evo-shot { position: relative; flex: 0 0 min(64vw, 1100px); }
-.tp-evo-media { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--tg-line); background: #111; }
-.tp-evo-media img,
-.tp-evo-media video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tp-evo-caption { position: absolute; left: 0; bottom: 0; width: min(520px, 70%); padding: 26px 28px; background: linear-gradient(180deg, rgba(13, 13, 13, 0.55), rgba(13, 13, 13, 0.94)); backdrop-filter: blur(6px); border-top: 2px solid var(--tg-orange); }
-.tp-evo-caption > p.tg-mono { margin: 0 0 8px; font-size: 0.58rem; letter-spacing: 0.22em; color: var(--tg-orange); }
-.tp-evo-caption h4 { margin: 0 0 8px; font: 700 1.7rem/1 'Barlow Condensed', sans-serif; text-transform: uppercase; }
-.tp-evo-caption > p:not(.tg-mono):not(.tp-evo-stat) { margin: 0; color: rgba(242, 240, 235, 0.78); line-height: 1.65; font-size: 0.92rem; }
-.tp-evo-stat { display: flex; align-items: baseline; gap: 12px; margin: 14px 0 0; }
-.tp-evo-stat b { font: 700 2.6rem/1 'Barlow Condensed', sans-serif; color: var(--tg-orange); }
-.tp-evo-stat span { font-size: 0.6rem; letter-spacing: 0.18em; color: var(--tg-muted); text-transform: uppercase; }
-
 /* ---------- Fliperama ---------- */
 .tp-arcade { margin-top: clamp(90px, 10vw, 160px); }
 .tp-arcade-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
@@ -170,17 +145,8 @@
   .tp-arcade-body { grid-template-columns: 1fr; }
   .tp-lab-stage { min-height: 440px; }
   .tp-lab-roster { grid-template-columns: repeat(5, 120px); overflow-x: auto; scrollbar-width: none; }
-  .tp-evo-track { flex-direction: column; height: auto; width: auto; gap: 40px; padding: 0 20px; }
-  .tp-evo-intro,
-  .tp-evo-shot { flex: none; width: 100%; }
-  .tp-evo-caption { position: static; width: auto; }
-  .tp-evo-hint { display: none; }
   .tp-cabinet { margin-inline: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tp-evo-track { flex-direction: column; height: auto; width: auto; gap: 40px; }
-  .tp-evo-intro,
-  .tp-evo-shot { flex: none; width: min(1100px, 100%); }
-  .tp-evo-hint { display: none; }
   .tp-cabinet-start .tg-mono:first-child { animation: none; }
 }

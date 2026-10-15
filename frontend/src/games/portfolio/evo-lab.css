@@ -1,0 +1,38 @@
+/* Palco do case EVO BRAZIL no visual do jogo (prefixo evo-). */
+
+.evo-stage { position: absolute; inset: 0; }
+.evo-stage > img,
+.evo-stage > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: evo-drift 9s ease-out both; }
+@keyframes evo-drift { from { transform: scale(1.08); } to { transform: scale(1); } }
+.evo-vignette { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5, 2, 4, 0.55), transparent 28%, transparent 55%, rgba(5, 2, 4, 0.92)), radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(5, 2, 4, 0.7)); }
+.evo-kanji {
+  position: absolute; top: 54px; left: 18px; padding: 10px 6px; writing-mode: vertical-rl;
+  border: 1px solid rgba(255, 200, 120, 0.55); background: rgba(10, 4, 6, 0.6);
+  font: 400 1.25rem/1.15 'Noto Serif JP', serif; color: #f2c88a; letter-spacing: 0.1em;
+}
+.evo-logo {
+  position: absolute; top: 46px; left: 66px; margin: 0; transform: skewX(-8deg);
+  font: 400 clamp(1.8rem, 3.2vw, 3rem)/1 'Anton', sans-serif; color: #fff; letter-spacing: 0.01em;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.6);
+}
+.evo-logo b { font-weight: 400; color: #ff2e88; text-shadow: 0 0 18px rgba(255, 46, 136, 0.7), 0 3px 0 rgba(0, 0, 0, 0.6); }
+.evo-card {
+  position: absolute; left: 20px; bottom: 22px; max-width: min(460px, 82%); padding: 16px 18px 14px;
+  border: 1px solid rgba(255, 46, 136, 0.5); background: rgba(12, 5, 9, 0.82); backdrop-filter: blur(6px);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+  animation: evo-card 600ms 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes evo-card { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+.evo-tag { display: inline-block; padding: 3px 10px; background: #ff2e88; color: #fff; transform: skewX(-12deg); font: 700 0.6rem/1.4 'IBM Plex Mono', monospace; letter-spacing: 0.2em; }
+.evo-card-title { margin: 10px 0 0; font: 400 clamp(1.3rem, 2vw, 1.8rem)/1 'Anton', sans-serif; text-transform: uppercase; color: #fff; }
+.evo-stat { margin: 10px 0 0; color: #f0c8d9; font-size: 0.82rem; }
+.evo-stat b { font: 400 1.6rem/1 'Anton', sans-serif; color: #ff2e88; margin-right: 6px; }
+.evo-dots { position: absolute; right: 18px; bottom: 22px; display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.evo-dots li { width: 18px; height: 4px; background: rgba(255, 255, 255, 0.25); transform: skewX(-20deg); }
+.evo-dots li.is-on { background: #ff2e88; box-shadow: 0 0 10px #ff2e88; }
+
+@media (prefers-reduced-motion: reduce) {
+  .evo-stage > img,
+  .evo-stage > video,
+  .evo-card { animation: none; }
+}

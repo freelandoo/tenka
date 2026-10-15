@@ -1,5 +1,5 @@
 import CharacterLab from './CharacterLab';
-import EvoCase from './EvoCase';
+import EvoLab from './EvoLab';
 import JetpackArcade from './JetpackArcade';
 import './portfolio.css';
 
@@ -24,7 +24,7 @@ export default function PortfolioSection() {
         </p>
       </div>
       <CharacterLab />
-      <EvoCase />
+      <EvoLab />
       <JetpackArcade />
     </section>
   );

@@ -150,14 +150,3 @@ export const HOLO_PROJECTS: HoloProject[] = [
   },
 ];
 
-export const CASA_VIEWS = {
-  video: `${ROOT}/conveniencia.mp4`,
-  poster: `${ROOT}/conveniencia.webp`,
-  stage: `${ROOT}/holo/coliseu.webp`,
-  facts: [
-    { value: 'Preto · branco · rosa', label: 'pele "Reality" em todas as telas' },
-    { value: 'Participantes × Audiência', label: 'dois rankings, uma temporada' },
-    { value: 'Loja oficial', label: 'cada compra apoia um participante' },
-    { value: 'RA colecionável', label: 'holograma no pedestal do Coliseu' },
-  ],
-};

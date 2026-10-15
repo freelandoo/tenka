@@ -1,6 +1,6 @@
-import LabelAnatomy from './LabelAnatomy';
+import LabelLab from './LabelLab';
 import HologramExhibit from './HologramExhibit';
-import CasaViewsCase from './CasaViewsCase';
+import RealityLab from './RealityLab';
 import './studio.css';
 
 /**
@@ -22,9 +22,9 @@ export default function StudioSection() {
           Projetos no ar, abertos peça por peça: o que foi feito, como foi feito e por que funciona. Role, gire, colecione.
         </p>
       </div>
-      <LabelAnatomy />
+      <LabelLab />
       <HologramExhibit />
-      <CasaViewsCase />
+      <RealityLab />
     </section>
   );
 }

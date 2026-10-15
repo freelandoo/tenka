@@ -1,0 +1,37 @@
+/* Palco do rótulo Innovation Week no visual da IW (prefixo iwl-). */
+
+.iwl-stage { position: absolute; inset: 0; background: #000; }
+.iwl-stage > video,
+.iwl-stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.iwl-scan {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 4px);
+}
+.iwl-scan::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 2px; top: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 22, 22, 0.8), transparent);
+  box-shadow: 0 0 18px rgba(255, 22, 22, 0.8); animation: iwl-sweep 3.6s linear infinite;
+}
+@keyframes iwl-sweep { from { top: 0; } to { top: 100%; } }
+.iwl-corner { position: absolute; width: 34px; height: 34px; border-color: rgba(255, 22, 22, 0.8); border-style: solid; }
+.iwl-corner--tl { top: 40px; left: 14px; border-width: 1px 0 0 1px; }
+.iwl-corner--br { right: 14px; bottom: 14px; border-width: 0 1px 1px 0; }
+.iwl-chip {
+  position: absolute; left: 22px; bottom: 22px; margin: 0; padding: 7px 11px;
+  border: 1px solid rgba(255, 48, 48, 0.55); background: rgba(3, 3, 3, 0.72);
+  font: 500 0.6rem/1 'IBM Plex Mono', monospace; letter-spacing: 0.22em; color: #ff3030;
+}
+.iwl-coord { position: absolute; right: 22px; top: 44px; margin: 0; font: 500 0.56rem/1 'IBM Plex Mono', monospace; letter-spacing: 0.2em; color: rgba(245, 245, 243, 0.55); }
+.iwl-layers { position: absolute; left: 22px; top: 70px; display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; width: min(300px, 48%); }
+.iwl-layers li {
+  padding: 6px 10px; border-left: 2px solid #ff1616; background: rgba(3, 3, 3, 0.74);
+  font: 600 0.78rem/1.25 'Archivo', sans-serif; color: #f5f5f3; opacity: 0; animation: iwl-layer 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.iwl-layers li b { font: 500 0.56rem 'IBM Plex Mono', monospace; color: #ff3030; margin-right: 6px; }
+.iwl-layers li span { display: block; font: 400 0.56rem/1.4 'IBM Plex Mono', monospace; letter-spacing: 0.06em; color: #929292; }
+@keyframes iwl-layer { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .iwl-scan::after { animation: none; }
+  .iwl-layers li { animation: none; opacity: 1; }
+}

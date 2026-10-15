@@ -206,7 +206,7 @@ export const EVO_SHOTS: EvoShot[] = [
   {
     id: 'arena-portao',
     src: `${ROOT}/evo/arena-portao.webp`,
-    chapter: 'LEVEL DESIGN',
+    chapter: 'PORTÃO PRINCIPAL',
     title: 'O portão principal.',
     caption: 'Escala medida pelo lutador: o portão enquadra o personagem e anuncia a entrada na arena.',
   },
