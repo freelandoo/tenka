@@ -122,3 +122,17 @@ test('login tem limite de tentativas', async () => {
   }
   assert.equal(last, 429);
 });
+
+test('atrás do proxy da Vercel o limite é por visitante, não pelo IP da Vercel', async () => {
+  const strict = createApp(db, { allowedOrigins: [], adminToken: ADMIN, admins: { tenka: hashPassword(PASSWORD) } });
+  const login = (visitor: string) =>
+    strict.request('/api/member/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'ninguem@example.com', crew: 1 }),
+      // Mesmo x-forwarded-for (a Vercel) para todos; o visitante vem em x-vercel-forwarded-for.
+      headers: { 'x-forwarded-for': '76.76.21.21', 'x-vercel-forwarded-for': visitor },
+    });
+  for (let i = 0; i < 11; i++) await login('200.1.1.1');
+  assert.equal((await login('200.1.1.1')).status, 429);
+  assert.notEqual((await login('200.2.2.2')).status, 429);
+});

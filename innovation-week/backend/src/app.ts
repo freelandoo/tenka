@@ -79,6 +79,10 @@ async function readJson(c: Context): Promise<unknown> {
 }
 
 function clientIp(c: Context): string {
+  // Via tenkagroup.com.br/innovation-week/api a requisição chega pela Vercel:
+  // x-forwarded-for traz o IP dela, e o do visitante vem neste cabeçalho.
+  const vercel = c.req.header('x-vercel-forwarded-for');
+  if (vercel) return vercel.split(',')[0].trim();
   const fwd = c.req.header('x-forwarded-for');
   if (fwd) return fwd.split(',')[0].trim();
   return c.req.header('x-real-ip') ?? 'local';
