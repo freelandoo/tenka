@@ -7,11 +7,13 @@
 //   o backend já conhecer a unidade da sessão.
 
 import { config } from '../config.ts';
+import { isPreview } from '../preview.ts';
 import type { ProductIdentity } from '../identity/resolver.ts';
 import { setAnalyticsAdapter, type AnalyticsEvent } from '../analytics/analytics.ts';
 
 const SESSION_KEY = 'iw:session';
-const base = config.api.baseUrl;
+// No card da home (preview) nada é enviado: não é uma visita real.
+const base = isPreview ? '' : config.api.baseUrl;
 let memoryId: string | null = null;
 
 /** UUID v4; crypto.randomUUID só existe em contexto seguro (HTTPS/localhost). */

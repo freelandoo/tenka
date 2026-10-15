@@ -81,6 +81,21 @@ function migrateDivisionPalette(slide: TenkaHeroSlide): TenkaHeroSlide {
   };
 }
 
+/**
+ * Cards padrão que surgiram depois de o painel salvar a lista (ex.: Innovation
+ * Week) entram no fim. O painel não apaga cards — só desliga —, então um id
+ * ausente é sempre um card novo, nunca um removido de propósito.
+ */
+function appendMissingDefaults(slides: TenkaHeroSlide[]): TenkaHeroSlide[] {
+  const saved = new Set(slides.map((slide) => slide.id));
+  let order = Math.max(0, ...slides.map((slide) => slide.order));
+  const missing = DEFAULT_HERO_SLIDES.filter((slide) => !saved.has(slide.id)).map((slide) => ({
+    ...slide,
+    order: ++order,
+  }));
+  return [...slides, ...missing];
+}
+
 function isTenkaHeroSlide(value: unknown): value is TenkaHeroSlide {
   if (typeof value !== 'object' || value === null) return false;
   const slide = value as Record<string, unknown>;
@@ -89,7 +104,8 @@ function isTenkaHeroSlide(value: unknown): value is TenkaHeroSlide {
     typeof slide.order === 'number' &&
     (slide.division === 'games' ||
       slide.division === 'multimidia' ||
-      slide.division === 'desenvolvimento') &&
+      slide.division === 'desenvolvimento' ||
+      slide.division === 'innovation') &&
     typeof slide.navLabel === 'string' &&
     typeof slide.eyebrow === 'string' &&
     typeof slide.headline === 'string' &&
@@ -136,7 +152,7 @@ export class LocalStorageHeroSlidesRepository implements HeroSlidesRepository {
             DEFAULT_HERO_SLIDES.find((d) => d.id === slide.id)?.previewUrl ??
             null,
         }));
-      return slides.length > 0 ? slides : cloneDefaults();
+      return slides.length > 0 ? appendMissingDefaults(slides) : cloneDefaults();
     } catch {
       return cloneDefaults();
     }

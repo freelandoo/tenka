@@ -12,7 +12,8 @@ const LEGACY_COLORS = [
 ] as const;
 
 function withLegacyPalette(): TenkaHeroSlide[] {
-  return DEFAULT_HERO_SLIDES.map((slide, index) => ({
+  // Só os 3 cards originais existiam quando a paleta escura era a padrão.
+  return DEFAULT_HERO_SLIDES.slice(0, 3).map((slide, index) => ({
     ...slide,
     backgroundColor: LEGACY_COLORS[index][0],
     accentColor: LEGACY_COLORS[index][1],
@@ -52,5 +53,25 @@ describe('LocalStorageHeroSlidesRepository', () => {
 
     expect(slides[0].backgroundColor).toBe('#A24618');
     expect(slides[0].accentColor).toBe(DEFAULT_HERO_SLIDES[0].accentColor);
+  });
+
+  it('acrescenta cards padrão novos a quem já tinha os 3 salvos', async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_HERO_SLIDES.slice(0, 3)));
+
+    const slides = await new LocalStorageHeroSlidesRepository().getAll();
+
+    expect(slides.map((slide) => slide.id)).toEqual(DEFAULT_HERO_SLIDES.map((slide) => slide.id));
+    expect(slides[3]).toMatchObject({ id: 'innovation-week', division: 'innovation', order: 4 });
+  });
+
+  it('mantém desligado um card que o painel desligou', async () => {
+    const stored = DEFAULT_HERO_SLIDES.map((slide) => ({ ...slide }));
+    stored[3].isActive = false;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+
+    const slides = await new LocalStorageHeroSlidesRepository().getAll();
+
+    expect(slides.filter((slide) => slide.id === 'innovation-week')).toHaveLength(1);
+    expect(slides[3].isActive).toBe(false);
   });
 });

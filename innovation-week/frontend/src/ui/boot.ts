@@ -6,6 +6,7 @@ import { gsap } from 'gsap';
 import { config } from '../config.ts';
 import { play } from '../audio/sfx.ts';
 import type { ProductIdentity } from '../identity/resolver.ts';
+import { isPreview } from '../preview.ts';
 
 export interface BootTarget {
   intro: number;
@@ -20,6 +21,7 @@ function seen(): boolean {
 }
 
 function markSeen() {
+  if (isPreview) return; // o card da home não pode pular a abertura de quem entrar depois
   try {
     sessionStorage.setItem(config.bootSeenKey, '1');
   } catch {

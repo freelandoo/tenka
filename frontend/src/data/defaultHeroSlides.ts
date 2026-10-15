@@ -69,4 +69,25 @@ export const DEFAULT_HERO_SLIDES: TenkaHeroSlide[] = [
     ctaHref: '/tech',
     isActive: true,
   },
+  {
+    id: 'innovation-week',
+    order: 4,
+    division: 'innovation',
+    navLabel: 'Innovation Week',
+    eyebrow: 'INNOVATION WEEK 2026',
+    headline: 'O RÓTULO\nGANHOU VIDA.',
+    description:
+      'Embalagem com identidade digital: QR único por unidade, rótulo 3D, astronauta em realidade aumentada, jogo e ranking ao vivo.',
+    backgroundColor: '#0B0B12',
+    accentColor: '#FF1A1A',
+    placeholderColor: '#1C0A0D',
+    textColor: '#FFFFFF',
+    imageUrl: null,
+    // A experiência inteira mora em /innovation-week (app à parte, ver innovation-week/).
+    previewUrl: '/innovation-week',
+    imageAlt: 'Página Innovation Week renderizada ao vivo',
+    ctaLabel: 'ENTRAR NA INNOVATION WEEK',
+    ctaHref: '/innovation-week',
+    isActive: true,
+  },
 ];

@@ -1,7 +1,7 @@
 export interface TenkaHeroSlide {
   id: string;
   order: number;
-  division: 'games' | 'multimidia' | 'desenvolvimento';
+  division: 'games' | 'multimidia' | 'desenvolvimento' | 'innovation';
 
   navLabel: string;
   eyebrow: string;
