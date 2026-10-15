@@ -108,6 +108,14 @@ body.jg {
 .jg-brand:hover {
   opacity: 1;
 }
+/* Fim de partida: a marca fica por cima do painel, e o painel termina na linha
+   do chão para o resultado não encostar nela. */
+html[data-state='over'] .jg-brand {
+  z-index: 5;
+}
+html[data-state='over'] [data-panel='over'] {
+  bottom: calc(100% - var(--jg-floor-top, 100%));
+}
 .jg-brand:focus-visible {
   outline: 2px solid var(--white);
   outline-offset: 2px;
