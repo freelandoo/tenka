@@ -13,6 +13,7 @@ import { EMPTY_IDENTITY, type ProductIdentity } from '../identity/resolver.ts';
 import { COLLECTION_SLOTS, latestCharacter } from '../collection/catalog.ts';
 import { initCollection, type Collected } from './collection.ts';
 import './member.css';
+import { withBase, stripBase } from '../base.ts';
 
 interface Member {
   crew: number;
@@ -41,7 +42,7 @@ initSfx();
 $('#mb-head-right').appendChild(soundToggle('mono'));
 
 function tokenFromUrl(): string | null {
-  const m = location.pathname.match(/^\/membro\/([A-Za-z0-9_-]{20,64})\/?$/);
+  const m = stripBase(location.pathname).match(/^\/membro\/([A-Za-z0-9_-]{20,64})\/?$/);
   return m?.[1] ?? new URLSearchParams(location.search).get('t');
 }
 
@@ -127,7 +128,7 @@ function showLogin() {
     for (const s of saved) {
       const li = document.createElement('li');
       const a = document.createElement('a');
-      a.href = `/membro/${encodeURIComponent(s.token)}`;
+      a.href = withBase(`/membro/${encodeURIComponent(s.token)}`);
       const name = document.createElement('span');
       name.textContent = s.name ? `Continuar como ${s.name.split(' ')[0]}` : 'Continuar no meu perfil';
       const crew = document.createElement('span');
@@ -168,7 +169,7 @@ function showLogin() {
       const body = (await r.json().catch(() => ({}))) as { member?: string; error?: string };
       if (r.ok && body.member) {
         play('lock');
-        location.href = `/membro/${encodeURIComponent(body.member)}`;
+        location.href = withBase(`/membro/${encodeURIComponent(body.member)}`);
         return;
       }
       show(

@@ -19,19 +19,23 @@ npm run check        # typecheck + lint + testes + build
 npm run build        # gera dist/ (site estático)
 ```
 
-Testar identidades: `/?product=1845678901001&lot=l1&unit=AO`, `/01/1845678901001/10/l1/21/AO`,
+Testar identidades (sob `/innovation-week`): `/?product=1845678901001&lot=l1&unit=AO`, `/01/1845678901001/10/l1/21/AO`,
 `/innovation/1845678901001/l1/AO`. Forçar nível de desempenho: `?tier=low|medium|high`; `?reduced`.
 
 Inspeção visual: `node scripts/shots.mjs http://localhost:5173 shots` e `node scripts/cases.mjs shots`.
 
-## Deploy (Vercel)
+## Deploy (dentro da TENKA)
 
-1. New Project → importar este repositório → **Root Directory: `frontend`** (o `vercel.json` já define build e rotas).
-2. Environment Variables: `VITE_API_URL` = URL pública do backend na Railway (sem barra no final).
-3. Deploy. Rotas como `/innovation/...` e `/01/...` já caem no `index.html`.
+O site mora em **tenkagroup.com.br/innovation-week** (`base: '/innovation-week/'` no `vite.config.ts`).
+Não há projeto Vercel próprio: o build do frontend da TENKA (`frontend/scripts/build-innovation-week.mjs`)
+compila este app com `VITE_API_URL=/innovation-week` e copia o `dist/` para `frontend/dist/innovation-week/`.
+As rotas (páginas, `/innovation-week/01/...`, proxy `/innovation-week/api/*` → Railway) estão em `frontend/vercel.json`.
 
-Sem `VITE_API_URL`, a página funciona normalmente, só não envia scans e eventos.
-Depois é só mandar a URL para a Realizse configurar o redirecionamento.
+Todo caminho absoluto no código passa por `withBase()` (`src/base.ts`); nas páginas HTML, links usam `%BASE_URL%`.
+Em dev: `npm run dev` → http://localhost:5173/innovation-week/.
+
+O domínio antigo (`frontend-tau-weld-99.vercel.app`, para onde a Realizse redireciona) responde com 308
+para `tenkagroup.com.br/innovation-week/<mesmo caminho>`, então a Realizse não precisa mudar nada.
 
 ## Onde mexer
 

@@ -19,6 +19,7 @@ import { Particles, glowTexture } from './render/particles.ts';
 import { Input } from './input.ts';
 import { GameAudio } from './audio.ts';
 import * as api from './api.ts';
+import { withBase } from '../base.ts';
 
 type PageState = 'loading' | 'menu' | 'ready' | 'playing' | 'paused' | 'countdown' | 'over' | 'error';
 
@@ -75,7 +76,7 @@ const env = new Environment(stage, perf.tier === 'high' ? 'high' : 'medium');
 const fire = new Particles(stage.scene, perf.tier === 'high' ? 420 : 240, glow, true);
 const smoke = new Particles(stage.scene, perf.tier === 'high' ? 200 : 110, glow, false);
 const obstacles = new ObstacleRenderer(stage.scene);
-const potTexture = new THREE.TextureLoader().load('/innovation-week/deck/pot.webp');
+const potTexture = new THREE.TextureLoader().load(withBase('/innovation-week/deck/pot.webp'));
 potTexture.colorSpace = THREE.SRGBColorSpace;
 const pickups = new PickupRenderer(stage.scene, glow, fire, potTexture);
 const astro = new AstronautView(stage.scene, fire, smoke, glow);
@@ -355,7 +356,7 @@ function goBack() {
   } catch {
     /* referrer inválido */
   }
-  location.href = token ? `/membro/${token}` : '/';
+  location.href = withBase(token ? `/membro/${token}` : '/');
 }
 
 // ---------------------------------------------------------------- controles da página
@@ -385,7 +386,7 @@ click('jg-restart', () => {
 click('jg-pause', () => (state === 'paused' ? resume() : pause()));
 click('jg-quit', goBack);
 click('jg-back', goBack);
-click('jg-ranking', () => (location.href = '/ranking'));
+click('jg-ranking', () => (location.href = withBase('/ranking')));
 click('jg-menu-back', goBack);
 click('jg-retry', () => location.reload());
 for (const b of document.querySelectorAll<HTMLButtonElement>('[data-sound]')) {
@@ -496,7 +497,7 @@ showBest();
 if (debug) (window as unknown as { __game: unknown }).__game = { world, input, scene: stage.scene, get state() { return state; } };
 
 astro
-  .load('/models/astronaut-rig.glb', (r) => (ui.progress.style.transform = `scaleX(${r})`))
+  .load(withBase('/models/astronaut-rig.glb'), (r) => (ui.progress.style.transform = `scaleX(${r})`))
   .then(() => {
     // Primeiro desenho fora da tela: compila os shaders antes do menu aparecer.
     stage.renderer.compile(stage.scene, stage.camera);

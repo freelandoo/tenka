@@ -8,6 +8,7 @@ import { track } from '../analytics/analytics.ts';
 import type { ProductIdentity } from '../identity/resolver.ts';
 import { requestCamera } from '../scanner/camera.ts';
 import { unitPath, type ScannedUnit } from '../scanner/decode.ts';
+import { withBase } from '../base.ts';
 
 export interface UnitScanCtaOptions {
   identity: ProductIdentity;
@@ -23,7 +24,7 @@ function unitUrl(unit: ScannedUnit, id: ProductIdentity): string {
   const q = new URLSearchParams({ [config.scanner.viaParam]: config.scanner.viaValue });
   if (id.source) q.set('source', id.source);
   if (id.campaign) q.set('campaign', id.campaign);
-  return `${unitPath(unit)}?${q}`;
+  return withBase(`${unitPath(unit)}?${q}`);
 }
 
 export function initUnitScanCta(opts: UnitScanCtaOptions) {

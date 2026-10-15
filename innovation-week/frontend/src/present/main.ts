@@ -22,6 +22,7 @@ import { readAdmin, checkAdmin } from '../admin/session.ts';
 import { DEMO, HOOKS, demoUrl, type DeckCtx, type HoloTarget, type SlideHooks } from './slides.ts';
 import './tabloid.css';
 import './present.css';
+import { withBase } from '../base.ts';
 
 const html = document.documentElement;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -32,7 +33,7 @@ const params = new URLSearchParams(location.search);
 async function gate(): Promise<boolean> {
   if (import.meta.env.DEV && params.has('preview')) return true;
   if (readAdmin() && (await checkAdmin())) return true;
-  location.replace('/admin?next=apresentacao');
+  location.replace(withBase('/admin?next=apresentacao'));
   return false;
 }
 
@@ -196,7 +197,7 @@ function fillDemo() {
 async function preload() {
   const bar = $('#pz-boot-bar');
   const pct = $('#pz-boot-pct');
-  const urls = new Set<string>(['/innovation-week/deck/planet.webp', '/innovation-week/deck/astronaut.webp']);
+  const urls = new Set<string>([withBase('/innovation-week/deck/planet.webp'), withBase('/innovation-week/deck/astronaut.webp')]);
   document.querySelectorAll<HTMLImageElement>('.deck img, .chrome img').forEach((i) => urls.add(i.getAttribute('src')!));
   const jobs: Promise<unknown>[] = [...urls].map(
     (u) =>

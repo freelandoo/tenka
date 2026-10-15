@@ -1,3 +1,4 @@
+import { withBase } from '../base.ts';
 // Configuração do gêmeo digital do rótulo Innovation Week.
 //
 // Todas as camadas usam UV normalizada 0..1 = faca de corte do rótulo. Trocar um
@@ -18,7 +19,7 @@ export const LABEL_WORLD = {
   cornerRadius: 0.035,
 } as const;
 
-const ROOT = '/innovation-week/label';
+const ROOT = withBase('/innovation-week/label');
 
 export const labelAssets = {
   base: {

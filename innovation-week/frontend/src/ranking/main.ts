@@ -7,6 +7,7 @@ import './ranking.css';
 import { memberToken, myRank, online, topScores, type TopEntry } from '../game/api.ts';
 import { requestCamera } from '../scanner/camera.ts';
 import { unitPath } from '../scanner/decode.ts';
+import { withBase } from '../base.ts';
 import { config } from '../config.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -138,7 +139,7 @@ $('rk-scan').addEventListener('click', () => {
         onUnit: (unit) => {
           // Mesmo caminho de quem chega pelo link do pote: verificação, cadastro e link de membro.
           const q = new URLSearchParams({ [config.scanner.viaParam]: config.scanner.viaValue, source: 'ranking' });
-          window.setTimeout(() => window.location.replace(`${unitPath(unit)}?${q}`), 700);
+          window.setTimeout(() => window.location.replace(withBase(`${unitPath(unit)}?${q}`)), 700);
         },
         onInvalid: () => {},
         onError: () => {},

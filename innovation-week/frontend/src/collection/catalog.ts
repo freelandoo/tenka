@@ -1,3 +1,4 @@
+import { withBase } from '../base.ts';
 // Personagens colecionáveis. Hoje só o astronauta existe; as outras posições da
 // vitrine aparecem trancadas ("próxima missão"), o que convida a continuar a coleção.
 // Ids aceitos pela API: backend/src/validate.ts → CHARACTERS.
@@ -20,8 +21,8 @@ export const CHARACTERS: Character[] = [
     name: 'O Pioneiro',
     title: 'Primeiro tripulante da Innovation Week',
     rarity: 'EDIÇÃO DE LANÇAMENTO',
-    model: '/models/spacesuit.glb',
-    card: '/innovation-week/collection/astronauta-card.webp',
+    model: withBase('/models/spacesuit.glb'),
+    card: withBase('/innovation-week/collection/astronauta-card.webp'),
   },
 ];
 
@@ -33,5 +34,5 @@ export const characterById = (id: string) => CHARACTERS.find((c) => c.id === id)
 /** Personagem que a RA da área do membro mostra: o último registrado. */
 export const latestCharacter = () => CHARACTERS[CHARACTERS.length - 1];
 
-export const CHAMBER_BG = '/innovation-week/collection/chamber.webp';
-export const CHAMBER_BG_SMALL = '/innovation-week/collection/chamber-1024.webp';
+export const CHAMBER_BG = withBase('/innovation-week/collection/chamber.webp');
+export const CHAMBER_BG_SMALL = withBase('/innovation-week/collection/chamber-1024.webp');

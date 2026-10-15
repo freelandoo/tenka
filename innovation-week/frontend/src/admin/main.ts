@@ -7,6 +7,7 @@ import './admin.css';
 import { checkAdmin, clearAdmin, loginAdmin, readAdmin } from './session.ts';
 import { fetchStats, fmtInt, funnelRows, type Stats } from './stats.ts';
 import { initReturns, refreshReturns } from './returns.ts';
+import { withBase } from '../base.ts';
 
 const html = document.documentElement;
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -46,7 +47,7 @@ function showLogin() {
     // Veio da apresentação sem sessão: volta para ela.
     const next = new URLSearchParams(location.search).get('next');
     if (next === 'apresentacao') {
-      location.href = '/admin/apresentacao';
+      location.href = withBase('/admin/apresentacao');
       return;
     }
     showPanel();

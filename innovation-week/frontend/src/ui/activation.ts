@@ -14,6 +14,7 @@ import { submitSignup, type UnitInfo } from '../api/client.ts';
 import { play } from '../audio/sfx.ts';
 import type { ProductIdentity } from '../identity/resolver.ts';
 import './activation.css';
+import { withBase } from '../base.ts';
 
 /** Versão do texto de consentimento abaixo (o backend aceita só versões conhecidas). */
 const CONSENT_VERSION = '2026-10-v2';
@@ -34,7 +35,7 @@ interface Registered {
   member?: string;
 }
 
-export const memberUrl = (token: string) => `/membro/${encodeURIComponent(token)}`;
+export const memberUrl = (token: string) => withBase(`/membro/${encodeURIComponent(token)}`);
 
 const unitKey = (id: ProductIdentity) => `${id.productId ?? ''}|${id.lotId ?? ''}|${id.unitId ?? ''}`;
 const crewLabel = (n: number) => String(n).padStart(4, '0');
@@ -132,7 +133,7 @@ const TEMPLATE = `
         <label class="act-check-row">
           <input name="consent" type="checkbox" required />
           <i aria-hidden="true"></i>
-          <span>Autorizo a <b>TENKAGROUP</b> a usar meus dados para registrar esta unidade, mostrar meu primeiro nome no telão do evento e falar comigo sobre a campanha Innovation Week, conforme a LGPD. <a href="/privacidade" target="_blank" rel="noopener">Política de privacidade</a></span>
+          <span>Autorizo a <b>TENKAGROUP</b> a usar meus dados para registrar esta unidade, mostrar meu primeiro nome no telão do evento e falar comigo sobre a campanha Innovation Week, conforme a LGPD. <a href="${withBase('/privacidade')}" target="_blank" rel="noopener">Política de privacidade</a></span>
         </label>
         <label class="act-check-row">
           <input name="marketing" type="checkbox" />
@@ -156,7 +157,7 @@ const TEMPLATE = `
     <section class="act-step act-done act-taken" data-step="taken" hidden>
       <p class="act-crew mono">QR CODE <b>JÁ ATIVADO</b></p>
       <p class="act-lead">Esta unidade já está registrada no nome de outro tripulante. Cada QR code ativa uma pessoa só.</p>
-      <a class="act-submit act-submit-link" href="/membro"><span class="act-submit-label">JÁ É SEU? ENTRAR NO PERFIL</span></a>
+      <a class="act-submit act-submit-link" href="${withBase('/membro')}"><span class="act-submit-label">JÁ É SEU? ENTRAR NO PERFIL</span></a>
       <button class="act-later mono" type="button" data-go-ar>VER O HOLOGRAMA EM RA</button>
     </section>
   </div>

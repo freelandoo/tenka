@@ -65,3 +65,11 @@ test('display nunca mostra null/undefined', () => {
   assert.equal(display(null, 'UNIQUE UNIT'), 'UNIQUE UNIT');
   assert.equal(display('l1', '—'), 'l1', 'caixa preservada: seriais diferenciam maiúsculas');
 });
+
+// A página mora em /innovation-week/ na TENKA: o prefixo não pode atrapalhar a leitura.
+test('sob a base /innovation-week/ da TENKA', () => {
+  assert.deepEqual(ids('https://tenkagroup.com.br/innovation-week/01/1845678901001/10/l1/21/AO'), ['1845678901001', 'l1', 'AO', 'gs1-path']);
+  assert.deepEqual(ids('https://tenkagroup.com.br/innovation-week/innovation/1845678901001/l1/AO'), ['1845678901001', 'l1', 'AO', 'route']);
+  assert.deepEqual(ids('https://tenkagroup.com.br/innovation-week/?product=1845678901001&lot=l1&unit=AO'), ['1845678901001', 'l1', 'AO', 'query']);
+  assert.equal(ids('https://tenkagroup.com.br/innovation-week/')[3], 'none');
+});

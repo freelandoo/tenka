@@ -1,5 +1,7 @@
 // Configuração central da página Innovation Week.
 
+import { withBase } from './base.ts';
+
 export const config = {
   /**
    * Nomes aceitos para cada campo na URL. O formato definitivo do redirecionamento
@@ -28,18 +30,18 @@ export const config = {
   ar: {
     /** Se a RA for hospedada em outra rota/app, preencha aqui (recebe os ids na query). */
     externalUrl: null as string | null,
-    modelGlb: '/models/spacesuit.glb',
-    modelUsdz: '/models/spacesuit.usdz',
+    modelGlb: withBase('/models/spacesuit.glb'),
+    modelUsdz: withBase('/models/spacesuit.usdz'),
     /** Rastreamento do rótulo (MindAR, MIT) e alvos gerados por scripts/build_ar_target.mjs. */
-    trackingLib: '/ar/mindar/mindar-image.prod.js',
-    trackingTargets: '/ar/label.mind',
+    trackingLib: withBase('/ar/mindar/mindar-image.prod.js'),
+    trackingTargets: withBase('/ar/label.mind'),
     heightMeters: 1.8,
     color: '#ff1a1a',
     accent: '#ffd2cc',
   },
 
   hero: {
-    modelGlb: '/models/spacesuit.glb',
+    modelGlb: withBase('/models/spacesuit.glb'),
     modelTexture: null as string | null,
   },
 
