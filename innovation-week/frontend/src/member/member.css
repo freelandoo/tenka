@@ -343,6 +343,14 @@ html[data-state='login'] .mb-login {
   width: 116px;
   height: auto;
 }
+/* Rodapé do card do suplemento: crédito TENKA Studios. */
+.mb-supp-foot {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 18px 0 6px;
+  border-top: 1px solid var(--rule);
+}
 .mb-foot .mb-credit {
   flex-basis: 100%;
   justify-content: center;
@@ -1047,9 +1055,10 @@ html.vault-open body > :not(#vault, #cv, #stage, #arx) {
   display: none;
 }
 .vault-head {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  gap: 12px;
   max-width: 1080px;
   margin: 0 auto;
   font-size: 11px;
@@ -1059,6 +1068,30 @@ html.vault-open body > :not(#vault, #cv, #stage, #arx) {
   padding: 10px 0;
   text-decoration: none;
   color: var(--ink);
+}
+.vault-head .vault-back {
+  justify-self: start;
+}
+.vault-count {
+  justify-self: end;
+}
+/* Marca TENKA Studios no centro do topo da vitrine. */
+.vault-brand {
+  display: block;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+.vault-brand:hover {
+  opacity: 1;
+}
+.vault-brand:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+.vault-brand img {
+  display: block;
+  width: clamp(84px, 22vw, 120px);
+  height: auto;
 }
 .vault-count b {
   color: var(--red);
@@ -1238,6 +1271,7 @@ html.vault-open body > :not(#vault, #cv, #stage, #arx) {
   z-index: 20;
   background: #f3efee var(--cv-bg) center / cover no-repeat;
   overflow: hidden;
+  container-type: size;
 }
 .cv[hidden] {
   display: none;
@@ -1316,6 +1350,29 @@ html.vault-open body > :not(#vault, #cv, #stage, #arx) {
   border: 1px solid var(--rule);
   border-radius: 999px;
   pointer-events: none;
+}
+
+/* Marca TENKA Studios gravada na frente do pedestal. Mesmo recorte "cover" do
+   CharacterViewer: imagem 1672x941, frente do pedestal em (837, 625), ~150 px de largura. */
+.cv-brand {
+  --cv-s: max(100cqw / 1672, 100cqh / 941);
+  position: absolute;
+  z-index: 1;
+  left: calc(50% + (837 - 836) * var(--cv-s));
+  top: calc(50% + (625 - 470.5) * var(--cv-s));
+  width: calc(150 * var(--cv-s));
+  transform: translate(-50%, -50%);
+  mix-blend-mode: multiply;
+  opacity: 0.88;
+  transition: opacity 0.2s ease;
+}
+.cv-brand:hover {
+  opacity: 1;
+}
+.cv-brand img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /* Celular/toque: a borda cônica animada (máscara do tamanho do cartão) pesa na GPU
