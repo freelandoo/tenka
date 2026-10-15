@@ -704,3 +704,13 @@ html[data-state='countdown'] .jg-count {
     animation: none;
   }
 }
+
+/* Fliperama do portfólio da TENKA (iframe, ver src/preview.ts): sem saídas para
+   outras páginas — o ranking e o link da experiência ficam ao lado do gabinete. */
+html[data-preview] #jg-menu-back,
+html[data-preview] #jg-back,
+html[data-preview] #jg-quit,
+html[data-preview] #jg-ranking,
+html[data-preview] a.jg-link {
+  display: none;
+}

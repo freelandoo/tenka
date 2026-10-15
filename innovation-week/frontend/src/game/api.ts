@@ -12,8 +12,10 @@
 
 import { config } from '../config.ts';
 import { sessionId } from '../api/client.ts';
+import { isPreview } from '../preview.ts';
 
-const base = config.api.baseUrl;
+// No fliperama do portfólio da TENKA (iframe) o jogo é vitrine: recorde só local.
+const base = isPreview ? '' : config.api.baseUrl;
 const BEST_KEY = 'iw:game:best';
 const PLAYS_KEY = 'iw:game:plays';
 

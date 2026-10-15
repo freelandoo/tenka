@@ -12,6 +12,7 @@ import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import TenkaSymbol from '../components/TenkaSymbol';
 import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
+import PortfolioSection from './portfolio/PortfolioSection';
 import './games.css';
 
 const EMBERS = Array.from({ length: 18 }, (_, index) => ({
@@ -227,6 +228,7 @@ export default function WorldForge() {
         <BrandMark official />
         <nav id="games-navigation" className={menuOpen ? 'tg-nav is-open' : 'tg-nav'} aria-label="Navegação principal">
           <button type="button" onClick={() => scrollTo('projetos')}>PROJETOS</button>
+          <button type="button" onClick={() => scrollTo('portfolio')}>PORTFÓLIO</button>
           <button type="button" onClick={() => scrollTo('servicos')}>SERVIÇOS</button>
           <button type="button" onClick={() => scrollTo('processo')}>PROCESSO</button>
           <button type="button" onClick={() => scrollTo('contato')}>CONTATO</button>
@@ -312,9 +314,11 @@ export default function WorldForge() {
           </div>
         </section>
 
+        <PortfolioSection />
+
         <section id="servicos" className="tg-section tg-services" aria-labelledby="services-title">
           <div className="tg-services-intro tg-reveal">
-            <p className="tg-kicker tg-mono">02 / O QUE CONSTRUÍMOS</p>
+            <p className="tg-kicker tg-mono">03 / O QUE CONSTRUÍMOS</p>
             <h2 id="services-title">Da tela ao<br /><span>espaço.</span></h2>
             <p>Projetamos experiências que funcionam onde o público já está — e também onde ele nunca esteve.</p>
           </div>
@@ -344,7 +348,7 @@ export default function WorldForge() {
           </div>
           <div className="tg-process-copy">
             <div className="tg-reveal">
-              <p className="tg-kicker tg-mono">03 / COMO FAZEMOS</p>
+              <p className="tg-kicker tg-mono">04 / COMO FAZEMOS</p>
               <h2 id="process-title">Jogar cedo.<br />Construir certo.</h2>
               <p>O projeto ganha forma em ciclos curtos, visíveis e testáveis. Decisões importantes acontecem com algo real nas mãos.</p>
             </div>
@@ -363,7 +367,7 @@ export default function WorldForge() {
 
         <section id="contato" className="tg-contact" aria-labelledby="contact-title">
           <div className="tg-contact-orbit" aria-hidden="true" />
-          <p className="tg-kicker tg-mono tg-reveal">04 / PRÓXIMA MISSÃO</p>
+          <p className="tg-kicker tg-mono tg-reveal">05 / PRÓXIMA MISSÃO</p>
           <h2 id="contact-title" className="tg-reveal">Tem um mundo<br />para construir?</h2>
           <p className="tg-reveal">Conte o desafio. A gente transforma objetivo, tecnologia e imaginação em uma experiência jogável.</p>
           <button type="button" className="tg-primary-button tg-mono tg-reveal" onClick={() => setBriefOpen(true)}>

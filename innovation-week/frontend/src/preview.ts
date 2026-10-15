@@ -7,3 +7,7 @@ export const isPreview: boolean = (() => {
     return true; // acesso ao topo bloqueado = está num iframe de outra origem
   }
 })();
+
+// Marca o documento para o CSS esconder o que só faz sentido na página inteira
+// (ex.: "voltar ao site", que navegaria dentro do card/fliperama).
+if (isPreview) document.documentElement.dataset.preview = '';
