@@ -58,14 +58,49 @@ export function initArcade({ pauseLanding, resumeLanding }: ArcadeOptions) {
   };
   new IntersectionObserver(([entry]) => sync(entry.isIntersecting), { threshold: 0.35 }).observe(screen);
 
+  // Tela cheia: API nativa onde existe; no iPhone (sem Fullscreen API para
+  // elementos) a tela vira um overlay fixo cobrindo a viewport.
+  const nativeFs = !!screen.requestFullscreen;
+  const isFull = () => document.fullscreenElement === screen || screen.classList.contains('is-full');
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'arc-fs mono';
+  const syncToggle = () => {
+    const full = isFull();
+    toggle.textContent = full ? '✕ SAIR' : '⤢ TELA CHEIA';
+    toggle.setAttribute('aria-label', full ? 'Sair da tela cheia' : 'Jogar em tela cheia');
+    document.documentElement.classList.toggle('arc-locked', screen.classList.contains('is-full'));
+  };
+  const enterFull = () => {
+    if (nativeFs) screen.requestFullscreen().catch(() => screen.classList.add('is-full')).finally(syncToggle);
+    else screen.classList.add('is-full');
+    syncToggle();
+  };
+  const exitFull = () => {
+    if (document.fullscreenElement === screen) void document.exitFullscreen().catch(() => {});
+    screen.classList.remove('is-full');
+    syncToggle();
+  };
+  toggle.addEventListener('click', () => {
+    if (isFull()) exitFull();
+    else enterFull();
+    screen.querySelector('iframe')?.focus();
+  });
+  document.addEventListener('fullscreenchange', syncToggle);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && screen.classList.contains('is-full')) exitFull();
+  });
+
   start.addEventListener('click', () => {
     playing = true;
     sync(true);
+    enterFull();
     const iframe = document.createElement('iframe');
     iframe.src = withBase('/jogo?arcade=1');
     iframe.title = 'Astronaut Jetpack';
     iframe.allow = 'autoplay; fullscreen';
-    screen.replaceChildren(iframe);
+    screen.replaceChildren(iframe, toggle);
+    syncToggle();
     iframe.focus();
   });
 
