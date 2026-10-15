@@ -3,8 +3,8 @@
 // limite e falha em silêncio, devolvendo null.
 //
 //   POST /api/game/start   { sessionId, member? }              -> { runId, seed }
-//   POST /api/game/finish  { runId, distance, fuel, pickups }  -> { ok, best, rank }
-//   GET  /api/game/top?limit=N                                  -> { total, top: [{ crew, name, best }] }
+//   POST /api/game/finish  { runId, distance, fuel, pickups }  -> { ok, best, rank, frozen }
+//   GET  /api/game/top?limit=N                                  -> { total, frozen, closesAt, top: [{ crew, name, best }] }
 //   POST /api/game/me      { member }                           -> { crew, name, best, rank }
 //
 // O servidor sorteia a seed e marca o início; no fim confere se a distância é
@@ -26,6 +26,8 @@ export interface RunTicket {
 export interface RunResult {
   best: number;
   rank: number | null;
+  /** Ranking encerrado pelo admin: a partida não somou. */
+  frozen: boolean;
 }
 export interface TopEntry {
   crew: number;
@@ -79,13 +81,13 @@ export function startRun(): Promise<RunTicket | null> {
 
 export function finishRun(runId: string, distance: number, fuel: number, pickups: number): Promise<RunResult | null> {
   return call<RunResult & { ok: boolean }>('/api/game/finish', { runId, distance, fuel, pickups }, 5000).then((r) =>
-    r?.ok ? { best: r.best, rank: r.rank ?? null } : null,
+    r?.ok ? { best: r.best, rank: r.rank ?? null, frozen: !!r.frozen } : null,
   );
 }
 
-export function topScores(limit = 10): Promise<{ total: number; top: TopEntry[] } | null> {
-  return call<{ total: number; top: TopEntry[] }>(`/api/game/top?limit=${limit}`, undefined, 5000).then((r) =>
-    r && Array.isArray(r.top) ? { total: r.total ?? r.top.length, top: r.top } : null,
+export function topScores(limit = 10): Promise<{ total: number; top: TopEntry[]; frozen: boolean } | null> {
+  return call<{ total: number; top: TopEntry[]; frozen?: boolean }>(`/api/game/top?limit=${limit}`, undefined, 5000).then((r) =>
+    r && Array.isArray(r.top) ? { total: r.total ?? r.top.length, top: r.top, frozen: !!r.frozen } : null,
   );
 }
 

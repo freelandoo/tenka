@@ -319,7 +319,9 @@ async function gameOver() {
   if (token && runId) {
     const r = await api.finishRun(runId, distance, Math.round(world.fuelCollected), world.pickupsTaken);
     if (state !== 'over') return;
-    ui.overNet.textContent = r
+    ui.overNet.textContent = r?.frozen
+      ? `Ranking encerrado: esta partida não somou pontos.${r.rank ? ` Você terminou em ${r.rank}º lugar.` : ''}`
+      : r
       ? `Ranking: seu melhor é ${r.best} m${r.rank ? ` · ${r.rank}º lugar` : ''}.`
       : 'Sem conexão com o ranking agora. O recorde ficou salvo neste aparelho.';
   } else if (runId) {

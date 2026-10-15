@@ -73,6 +73,16 @@
             <a class="tb-btn tb-btn-ghost" href="%BASE_URL%telao" target="_blank" rel="noopener">ABRIR TELÃO ›</a>
           </div>
         </div>
+        <aside class="ad-side">
+        <div class="ad-rank" id="ad-rank" aria-labelledby="ad-rank-title">
+          <p class="tb-type ad-rank-k" id="ad-rank-title">RANKING // ASTRONAUT JETPACK</p>
+          <p class="tb-type ad-rank-status" id="ad-rank-status" role="status" aria-live="polite">—</p>
+          <button class="tb-btn ad-rank-close" id="ad-rank-close" type="button" disabled>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9 2h6" /></svg>
+            ENCERRAR RANKING
+          </button>
+          <button class="tb-btn tb-btn-ghost ad-rank-open" id="ad-rank-open" type="button" disabled>INICIAR RANKING ›</button>
+        </div>
         <ul class="ad-keys tb-type" aria-label="Atalhos da apresentação">
           <li><kbd>→</kbd><kbd>PgDn</kbd><kbd>Espaço</kbd><span>avançar</span></li>
           <li><kbd>←</kbd><kbd>PgUp</kbd><span>voltar</span></li>
@@ -81,6 +91,7 @@
           <li><kbd>Home</kbd><kbd>End</kbd><span>início / fim</span></li>
           <li><kbd>12</kbd><kbd>Enter</kbd><span>ir ao slide 12</span></li>
         </ul>
+        </aside>
       </section>
 
       <section class="ad-stats" aria-label="Números ao vivo">
@@ -137,6 +148,29 @@
         <span>INDEMETAL GRÁFICOS</span>
       </footer>
     </main>
+
+    <dialog class="ad-modal" id="ad-rank-modal" aria-labelledby="ad-modal-title">
+      <div class="tb-frame ad-modal-frame" style="--c: 24px">
+        <div class="tb-frame-in ad-modal-in">
+          <p class="tb-type ad-rank-k">RANKING // ASTRONAUT JETPACK</p>
+          <h2 class="tb-wide ad-modal-title" id="ad-modal-title">Encerrando <span class="tb-outline">o ranking</span></h2>
+          <p class="tb-type ad-modal-text">
+            Use no fim do evento para fechar a disputa. Quem está jogando agora ainda tem
+            <b>5 minutos</b> para terminar a partida. Quando o relógio zerar, o ranking congela: partidas
+            terminadas depois disso <b>não somam mais pontos</b> e as posições ficam como estão.
+          </p>
+          <p class="tb-type ad-modal-text">
+            Mudou de ideia? <b>Iniciar ranking</b> cancela a contagem ou reabre o ranking. As partidas
+            jogadas enquanto ele estava congelado continuam fora.
+          </p>
+          <div class="ad-modal-clock" aria-live="off">
+            <span class="tb-type" id="ad-modal-label">CONGELA EM</span>
+            <b class="tb-wide" id="ad-modal-clock">05:00</b>
+          </div>
+          <button class="tb-btn ad-modal-ok" id="ad-modal-ok" type="button">ENTENDI</button>
+        </div>
+      </div>
+    </dialog>
 
     <script type="module" src="/src/admin/main.ts"></script>
   </body>

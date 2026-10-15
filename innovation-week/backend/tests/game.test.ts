@@ -64,7 +64,7 @@ test('finish aceita uma distância possível uma única vez', async () => {
   await age(run.runId, 60);
   const r = await finish(run.runId, 300, 90, 3);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, best: 300, rank: 1 });
+  assert.deepEqual(await r.json(), { ok: true, best: 300, rank: 1, frozen: false });
   const again = await finish(run.runId, 300, 90, 3);
   assert.equal(again.status, 409);
 });
@@ -95,15 +95,15 @@ test('finish valida o corpo e partidas inexistentes ou expiradas', async () => {
 test('ranking: melhor de cada membro, só nº e primeiro nome; anônimos ficam fora', async () => {
   const anon = await start();
   await age(anon.runId, 600);
-  assert.deepEqual(await (await finish(anon.runId, 4000)).json(), { ok: true, best: 4000, rank: null });
+  assert.deepEqual(await (await finish(anon.runId, 4000)).json(), { ok: true, best: 4000, rank: null, frozen: false });
 
   const b = await start(members[1].token);
   await age(b.runId, 120);
-  assert.deepEqual(await (await finish(b.runId, 500)).json(), { ok: true, best: 500, rank: 1 });
+  assert.deepEqual(await (await finish(b.runId, 500)).json(), { ok: true, best: 500, rank: 1, frozen: false });
   // Ana fez 300 antes; uma partida pior não baixa o recorde dela.
   const a = await start(members[0].token);
   await age(a.runId, 30);
-  assert.deepEqual(await (await finish(a.runId, 100)).json(), { ok: true, best: 300, rank: 2 });
+  assert.deepEqual(await (await finish(a.runId, 100)).json(), { ok: true, best: 300, rank: 2, frozen: false });
 
   const top = (await (await app.request('/api/game/top')).json()) as {
     total: number;

@@ -17,6 +17,8 @@
 //   POST /api/admin/returns   registra a devolução de uma embalagem (leitor da área admin)
 //   GET  /api/admin/returns   total e últimas devoluções
 //   POST /api/admin/registry  importa a lista de IDs da Realizse (um link GS1 por linha; ADMIN_TOKEN)
+//   GET  /api/admin/ranking   estado do ranking do jogo ({ closesAt, frozen, now })
+//   POST /api/admin/ranking   {"action":"close"} congela em 5 min; {"action":"open"} reabre
 //   POST /api/admin/reset     zera os dados de teste, mantém a lista oficial (ADMIN_TOKEN + {"confirm":"ZERAR TUDO"})
 //
 // O corpo é lido como texto e interpretado como JSON independentemente do
@@ -46,6 +48,8 @@ const GAME_SLACK = 8;
 const GAME_RUN_TTL_S = 2 * 60 * 60;
 /** Combustível máximo por cápsula (cápsula especial). */
 const GAME_MAX_PICKUP = 60;
+/** Tempo entre o "encerrar ranking" do admin e o congelamento. */
+const RANKING_CLOSE_DELAY_S = 5 * 60;
 /** Lista de IDs: ~45 bytes por link, 200 mil ≈ 9 MB. */
 const MAX_REGISTRY_BODY = 32 * 1024 * 1024;
 
@@ -407,53 +411,68 @@ export function createApp(db: Db, opts: AppOptions) {
     if (distance > GAME_MAX_SPEED * r.elapsed + GAME_SLACK) {
       return c.json({ error: 'resultado impossível', code: 'implausible' }, 422);
     }
-    // Fecha uma vez só (duas requisições ao mesmo tempo: só uma passa).
-    const upd = await db.query<{ id: string }>(
-      `update game_runs set finished_at = now(), distance = $2, fuel = $3, pickups = $4
-       where id = $1 and finished_at is null returning id`,
+    // Fecha uma vez só (duas requisições ao mesmo tempo: só uma passa). Com o ranking
+    // congelado a partida fica gravada, mas fora do ranking.
+    const upd = await db.query<{ ranked: boolean }>(
+      `update game_runs set finished_at = now(), distance = $2, fuel = $3, pickups = $4,
+              ranked = (select closes_at is null or now() < closes_at from game_ranking)
+       where id = $1 and finished_at is null returning ranked`,
       [runId, distance, fuel, pickups],
     );
     if (!upd.rows[0]) return c.json({ error: 'partida já encerrada', code: 'finished' }, 409);
-    if (!r.signup_ref) return c.json({ ok: true, best: distance, rank: null });
+    const frozen = !upd.rows[0].ranked;
+    if (!r.signup_ref) return c.json({ ok: true, best: distance, rank: null, frozen });
 
     const best = await db.query<{ best: number; rank: number }>(
       `with bests as (
          select signup_ref, max(distance) as best from game_runs
-         where finished_at is not null and signup_ref is not null group by signup_ref
+         where finished_at is not null and ranked and signup_ref is not null group by signup_ref
        )
        select b.best::int as best,
               (select count(*)::int + 1 from bests o where o.best > b.best) as rank
        from bests b where b.signup_ref = $1`,
       [r.signup_ref],
     );
-    return c.json({ ok: true, best: best.rows[0].best, rank: best.rows[0].rank });
+    const b = best.rows[0];
+    return c.json({ ok: true, best: b?.best ?? distance, rank: b?.rank ?? null, frozen });
   });
+
+  /** Encerramento do ranking: closesAt (null = aberto) e se já congelou. */
+  const rankingState = async () => {
+    const r = await db.query<{ closes_at: string | null; frozen: boolean; now: string }>(
+      'select closes_at, closes_at is not null and now() >= closes_at as frozen, now() from game_ranking',
+    );
+    const x = r.rows[0];
+    return { closesAt: x?.closes_at ?? null, frozen: !!x?.frozen, now: x?.now ?? new Date().toISOString() };
+  };
 
   // Melhor partida de cada tripulante, com a posição (empate: quem chegou primeiro).
   const GAME_BESTS = `
     select s.id, s.name, max(g.distance)::int as best, min(g.finished_at) filter (where g.distance = b.best) as at
     from game_runs g
     join signups s on s.id = g.signup_ref
-    join (select signup_ref, max(distance) as best from game_runs where finished_at is not null group by signup_ref) b
+    join (select signup_ref, max(distance) as best from game_runs where finished_at is not null and ranked group by signup_ref) b
       on b.signup_ref = g.signup_ref
-    where g.finished_at is not null
+    where g.finished_at is not null and g.ranked
     group by s.id, s.name, b.best`;
 
   app.get('/api/game/top', async (c) => {
     if (!allow(clientIp(c))) return c.json({ error: 'muitas requisições' }, 429);
     const limit = Math.min(100, Math.max(1, Number(c.req.query('limit')) || 10));
-    const [r, total] = await Promise.all([
+    const [r, total, state] = await Promise.all([
       db.query<{ id: string; name: string; best: number; at: string }>(
         `${GAME_BESTS} order by best desc, at asc limit $1`,
         [limit],
       ),
       db.query<{ n: number }>(
-        'select count(distinct signup_ref)::int as n from game_runs where finished_at is not null and signup_ref is not null',
+        'select count(distinct signup_ref)::int as n from game_runs where finished_at is not null and ranked and signup_ref is not null',
       ),
+      rankingState(),
     ]);
     c.header('Cache-Control', 'public, max-age=10');
     return c.json({
       total: total.rows[0].n,
+      ...state,
       top: r.rows.map((x) => ({ crew: Number(x.id), name: v.firstName(x.name), best: x.best, at: x.at })),
     });
   });
@@ -645,6 +664,34 @@ export function createApp(db: Db, opts: AppOptions) {
     });
   });
 
+  app.get('/api/admin/ranking', async (c) => {
+    const denied = adminDenied(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    return c.json({ ok: true, ...(await rankingState()) });
+  });
+
+  // Encerrar: congela daqui a 5 min (pedir de novo não adia). Abrir: volta a contar
+  // partidas novas; as jogadas com o ranking congelado continuam fora.
+  app.post('/api/admin/ranking', async (c) => {
+    const denied = adminDenied(c);
+    if (denied) return denied;
+    const body = (await readJson(c)) as Record<string, unknown>;
+    const by = sessionUser(bearer(c)) ?? 'admin';
+    if (body?.action === 'close') {
+      await db.query(
+        `update game_ranking set closes_at = coalesce(closes_at, now() + $1::int * interval '1 second'),
+                updated_by = $2, updated_at = now()`,
+        [RANKING_CLOSE_DELAY_S, by],
+      );
+    } else if (body?.action === 'open') {
+      await db.query('update game_ranking set closes_at = null, updated_by = $1, updated_at = now()', [by]);
+    } else {
+      throw new HttpError(400, 'ação inválida');
+    }
+    return c.json({ ok: true, ...(await rankingState()) });
+  });
+
   // Zera os dados de teste (cadastros, coleção, leituras, sessões, eventos, partidas) e reinicia a
   // numeração. A lista oficial (registry_units) e as migrações ficam.
   app.post('/api/admin/reset', async (c) => {
@@ -654,6 +701,7 @@ export function createApp(db: Db, opts: AppOptions) {
     if (body?.confirm !== 'ZERAR TUDO') throw new HttpError(400, 'confirmação ausente');
     await db.transaction(async (tx) => {
       await tx.exec('truncate game_runs, collectibles, signups, events, sessions, units, returns restart identity cascade');
+      await tx.exec('update game_ranking set closes_at = null');
     });
     const r = await db.query<Record<string, string>>(
       `select (select count(*) from signups) as signups, (select count(*) from collectibles) as collectibles,

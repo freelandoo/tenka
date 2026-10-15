@@ -56,12 +56,11 @@ function podiumCol(e: TopEntry, rank: 1 | 2 | 3) {
     </div>`;
 }
 
-function render(top: TopEntry[], total: number) {
+function render(top: TopEntry[]) {
   const key = JSON.stringify([top, myCrew]);
   if (key === shownKey) return;
   const first = !shownKey;
   shownKey = key;
-  $('rk-count').textContent = total ? `${fmt(total)} ${total === 1 ? 'TRIPULANTE' : 'TRIPULANTES'} NO RANKING` : '';
   $('rk-empty').hidden = top.length > 0;
 
   const podium = $('rk-podium');
@@ -120,7 +119,9 @@ async function loadTop() {
   const r = await topScores(50);
   $('rk-error').hidden = !!r;
   if (!r) return;
-  render(r.top, r.total);
+  const count = r.total ? `${fmt(r.total)} ${r.total === 1 ? 'TRIPULANTE' : 'TRIPULANTES'} NO RANKING` : '';
+  $('rk-count').textContent = r.frozen ? ['RANKING ENCERRADO', count].filter(Boolean).join(' · ') : count;
+  render(r.top);
   html.dataset.state = 'ready';
 }
 
