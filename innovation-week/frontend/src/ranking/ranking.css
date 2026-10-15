@@ -697,6 +697,28 @@ body.rk {
 .rk-foot .rk-btn {
   width: min(100%, 280px);
 }
+.rk-credit {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: #5f636b;
+  text-decoration: none;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+.rk-credit:hover {
+  opacity: 1;
+}
+.rk-credit:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 6px;
+}
+.rk-credit img {
+  display: block;
+  width: clamp(110px, 32vw, 140px);
+  height: auto;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .rk-floor,
