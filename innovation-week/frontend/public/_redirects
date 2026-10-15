@@ -1,0 +1,9 @@
+/membro/*      /membro.html       200
+/membro        /membro.html       200
+/telao         /telao.html        200
+/admin/apresentacao /apresentacao.html 200
+/admin        /admin.html        200
+/privacidade   /privacidade.html  200
+/jogo          /jogo.html         200
+/ranking       /ranking.html      200
+/*             /index.html        200
