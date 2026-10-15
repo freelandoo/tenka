@@ -1356,13 +1356,13 @@ html.vault-open body > :not(#vault, #cv, #stage, #arx) {
 }
 
 /* Marca TENKA Studios gravada na frente do pedestal. Mesmo recorte "cover" do
-   CharacterViewer: imagem 1672x941, frente do pedestal em (837, 625), ~150 px de largura. */
+   CharacterViewer: imagem 1672x941, frente do pedestal em (837, 634), ~150 px de largura. */
 .cv-brand {
   --cv-s: max(100cqw / 1672, 100cqh / 941);
   position: absolute;
   z-index: 1;
   left: calc(50% + (837 - 836) * var(--cv-s));
-  top: calc(50% + (625 - 470.5) * var(--cv-s));
+  top: calc(50% + (634 - 470.5) * var(--cv-s));
   width: calc(150 * var(--cv-s));
   transform: translate(-50%, -50%);
   mix-blend-mode: multiply;
