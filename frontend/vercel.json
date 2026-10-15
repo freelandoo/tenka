@@ -30,6 +30,24 @@
           "value": "noindex, nofollow"
         }
       ]
+    },
+    {
+      "source": "/innovation-week/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/innovation-week/(models|innovation-week|ar)/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -136,6 +154,50 @@
     {
       "source": "/politica-de-privacidade",
       "destination": "/politica-de-privacidade/index.html"
+    },
+    {
+      "source": "/innovation-week/api/:path*",
+      "destination": "https://inoovation-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/innovation-week/membro/:token",
+      "destination": "/innovation-week/membro.html"
+    },
+    {
+      "source": "/innovation-week/membro",
+      "destination": "/innovation-week/membro.html"
+    },
+    {
+      "source": "/innovation-week/telao",
+      "destination": "/innovation-week/telao.html"
+    },
+    {
+      "source": "/innovation-week/admin/apresentacao",
+      "destination": "/innovation-week/apresentacao.html"
+    },
+    {
+      "source": "/innovation-week/admin",
+      "destination": "/innovation-week/admin.html"
+    },
+    {
+      "source": "/innovation-week/ranking",
+      "destination": "/innovation-week/ranking.html"
+    },
+    {
+      "source": "/innovation-week/jogo",
+      "destination": "/innovation-week/jogo.html"
+    },
+    {
+      "source": "/innovation-week/privacidade",
+      "destination": "/innovation-week/privacidade.html"
+    },
+    {
+      "source": "/innovation-week",
+      "destination": "/innovation-week/index.html"
+    },
+    {
+      "source": "/innovation-week/:path*",
+      "destination": "/innovation-week/index.html"
     },
     {
       "source": "/(.*)",
