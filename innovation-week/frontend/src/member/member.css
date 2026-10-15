@@ -344,6 +344,9 @@ html[data-state='login'] .mb-login {
   height: auto;
 }
 /* Rodapé do card do suplemento: crédito TENKA Studios. */
+.mb-supp-foot .mb-credit img {
+  width: 140px;
+}
 .mb-supp-foot {
   display: flex;
   justify-content: center;
