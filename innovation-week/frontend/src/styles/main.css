@@ -396,23 +396,13 @@ html.no-boot .boot {
   pointer-events: none;
 }
 .hud-brand {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+  pointer-events: auto;
+  display: block;
 }
-.hud-logo {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-stretch: 115%;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-}
-.hud-logo b {
-  color: var(--red);
-}
-.hud-year {
-  font-size: 10px;
-  color: var(--grey);
+.hud-brand-logo {
+  display: block;
+  width: clamp(150px, 14vw, 192px);
+  height: auto;
 }
 .hud-right {
   display: flex;
@@ -462,9 +452,6 @@ html.no-boot .boot {
   text-align: right;
 }
 .hud-status li,
-.hud-logo {
-  white-space: nowrap;
-}
 .hud-status b {
   font-weight: 500;
   color: var(--white);
