@@ -210,29 +210,6 @@ export const EVO_SHOTS: EvoShot[] = [
     title: 'O portão principal.',
     caption: 'Escala medida pelo lutador: o portão enquadra o personagem e anuncia a entrada na arena.',
   },
-  {
-    id: 'vale-onsen',
-    src: `${ROOT}/evo/vale-onsen.webp`,
-    chapter: 'ILUMINAÇÃO',
-    title: 'O vale à noite.',
-    caption: 'Luz quente das lanternas contra o azul da noite. A iluminação guia o olhar do jogador até o próximo ponto de interesse.',
-  },
-  {
-    id: 'combo',
-    src: `${ROOT}/evo/combo.webp`,
-    chapter: 'COMBATE',
-    title: 'O combo que sobe na tela.',
-    caption: 'Contador de golpes, tempo de partida e barra de vida — informação lida num relance, sem tirar o olho da luta.',
-  },
-  {
-    id: 'torneio',
-    src: `${ROOT}/evo/torneio.webp`,
-    chapter: 'ENGENHARIA',
-    title: 'Pesado por fora, leve por dentro.',
-    caption:
-      'Na arena do modo VALENDO, as primitivas desenhadas por quadro caíram de 1 milhão para 371 mil. O download do celular foi de 230 MB para 157 MB.',
-    stat: { value: '−63%', label: 'primitivas por quadro' },
-  },
 ];
 
 export const EVO_FACTS: { value: string; label: string }[] = [
