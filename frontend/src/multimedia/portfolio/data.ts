@@ -111,6 +111,25 @@ export interface HoloProject {
 
 export const HOLO_PROJECTS: HoloProject[] = [
   {
+    id: 'casa-views',
+    name: 'Casa Views',
+    client: 'Reality social em tempo real',
+    character: 'O Lutador do Coliseu',
+    model: `${ROOT}/holo/sergio-ra.glb`,
+    faceFront: 0,
+    color: '#ff2b91',
+    accent: '#ffd1e8',
+    backdrop: { src: `${ROOT}/holo/coliseu.webp`, small: `${ROOT}/holo/coliseu-1024.webp`, w: 1672, h: 941, feetX: 836, feetY: 548, figure: 380 },
+    target: { src: `${ROOT}/holo/muay-thai.webp`, alt: 'Figura impressa do Lutador do Coliseu, o alvo da realidade aumentada' },
+    intro:
+      'Holograma rosa, no pedestal do Coliseu. A câmera reconhece a figura impressa do lutador de Muay Thai do Coliseu, e quem coleciona o vê se materializar no pedestal.',
+    steps: [
+      { title: 'A figura impressa', text: 'A arte do Sérgio, lutador do Coliseu, é o alvo da câmera. Edição de estreia: holograma 001.' },
+      { title: 'Colecionar por R$ 1,99', text: 'O botão leva ao Mercado Pago. Na volta, a página confirma o pagamento com o servidor antes de liberar o personagem.' },
+      { title: 'No pedestal do Coliseu', text: 'O holograma pisa no pedestal, a linha sobe com a textura e ele entra numa vitrine de 6 posições — as outras aparecem trancadas, esperando o próximo drop.' },
+    ],
+  },
+  {
     id: 'innovation-week',
     name: 'Innovation Week',
     client: 'Embalagem com identidade digital',
@@ -127,25 +146,6 @@ export const HOLO_PROJECTS: HoloProject[] = [
       { title: 'O rótulo é o alvo', text: 'A própria arte impressa é rastreada pela câmera (MindAR). Não precisa de marcador extra nem de app.' },
       { title: 'Holograma em escala real', text: 'O astronauta surge com 1,8 m sobre a embalagem: shader próprio com fresnel, scanlines, glitch e materialização de baixo para cima.' },
       { title: 'Colecionar', text: 'Uma linha sobe pelo corpo e o holograma vira o modelo com textura. Ele vai para a vitrine do membro.' },
-    ],
-  },
-  {
-    id: 'casa-views',
-    name: 'Casa Views',
-    client: 'Reality social em tempo real',
-    character: 'O Lutador do Coliseu',
-    model: `${ROOT}/holo/sergio-ra.glb`,
-    faceFront: 0,
-    color: '#ff2b91',
-    accent: '#ffd1e8',
-    backdrop: { src: `${ROOT}/holo/coliseu.webp`, small: `${ROOT}/holo/coliseu-1024.webp`, w: 1672, h: 941, feetX: 836, feetY: 548, figure: 380 },
-    target: { src: `${ROOT}/holo/muay-thai.webp`, alt: 'Figura impressa do Lutador do Coliseu, o alvo da realidade aumentada' },
-    intro:
-      'O mesmo motor de holograma, agora rosa. A câmera reconhece a figura impressa do lutador de Muay Thai do Coliseu, e quem coleciona o vê se materializar no pedestal.',
-    steps: [
-      { title: 'A figura impressa', text: 'A arte do Sérgio, lutador do Coliseu, é o alvo da câmera. Edição de estreia: holograma 001.' },
-      { title: 'Colecionar por R$ 1,99', text: 'O botão leva ao Mercado Pago. Na volta, a página confirma o pagamento com o servidor antes de liberar o personagem.' },
-      { title: 'No pedestal do Coliseu', text: 'O holograma pisa no pedestal, a linha sobe com a textura e ele entra numa vitrine de 6 posições — as outras aparecem trancadas, esperando o próximo drop.' },
     ],
   },
 ];
