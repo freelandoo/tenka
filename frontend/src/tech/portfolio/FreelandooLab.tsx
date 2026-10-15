@@ -72,7 +72,10 @@ function ProfileStage() {
         <div className="fl-avatar">
           <img src={`${FL}/enzo-cortes.webp`} alt="Enzo Cortes" />
           <span className="fl-badge" aria-hidden="true">
-            👥
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" strokeWidth="2">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 5.2a3 3 0 0 1 0 5.6M18 13.8c1.9.7 3 2.6 3 5.2" />
+            </svg>
           </span>
         </div>
         <p className="fl-name">ENZO CORTES</p>
