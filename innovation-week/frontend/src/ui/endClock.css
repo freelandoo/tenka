@@ -1,0 +1,182 @@
+/* Aviso de fim do evento (src/ui/endClock.ts): modal com a contagem e selo no rodapé.
+   Cores próprias para valer igual na home (escura) e na área do membro (papel). */
+.ec {
+  --ec-bg: #070707;
+  --ec-white: #f5f5f3;
+  --ec-muted: rgba(245, 245, 243, 0.66);
+  --ec-line: rgba(245, 245, 243, 0.14);
+  --ec-yellow: #ffd60a;
+  --ec-red: #ff1616;
+  --ec-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --ec-display: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
+}
+.ec-modal {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ec-white);
+}
+.ec-modal::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+}
+.ec-modal[open] {
+  animation: ec-in 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ec-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+}
+.ec-card {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: clamp(22px, 6vw, 34px);
+  border: 1.5px solid var(--ec-yellow);
+  background: var(--ec-bg);
+  box-shadow: 8px 8px 0 0 var(--ec-yellow);
+}
+.ec[data-state='frozen'] .ec-card {
+  border-color: var(--ec-red);
+  box-shadow: 8px 8px 0 0 var(--ec-red);
+}
+.ec-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font: 500 10px/1 var(--ec-mono);
+  letter-spacing: 0.2em;
+  color: var(--ec-muted);
+}
+.ec-kicker i,
+.ec-pill i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ec-red);
+  flex: none;
+  animation: ec-blink 1.2s steps(2, start) infinite;
+}
+@keyframes ec-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ec-title {
+  margin: 0;
+  padding-right: 28px;
+  font: 900 clamp(28px, 8vw, 42px) / 0.95 var(--ec-display);
+  font-stretch: 112%;
+  text-transform: uppercase;
+}
+.ec-text {
+  margin: 0;
+  font: 400 14px/1.55 var(--ec-mono);
+  color: var(--ec-muted);
+}
+.ec-clock {
+  display: grid;
+  gap: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ec-line);
+}
+.ec-label {
+  font: 500 10px/1 var(--ec-mono);
+  letter-spacing: 0.2em;
+  color: var(--ec-muted);
+}
+.ec-time {
+  font: 900 clamp(64px, 20vw, 108px) / 1 var(--ec-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--ec-yellow);
+}
+.ec[data-state='frozen'] .ec-time {
+  color: var(--ec-red);
+}
+.ec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 20px;
+  border: 2px solid var(--ec-yellow);
+  background: var(--ec-yellow);
+  color: #0a0a0a;
+  font: 700 12px/1 var(--ec-mono);
+  letter-spacing: 0.16em;
+  text-decoration: none;
+}
+.ec-btn[hidden] {
+  display: none;
+}
+.ec-ghost {
+  background: transparent;
+  border-color: var(--ec-white);
+  color: var(--ec-white);
+}
+.ec-btn:hover,
+.ec-btn:focus-visible {
+  filter: brightness(1.12);
+  outline: none;
+  transform: translate(-1px, -1px);
+}
+.ec-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--ec-white);
+  font: 300 30px/1 var(--ec-display);
+  cursor: pointer;
+}
+.ec-pill {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 12px 16px;
+  border: 1.5px solid var(--ec-yellow);
+  background: var(--ec-bg);
+  color: var(--ec-white);
+  font: 500 11px/1 var(--ec-mono);
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 4px 4px 0 0 var(--ec-yellow);
+  cursor: pointer;
+}
+.ec-pill[hidden] {
+  display: none;
+}
+.ec-pill b {
+  color: var(--ec-yellow);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.ec[data-state='frozen'] .ec-pill {
+  border-color: var(--ec-red);
+  box-shadow: 4px 4px 0 0 var(--ec-red);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec-modal[open],
+  .ec-kicker i,
+  .ec-pill i {
+    animation: none;
+  }
+}

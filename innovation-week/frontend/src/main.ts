@@ -17,6 +17,7 @@ import { initArCta } from './ui/arCta.ts';
 import { initUnitScanCta } from './ui/unitScanCta.ts';
 import { initActivation } from './ui/activation.ts';
 import { initArcade } from './ui/arcade.ts';
+import { initEndClock } from './ui/endClock.ts';
 import { initSfx, soundToggle } from './audio/sfx.ts';
 import { Stage } from './scene/Stage.ts';
 import { EnergyPortal } from './scene/EnergyPortal.ts';
@@ -43,6 +44,7 @@ if (new URLSearchParams(location.search).has('limpar')) {
 const perf = detectPerf();
 initSfx();
 document.body.appendChild(soundToggle('sfx-fixed mono'));
+initEndClock();
 const identity = initIdentity();
 setAnalyticsIdentity(identity);
 connectAnalytics();

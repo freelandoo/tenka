@@ -13,6 +13,7 @@ import { EMPTY_IDENTITY, type ProductIdentity } from '../identity/resolver.ts';
 import { COLLECTION_SLOTS, latestCharacter } from '../collection/catalog.ts';
 import { initCollection, type Collected } from './collection.ts';
 import './member.css';
+import { initEndClock } from '../ui/endClock.ts';
 import { withBase, stripBase } from '../base.ts';
 
 interface Member {
@@ -39,6 +40,7 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 const field = (k: string) => $(`[data-m="${k}"]`);
 
 initSfx();
+initEndClock();
 $('#mb-head-right').appendChild(soundToggle('mono'));
 
 function tokenFromUrl(): string | null {

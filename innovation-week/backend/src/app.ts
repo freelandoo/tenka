@@ -9,6 +9,7 @@
 //   POST /api/game/start      início de uma partida do jogo (devolve runId e seed)
 //   POST /api/game/finish     fim da partida: confere a distância pelo tempo e grava o recorde
 //   GET  /api/game/top        ranking do jogo (melhor de cada tripulante; só nº e primeiro nome; ?limit até 100)
+//   GET  /api/game/ranking    encerramento do ranking ({ closesAt, frozen, now, round }; aviso na home e na área do membro)
 //   POST /api/game/me         posição do membro no ranking ({ member } -> { crew, name, best, rank })
 //   GET  /api/live            números, embalagens devolvidas e últimos tripulantes, para o telão (só primeiro nome)
 //   POST /api/admin/login     usuário + senha da área admin (devolve uma sessão de 12 h)
@@ -478,6 +479,13 @@ export function createApp(db: Db, opts: AppOptions) {
       ...state,
       top: r.rows.map((x) => ({ crew: Number(x.id), name: v.firstName(x.name), best: x.best, at: x.at })),
     });
+  });
+
+  // Estado do encerramento, leve, para o aviso de contagem que todo visitante consulta.
+  app.get('/api/game/ranking', async (c) => {
+    if (!allow(clientIp(c))) return c.json({ error: 'muitas requisições' }, 429);
+    c.header('Cache-Control', 'public, max-age=3');
+    return c.json(await rankingState());
   });
 
   // Posição do membro (link de membro no corpo, não na URL).

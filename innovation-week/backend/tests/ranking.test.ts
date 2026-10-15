@@ -74,6 +74,8 @@ test('ranking: encerrar congela em 5 min; até lá as partidas contam', async ()
   const r = (await (await admin('close')).json()) as { closesAt: string; frozen: boolean; now: string };
   assert.equal(r.frozen, false);
   const delay = (Date.parse(r.closesAt) - Date.parse(r.now)) / 1000;
+  const pub = (await (await app.request('/api/game/ranking')).json()) as { closesAt: string; frozen: boolean };
+  assert.deepEqual([pub.closesAt, pub.frozen], [r.closesAt, false]);
   assert.ok(delay > 295 && delay <= 300, `delay ${delay}`);
   // Pedir de novo não adia.
   const again = (await (await admin('close')).json()) as { closesAt: string };
