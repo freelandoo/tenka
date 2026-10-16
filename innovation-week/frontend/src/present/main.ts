@@ -23,6 +23,7 @@ import { DEMO, HOOKS, demoUrl, type DeckCtx, type HoloTarget, type SlideHooks } 
 import './tabloid.css';
 import './present.css';
 import { withBase } from '../base.ts';
+import { CHAMBER_BG } from '../collection/catalog.ts';
 
 const html = document.documentElement;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -81,6 +82,35 @@ const turntable = (() => {
   };
 })();
 
+// Câmara branca do passo "coletado": pelo mesmo motivo, o CharacterViewer nasce na
+// carga e fica pausado até o passo abrir.
+const chamber = (() => {
+  let viewer: import('../collection/CharacterViewer.ts').CharacterViewer | null = null;
+  const el = () => $('.col-chamber');
+  return {
+    async init() {
+      const [{ CharacterViewer }, { loadModel }] = await Promise.all([
+        import('../collection/CharacterViewer.ts'),
+        import('../collection/model.ts'),
+      ]);
+      await loadModel(config.hero.modelGlb);
+      viewer = new CharacterViewer($<HTMLCanvasElement>('.col-chamber-3d'), reduced);
+      viewer.setPaused(true);
+    },
+    open() {
+      el().classList.add('on');
+      html.classList.add('pz-paper-on');
+      viewer?.setPaused(false);
+      viewer?.show(config.hero.modelGlb).catch(() => {});
+    },
+    close() {
+      el().classList.remove('on');
+      html.classList.toggle('pz-paper-on', slides[index]?.dataset.theme === 'paper');
+      viewer?.setPaused(true);
+    },
+  };
+})();
+
 const ctx: DeckCtx = {
   get label() {
     return label;
@@ -93,6 +123,7 @@ const ctx: DeckCtx = {
     reset: () => holo?.resetSolid(),
   },
   turntable,
+  chamber,
 };
 
 function setup3d() {
@@ -197,7 +228,8 @@ function fillDemo() {
 async function preload() {
   const bar = $('#pz-boot-bar');
   const pct = $('#pz-boot-pct');
-  const urls = new Set<string>([withBase('/innovation-week/deck/planet.webp'), withBase('/innovation-week/deck/astronaut.webp')]);
+  const urls = new Set<string>([withBase('/innovation-week/deck/planet.webp'), withBase('/innovation-week/deck/astronaut.webp'), CHAMBER_BG]);
+  $('.col-chamber').style.setProperty('--chamber-bg', `url("${CHAMBER_BG}")`);
   document.querySelectorAll<HTMLImageElement>('.deck img, .chrome img').forEach((i) => urls.add(i.getAttribute('src')!));
   const jobs: Promise<unknown>[] = [...urls].map(
     (u) =>
@@ -210,7 +242,7 @@ async function preload() {
   jobs.push(document.fonts?.ready ?? Promise.resolve());
   if (label) jobs.push(label.load(true).then(() => label!.loadMasks()).catch((e) => console.warn('[label]', e)));
   if (holo) jobs.push(holo.load(config.hero.modelGlb).catch((e) => console.warn('[holo]', e)));
-  if (stage) jobs.push(turntable.init().catch(() => {}));
+  if (stage) jobs.push(turntable.init().catch(() => {}), chamber.init().catch(() => {}));
   let done = 0;
   const total = jobs.length;
   const tick = () => {

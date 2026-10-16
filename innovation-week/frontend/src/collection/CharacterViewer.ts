@@ -80,6 +80,13 @@ export class CharacterViewer {
     this.idle = 4;
   }
 
+  /** Para o laço de desenho (ex.: câmara criada na carga da apresentação e escondida). */
+  setPaused(v: boolean) {
+    if (this.disposed) return;
+    this.clock.getDelta();
+    this.renderer.setAnimationLoop(v ? null : () => this.frame());
+  }
+
   private bindDrag() {
     const c = this.canvas;
     c.addEventListener('pointerdown', (e) => {

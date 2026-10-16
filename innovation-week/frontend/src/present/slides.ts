@@ -31,6 +31,11 @@ export interface DeckCtx {
     take(): void;
     reset(): void;
   };
+  /** Câmara branca do passo "coletado" (slide 27). */
+  chamber: {
+    open(): void;
+    close(): void;
+  };
   turntable: {
     attach(canvas: HTMLCanvasElement, onReady: () => void): void;
     detach(): void;
@@ -596,12 +601,22 @@ export const HOOKS: Record<string, SlideHooks> = {
       return step >= 2 ? null : { x: W * 0.2, y: -H * 0.42, h: H * 0.78 };
     },
     holoDelay: 0.4,
-    enter: (_el, d) => d.holo.reset(),
+    enter: (_el, d) => {
+      d.holo.reset();
+      d.chamber.close();
+    },
+    leave: (_el, d) => d.chamber.close(),
     step: (el, s, d, instant) => {
       $$(el, '.col-steps li').forEach((li, i) => li.classList.toggle('on', i === s));
+      if (s === 2 && instant) d.chamber.open();
       if (instant) return;
       if (s === 1) d.holo.solidify();
-      if (s === 2) d.holo.take();
+      // O holograma encolhe "para dentro da coleção" e a câmara branca abre com ele no pedestal.
+      // (timer, não a promise do take: o deck esconde o holograma antes do take terminar.)
+      if (s === 2) {
+        d.holo.take();
+        setTimeout(() => el.classList.contains('active') && document.documentElement.dataset.step === '2' && d.chamber.open(), 450);
+      }
     },
   },
 

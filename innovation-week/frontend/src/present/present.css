@@ -1942,6 +1942,85 @@ html.pz-booting .chrome {
   color: var(--tb-white);
   box-shadow: 0 0 calc(var(--u) * 1.6) rgba(255, 22, 22, 0.6);
 }
+/* passo "coletado": câmara branca (mesmo recorte "cover" do CharacterViewer:
+   imagem 1672x941, frente do pedestal em (837, 634), ~150 px de largura) */
+.col-chamber {
+  --cs: max(100cqw / 1672, 100cqh / 941);
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  container-type: size;
+  background: #f3efee var(--chamber-bg) center / cover no-repeat;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.7s ease, visibility 0s 0.7s;
+  pointer-events: none;
+}
+.col-chamber.on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.7s ease;
+}
+.col-chamber-3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.col-chamber-brand {
+  position: absolute;
+  left: calc(50% + (837 - 836) * var(--cs));
+  top: calc(50% + (634 - 470.5) * var(--cs));
+  width: calc(150 * var(--cs));
+  transform: translate(-50%, -50%);
+  mix-blend-mode: multiply;
+  opacity: 0.88;
+}
+/* nome à direita, na mesma linha dos botões de passo (que ficam à esquerda) */
+.col-chamber-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  justify-items: end;
+  gap: calc(var(--u) * 0.4);
+  padding: calc(var(--u) * 3) calc(var(--u) * 5) calc(var(--u) * 6.4);
+  text-align: right;
+  color: var(--tb-ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.82) 45%, rgba(255, 255, 255, 0.92));
+}
+.col-chamber-info p {
+  margin: 0;
+}
+.col-chamber-info .tb-type {
+  font-size: calc(var(--u) * 0.85);
+  letter-spacing: 0.2em;
+  color: var(--tb-ink-2);
+}
+.col-chamber-info .tb-type b {
+  color: var(--tb-red);
+}
+.col-chamber-info h3 {
+  margin: 0;
+  font-size: calc(var(--u) * 5.4);
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+.col-chamber-sub {
+  font-size: calc(var(--u) * 1.15);
+  color: var(--tb-ink-2);
+}
+/* com a câmara aberta, só os botões de passo ficam por cima */
+.col-steps {
+  z-index: 3;
+}
+[data-id='coleta']:has(.col-chamber.on) .col-steps li:not(.on) {
+  border-color: rgba(10, 10, 10, 0.2);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--tb-ink-2);
+}
 
 /* 28 — vitrine (branco) */
 .vit-head .head {
