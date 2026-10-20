@@ -575,6 +575,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             set status = 'pending', attempts = 0, run_after = now(), last_error = null,
                 reviewed_by = $2, reviewed_at = now()
           where id = $1 and (status = 'uncertain' or status = 'failed' or status = 'discarded')
+            and not (kind = 'create_client_billing_batch' and status = 'uncertain'
+                     and last_error is null and updated_at > now() - interval '5 minutes')
           returning id, project_payment_id, subscription_id`,
         [id, req.userId],
       );
@@ -609,6 +611,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       `update public.asaas_operations
           set status = 'discarded', reviewed_by = $2, reviewed_at = now(), review_notes = $3
         where id = $1 and (status = 'uncertain' or status = 'failed')
+          and not (kind = 'create_client_billing_batch' and status = 'uncertain'
+                   and last_error is null and updated_at > now() - interval '5 minutes')
         returning id`,
       [id, req.userId, parsed.data.notes],
     ));
