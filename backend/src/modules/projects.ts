@@ -807,7 +807,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         `select id from public.subscription_payments
           where project_id = $1 and asaas_payment_id is not null
             and status in ('pending','overdue','failed')
-          order by due_date, created_at for update`,
+          order by due_date, id for update`,
         [id],
       );
       if (openMonthlyCharges.rows.length > 0 && !hasAsaas) return 'asaas' as const;

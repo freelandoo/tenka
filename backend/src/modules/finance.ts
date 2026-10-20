@@ -151,7 +151,7 @@ async function currentMonthlyPayment(
        from public.subscription_payments
       where project_id = $1
         and competence = date_trunc('month', current_date)::date
-      order by provider_event_at desc nulls last, created_at desc
+      order by provider_event_at desc nulls last, updated_at desc, id desc
       limit 1`,
     [projectId],
   );

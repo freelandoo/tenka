@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   queries: [] as Array<{ sql: string; values: unknown[] }>,
@@ -60,6 +60,8 @@ const operation = (kind: Operation['kind']): Operation => ({
 });
 
 describe('worker de cobranças de projeto', () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     hoisted.queries.length = 0;
     hoisted.asaasPaymentId = null;
@@ -87,6 +89,8 @@ describe('worker de cobranças de projeto', () => {
   });
 
   it('cria uma cobrança independente e grava o vínculo retornado', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
     await expect(executeOperation(operation('create_project_charge'))).resolves.toBe('pay_1');
 
     expect(hoisted.asaas.createPayment).toHaveBeenCalledWith(expect.objectContaining({
