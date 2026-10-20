@@ -22,6 +22,7 @@ export interface Operation {
   request_payload: Record<string, unknown>;
   requested_by?: string | null;
   request_reason?: string | null;
+  billingCreationStarted?: boolean;
 }
 
 interface SubscriptionContext {
@@ -555,7 +556,25 @@ async function executeBillingBatchOperation(operation: Operation): Promise<strin
   const existing = ctx.asaas_payment_id
     ? await asaas.getPayment(ctx.asaas_payment_id)
     : await asaas.findPayment(ctx.external_reference);
-  const payment = existing ?? await asaas.createPayment(input);
+  let payment = existing;
+  if (!payment) {
+    // Uma queda depois do POST pode ocultar uma cobrança já criada no Asaas.
+    const marked = await getPool().query(
+      `update public.asaas_operations set status = 'uncertain'
+        where id = $1 and status = 'processing' and attempts = $2`,
+      [operation.id, operation.attempts],
+    );
+    if (marked.rowCount !== 1) throw new Error('Operação de cobrança não está mais sob controle deste worker.');
+    operation.billingCreationStarted = true;
+    try {
+      payment = await asaas.createPayment(input);
+    } catch (error) {
+      if (error instanceof AsaasError && error.status >= 400 && error.status < 500 && error.status !== 408) {
+        operation.billingCreationStarted = false;
+      }
+      throw error;
+    }
+  }
   const pix = payment.billingType === 'PIX'
     ? await asaas.getPixQrCode(payment.id)
     : null;
@@ -772,7 +791,8 @@ async function finishOperation(operation: Operation): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.';
     const retryMinutes = Math.min(60, 2 ** Math.min(operation.attempts, 5));
-    const nextStatus = uncertainOutcome(error, operation.attempts) ? 'uncertain' : 'failed';
+    const nextStatus = operation.billingCreationStarted === true
+      || uncertainOutcome(error, operation.attempts) ? 'uncertain' : 'failed';
     await withActor(null, async (client) => {
       await client.query(
         `update public.asaas_operations
