@@ -670,13 +670,24 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(503).send({ error: 'asaas-nao-configurado' });
     }
     try {
+      const providerSubscription = parsed.data.activate
+        ? await asaas.findSubscription(`project-subscription:${id}`)
+        : null;
       const result = await withActor(req.userId!, async (client) => {
-        const locked = await client.query<{ id: string }>(
-          'select id from public.projects where id = $1 for update', [id]);
+        const locked = await client.query<{ id: string; client_id: string | null; cpf_cnpj: string | null }>(
+          `select p.id, p.client_id, c.cpf_cnpj from public.projects p
+             left join public.clients c on c.id = p.client_id
+            where p.id = $1 and p.archived_at is null and p.archive_requested_at is null
+            for update of p`, [id]);
         if (!locked.rows[0]) return null;
+        if (parsed.data.activate && !locked.rows[0].client_id) return 'client-required' as const;
+        if (parsed.data.activate && !locked.rows[0].cpf_cnpj?.replace(/\D/g, '')) {
+          return 'document-required' as const;
+        }
         const previousResult = await client.query<{
           amount_cents: number; due_day: number; next_due_date: string;
           billing_type: string; status: string; asaas_subscription_id: string | null;
+          app_managed: boolean;
         }>('select * from public.project_subscriptions where project_id = $1 for update', [id]);
         const previous = previousResult.rows[0] ?? null;
         const currentPayment = await currentMonthlyPayment(client, id);
@@ -694,6 +705,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         let nextDueDate = parsed.data.nextDueDate
           ?? (isStartingCycle ? nextMonthlyDueDate(parsed.data.dueDay) : preview.next.dueDate);
         if (isStartingCycle) {
+          const today = await client.query<{ day: string }>(
+            "select timezone('America/Sao_Paulo', now())::date as day");
+          if (nextDueDate < today.rows[0]!.day) return 'past-start-date' as const;
           const settled = await client.query<{ status: string }>(
             `select status from public.subscription_payments
               where project_id = $1
@@ -710,33 +724,56 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const billingType = parsed.data.billingType ?? previous?.billing_type ?? 'UNDEFINED';
         // A referência externa é um parâmetro separado do project_id para o
         // Postgres não tentar inferir o mesmo placeholder como UUID e texto.
+        const appManaged = previous?.app_managed || !previous?.asaas_subscription_id;
+        if (appManaged && parsed.data.applyToCurrentPayment && preview.current?.willChange) {
+          return 'current-payment-not-synced' as const;
+        }
+        if (parsed.data.activate && appManaged) {
+          if (providerSubscription) return 'provider-subscription-exists' as const;
+          const queued = await client.query(
+            `select 1 from public.asaas_operations
+              where project_id = $1 and kind in ('activate_subscription','reactivate_subscription')
+                and (status in ('pending','processing','uncertain')
+                     or (status = 'failed' and attempts < 5)) limit 1`, [id]);
+          if (queued.rows[0]) return 'provider-activation-in-progress' as const;
+        }
+        const activationStatus = parsed.data.activate
+          ? (appManaged ? 'active' : 'pending_activation') : 'inactive';
         const { rows } = await client.query<{ id: string; asaas_subscription_id: string | null }>(
           `insert into public.project_subscriptions
              (project_id, amount_cents, billing_type, due_day, next_due_date,
-              status, external_reference, created_by)
-           values ($1::uuid,$2,$3,$4,$5,$6,$7,$8)
+              status, external_reference, created_by, app_managed, first_due_date, started_at)
+           values ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,
+                   case when $6 = 'active' then $5::date end,
+                   case when $6 = 'active' then now() end)
            on conflict (project_id) do update set
              amount_cents = excluded.amount_cents,
              billing_type = excluded.billing_type,
              due_day = excluded.due_day,
              next_due_date = excluded.next_due_date,
              status = case
-               when $6 = 'pending_activation' then $6
+               when $6 in ('pending_activation', 'active') then $6
                when project_subscriptions.status = 'draft' and project_subscriptions.asaas_subscription_id is null then 'inactive'
                else project_subscriptions.status end,
+             app_managed = $9,
+             first_due_date = case when $6 = 'active' and project_subscriptions.status <> 'active'
+                                   then $5::date else project_subscriptions.first_due_date end,
+             started_at = case when $6 = 'active' then coalesce(project_subscriptions.started_at, now())
+                               else project_subscriptions.started_at end,
              sync_error = null
            returning id, asaas_subscription_id`,
           [id, parsed.data.amountCents, billingType, parsed.data.dueDay,
-            nextDueDate, parsed.data.activate ? 'pending_activation' : 'inactive',
-            `project-subscription:${id}`, req.userId],
+            nextDueDate, activationStatus,
+            `project-subscription:${id}`, req.userId, appManaged],
         );
         const subscription = rows[0];
         if (!subscription) throw new Error('Falha ao salvar a assinatura.');
         await client.query(
-          `update public.projects set monthly_fee_cents = $2, due_day = $3 where id = $1`,
-          [id, parsed.data.amountCents, parsed.data.dueDay],
+          `update public.projects set monthly_fee_cents = $2, due_day = $3,
+                  subscription_active = case when $4 then true else subscription_active end where id = $1`,
+          [id, parsed.data.amountCents, parsed.data.dueDay, parsed.data.activate && appManaged],
         );
-        if (parsed.data.activate) {
+        if (parsed.data.activate && !appManaged) {
           const kind = previous?.status === 'active' ? 'sync_subscription'
             : subscription.asaas_subscription_id ? 'reactivate_subscription' : 'activate_subscription';
           const currentChange = preview.current?.willChange ? {
@@ -759,15 +796,24 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             current: {
               amountCents: parsed.data.amountCents, dueDay: parsed.data.dueDay,
               nextDueDate, billingType,
-              status: parsed.data.activate ? 'pending_activation' : (previous?.status ?? 'inactive'),
+              status: parsed.data.activate ? activationStatus : (previous?.status ?? 'inactive'),
             },
           })],
         );
         return subscription;
       });
       if (!result) return reply.code(404).send({ error: 'projeto-inexistente' });
+      if (result === 'client-required') return reply.code(409).send({ error: 'cliente-obrigatorio-para-ativacao' });
+      if (result === 'document-required') return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio-para-ativacao' });
+      if (result === 'past-start-date') return reply.code(409).send({ error: 'vencimento-inicial-no-passado' });
       if (result === 'current-payment-not-synced') {
         return reply.code(409).send({ error: 'cobranca-atual-nao-sincronizada' });
+      }
+      if (result === 'provider-subscription-exists') {
+        return reply.code(409).send({ error: 'assinatura-existente-no-asaas' });
+      }
+      if (result === 'provider-activation-in-progress') {
+        return reply.code(409).send({ error: 'ativacao-asaas-em-andamento' });
       }
       if (parsed.data.activate) financeWorker.kick();
       return reply.send({ subscriptionId: result.id, queued: parsed.data.activate });
@@ -783,12 +829,33 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const kind = action === 'pause' ? 'pause_subscription'
         : action === 'reactivate' ? 'reactivate_subscription' : 'sync_subscription';
       const result = await withActor(req.userId!, async (client) => {
+        await client.query('select id from public.projects where id = $1 for update', [id]);
         const { rows } = await client.query<{
           id: string; status: string; due_day: number; asaas_subscription_id: string | null;
+          app_managed: boolean;
         }>(
-          `select id, status, due_day, asaas_subscription_id
+          `select id, status, due_day, asaas_subscription_id, app_managed
              from public.project_subscriptions where project_id = $1 for update`, [id]);
         if (!rows[0]) return null;
+        if (rows[0].app_managed) {
+          if (action === 'sync') return rows[0];
+          const active = action === 'reactivate';
+          await client.query(
+            `update public.project_subscriptions set status = $2,
+                    paused_at = case when $2 = 'inactive' then now() else null end,
+                    next_due_date = case when $3::date is null then next_due_date else $3::date end,
+                    first_due_date = case when $3::date is null then first_due_date else $3::date end,
+                    sync_error = null where id = $1`,
+            [rows[0].id, active ? 'active' : 'inactive',
+              active ? nextMonthlyDueDate(rows[0].due_day) : null]);
+          await client.query('update public.projects set subscription_active = $2 where id = $1',
+            [id, active]);
+          await client.query(
+            `insert into public.project_activity (project_id, actor_id, action, metadata)
+             values ($1,$2,'assinatura_configurada',$3::jsonb)`,
+            [id, req.userId, JSON.stringify({ event: action, from: rows[0].status })]);
+          return rows[0];
+        }
         // Pausar e reativar operam sobre a recorrência que existe no Asaas. Depois
         // de um cancelamento definitivo não há o que reativar: é preciso ativar de
         // novo, criando outra assinatura.
@@ -822,10 +889,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = subscriptionCancelSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const result = await withActor(req.userId!, async (client) => {
+      await client.query('select id from public.projects where id = $1 for update', [id]);
       const subscription = await client.query<{
         id: string; status: string; asaas_subscription_id: string | null; project_name: string;
+        app_managed: boolean;
       }>(
-        `select ps.id, ps.status, ps.asaas_subscription_id, p.name as project_name
+        `select ps.id, ps.status, ps.asaas_subscription_id, ps.app_managed, p.name as project_name
            from public.project_subscriptions ps join public.projects p on p.id = ps.project_id
           where ps.project_id = $1 for update of ps`,
         [id],
@@ -833,6 +902,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const row = subscription.rows[0];
       if (!row) return 'missing' as const;
       if (parsed.data.confirmation !== row.project_name) return 'confirmation' as const;
+      if (row.app_managed) {
+        const openBatch = await client.query(
+          `select 1 from public.client_billing_batch_items bi
+           join public.client_billing_batches b on b.id = bi.batch_id
+           where bi.project_id = $1 and bi.kind = 'subscription' and bi.status = 'active'
+             and b.status not in ('cancelled','paid') limit 1`, [id]);
+        if (openBatch.rows[0]) return 'batch-open' as const;
+        await client.query(
+          "update public.project_subscriptions set status = 'cancelled', cancelled_at = now() where id = $1",
+          [row.id]);
+        await client.query('update public.projects set subscription_active = false where id = $1', [id]);
+        return 'queued' as const;
+      }
       if (!row.asaas_subscription_id) return 'not-synced' as const;
       if (row.status === 'cancelled') return 'cancelled' as const;
       await queueOperation(client, id, row.id, 'cancel_subscription');
@@ -847,6 +929,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     });
     if (result === 'missing') return reply.code(404).send({ error: 'assinatura-inexistente' });
     if (result === 'confirmation') return reply.code(409).send({ error: 'confirmacao-incorreta' });
+    if (result === 'batch-open') return reply.code(409).send({
+      error: 'cobranca-consolidada-em-aberto',
+      message: 'Resolva a cobrança consolidada em aberto antes de cancelar a assinatura.',
+    });
     if (result === 'not-synced') return reply.code(409).send({ error: 'assinatura-nao-sincronizada' });
     if (result === 'cancelled') return reply.code(409).send({ error: 'assinatura-ja-cancelada' });
     financeWorker.kick();
@@ -856,6 +942,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   app.post('/projects/:id/subscription/clear', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const result = await withActor(req.userId!, async (client) => {
+      await client.query('select id from public.projects where id = $1 for update', [id]);
       const subscription = await client.query<{
         id: string; status: string; asaas_subscription_id: string | null;
       }>('select id, status, asaas_subscription_id from public.project_subscriptions where project_id = $1 for update', [id]);

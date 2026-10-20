@@ -577,7 +577,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           [
             newId,
             i.monthlyFeeCents,
-            false,
+            Boolean(i.subscriptionActive),
             i.clientName,
             i.clientPhone,
             i.clientEmail,
@@ -593,31 +593,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           const subscriptionResult = await client.query<{ id: string }>(
             `insert into public.project_subscriptions
                (project_id, amount_cents, billing_type, due_day, next_due_date, status,
-                external_reference, created_by)
-             values ($1::uuid,$2,'UNDEFINED',$3,$4,$5,$6,$7)
+                external_reference, created_by, app_managed, first_due_date, started_at)
+             values ($1::uuid,$2,'UNDEFINED',$3,$4,$5,$6,$7,true,
+                     case when $5 = 'active' then $4::date end,
+                     case when $5 = 'active' then now() end)
              returning id`,
             [newId, i.monthlyFeeCents, i.dueDay ?? 10, nextDueDate,
-              i.subscriptionActive ? 'pending_activation' : 'inactive',
+              i.subscriptionActive ? 'active' : 'inactive',
               `project-subscription:${newId}`, req.userId],
           );
           const subscription = subscriptionResult.rows[0];
           if (!subscription) throw new Error('Falha ao criar a assinatura do projeto.');
-          if (i.subscriptionActive) {
-            await client.query(
-              `insert into public.asaas_operations
-                 (operation_key, project_id, subscription_id, kind)
-               select 'activate_subscription:' || gen_random_uuid()::text,$1,$2,'activate_subscription'
-                where not exists (
-                  select 1
-                    from public.asaas_operations
-                   where subscription_id = $2
-                     and kind = 'activate_subscription'
-                     and (status in ('pending', 'processing', 'uncertain')
-                       or (status = 'failed' and attempts < 5))
-                )`,
-              [newId, subscription.id],
-            );
-          }
           await client.query(
             `insert into public.project_activity (project_id, actor_id, action, metadata)
              values ($1,$2,'assinatura_configurada',$3::jsonb)`,
@@ -782,9 +768,10 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       const project = await client.query<{
         subscription_id: string | null; subscription_status: string | null;
         asaas_subscription_id: string | null; archive_requested_at: string | null;
+        app_managed: boolean | null;
       }>(
         `select ps.id as subscription_id, ps.status as subscription_status,
-                ps.asaas_subscription_id, p.archive_requested_at
+                ps.asaas_subscription_id, ps.app_managed, p.archive_requested_at
            from public.projects p
            left join public.project_subscriptions ps on ps.project_id = p.id
           where p.id = $1 and p.archived_at is null for update of p`,
@@ -794,13 +781,19 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       if (!row) return 'missing' as const;
       if (row.archive_requested_at) return 'in-progress' as const;
       const hasLiveSubscription = Boolean(
-        row.subscription_id && row.asaas_subscription_id
+        row.subscription_id && (row.asaas_subscription_id || row.app_managed)
         && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''),
       );
       const action = parsed.data.subscriptionAction;
       if (hasLiveSubscription && !action) return 'action-required' as const;
       if (hasLiveSubscription && action === 'keep') return 'keep-not-allowed' as const;
       if (hasLiveSubscription && action !== 'keep' && !hasAsaas) return 'asaas' as const;
+      const batch = await client.query(
+        `select 1 from public.client_billing_batch_items bi
+         join public.client_billing_batches b on b.id = bi.batch_id
+         where bi.project_id = $1 and bi.status = 'active'
+           and b.status not in ('cancelled','paid') limit 1`, [id]);
+      if (batch.rows[0]) return 'batch-open' as const;
       const activeReceipt = await client.query(
         `select 1 from public.payment_receipt_intents
           where project_id = $1 and status in ('pending','submitted','uncertain') limit 1`,
@@ -866,7 +859,14 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       }
       let subscriptionQueued = false;
       if (hasLiveSubscription && action !== 'keep') {
-        subscriptionQueued = await queueSubscriptionOperation(
+        if (row.app_managed) {
+          await client.query(
+            `update public.project_subscriptions set status = $2,
+                    paused_at = case when $2 = 'inactive' then now() else paused_at end,
+                    cancelled_at = case when $2 = 'cancelled' then now() else cancelled_at end
+              where id = $1`, [row.subscription_id, action === 'pause' ? 'inactive' : 'cancelled']);
+          await client.query('update public.projects set subscription_active = false where id = $1', [id]);
+        } else subscriptionQueued = await queueSubscriptionOperation(
           client, id, row.subscription_id!,
           action === 'pause' ? 'pause_subscription' : 'cancel_subscription', {},
           parsed.data.reason ?? 'Arquivamento do projeto',
@@ -902,6 +902,10 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       error: 'baixa-manual-em-andamento',
       message: 'Aguarde a confirmação ou revisão da baixa manual antes de arquivar.',
     });
+    if (result === 'batch-open') return reply.code(409).send({
+      error: 'cobranca-consolidada-em-aberto',
+      message: 'Resolva a cobrança consolidada em aberto antes de arquivar o projeto.',
+    });
     if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const archived = await tryFinalizePendingArchive(id);
     if (result.queued) financeWorker.kick();
@@ -920,9 +924,10 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       const found = await client.query<{
         subscription_id: string | null; subscription_status: string | null;
         asaas_subscription_id: string | null;
+        app_managed: boolean | null;
       }>(
         `select ps.id as subscription_id, ps.status as subscription_status,
-                ps.asaas_subscription_id
+                ps.asaas_subscription_id, ps.app_managed
            from public.projects p
            left join public.project_subscriptions ps on ps.project_id = p.id
           where p.id = $1 for update of p`,
@@ -930,13 +935,21 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       );
       const row = found.rows[0];
       if (!row) return 'missing' as const;
-      const live = Boolean(row.subscription_id && row.asaas_subscription_id
+      const live = Boolean(row.subscription_id && (row.asaas_subscription_id || row.app_managed)
         && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''));
       if (live && !parsed.data.subscriptionAction) return 'action-required' as const;
       let queued = false;
       if (live && parsed.data.subscriptionAction !== 'keep') {
         if (!hasAsaas) return 'asaas' as const;
-        queued = await queueSubscriptionOperation(
+        if (row.app_managed) {
+          await client.query(
+            `update public.project_subscriptions set status = $2,
+                    paused_at = case when $2 = 'inactive' then now() else paused_at end,
+                    cancelled_at = case when $2 = 'cancelled' then now() else cancelled_at end
+              where id = $1`, [row.subscription_id,
+              parsed.data.subscriptionAction === 'pause' ? 'inactive' : 'cancelled']);
+          await client.query('update public.projects set subscription_active = false where id = $1', [id]);
+        } else queued = await queueSubscriptionOperation(
           client, id, row.subscription_id!,
           parsed.data.subscriptionAction === 'pause' ? 'pause_subscription' : 'cancel_subscription',
           {}, parsed.data.reason ?? 'Finalização do projeto',

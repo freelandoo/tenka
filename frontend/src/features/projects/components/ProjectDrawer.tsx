@@ -81,7 +81,7 @@ export function ProjectDrawer({
   };
 
   const hasLiveSubscription = Boolean(
-    finance?.subscription?.asaas_subscription_id
+    (finance?.subscription?.asaas_subscription_id || finance?.subscription?.app_managed)
     && !['inactive', 'cancelled'].includes(finance.subscription.status),
   );
 

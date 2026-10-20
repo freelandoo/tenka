@@ -283,6 +283,7 @@ export interface ProjectSubscriptionRow {
   next_due_date: string;
   status: ProjectSubscriptionStatus;
   asaas_subscription_id: string | null;
+  app_managed?: boolean;
   external_reference: string;
   sync_error: string | null;
   operation_status?: string | null;

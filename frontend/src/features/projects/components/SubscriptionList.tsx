@@ -297,7 +297,7 @@ export function SubscriptionList({
     try {
       if (isActive) {
         await financeService.subscriptionAction(manageProject.id, 'pause');
-        toast('success', 'Desativação enviada ao Asaas. Cobranças já emitidas continuam válidas.');
+        toast('success', 'Mensalidade desativada. Cobranças já emitidas continuam válidas.');
       } else {
         const input: financeService.SubscriptionInput = {
           amountCents: subscription.amount_cents,
@@ -318,7 +318,7 @@ export function SubscriptionList({
             confirmPaidCompetence: true,
           });
         }
-        toast('success', 'Ativação enviada ao Asaas. As próximas cobranças serão geradas automaticamente.');
+        toast('success', 'Mensalidade ativada. As próximas cobranças serão geradas automaticamente.');
       }
       setManageProject(null);
       setManageFinance(null);
@@ -502,7 +502,9 @@ export function SubscriptionList({
                 ) : (
                   <div className="subscription-confirm__impact">
                     <strong>O que acontece ao ativar</strong>
-                    <p>O Asaas começará a gerar as próximas cobranças de {formatCurrencyFromCents(subscription.amount_cents)}, com vencimento no dia {subscription.due_day}.</p>
+                    <p>{subscription.asaas_subscription_id
+                      ? 'O Asaas gerará as próximas cobranças'
+                      : 'O aplicativo criará cada cobrança no Asaas sete dias antes do vencimento'} de {formatCurrencyFromCents(subscription.amount_cents)}, com vencimento no dia {subscription.due_day}.</p>
                     <p>O histórico anterior permanece inalterado.</p>
                   </div>
                 )}

@@ -1,10 +1,12 @@
 import { getPool, withActor } from '../db/pool';
+import type { PoolClient } from 'pg';
 import { hasAsaas } from '../env';
 import { asaas, AsaasError } from './asaas';
 import { isOpenSubscriptionPayment } from './subscriptionCancel';
 import { projectPaymentStatusFromProvider } from './reconciliation';
 import { competenceFromDueDate, paymentStatus } from './status';
 import { markArchiveCleanupAttention, tryFinalizePendingArchive } from './archiveCleanup';
+import { scheduleMonthlyCharge } from './monthlyScheduler';
 
 export interface Operation {
   id: string;
@@ -286,7 +288,7 @@ async function subscriptionContext(operation: Operation): Promise<SubscriptionCo
   return rows[0];
 }
 
-async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext): Promise<string> {
+async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext, db: PoolClient | ReturnType<typeof getPool> = getPool()): Promise<string> {
   if (!ctx.client_id) throw new Error('Vincule um cliente ao projeto antes de ativar a assinatura.');
   const cpfCnpj = (ctx.cpf_cnpj ?? '').replace(/\D/g, '');
   if (!cpfCnpj) throw new Error('Informe o CPF/CNPJ do cliente antes de ativar a assinatura.');
@@ -322,7 +324,7 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext):
     notification.phoneCallEnabledForCustomer ||
     notification.whatsappEnabledForCustomer);
   if (needsUpdate) await asaas.updateCustomerNotifications(customer.id, notifications);
-  await getPool().query(
+  await db.query(
     `update public.clients
         set asaas_customer_id = $2, asaas_customer_synced_at = now(),
             asaas_customer_sync_error = null
@@ -479,8 +481,8 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   return payment.id;
 }
 
-async function billingBatchContext(operation: Operation): Promise<BillingBatchContext> {
-  const { rows } = await getPool().query<BillingBatchContext>(
+async function billingBatchContext(operation: Operation, db: PoolClient | ReturnType<typeof getPool> = getPool()): Promise<BillingBatchContext> {
+  const { rows } = await db.query<BillingBatchContext>(
     `select b.id, b.client_id, b.anchor_project_id, b.due_date, b.amount_cents,
             b.billing_type, b.external_reference, b.asaas_payment_id,
             c.name as client_name, c.email as client_email, c.phone as client_phone,
@@ -511,8 +513,8 @@ async function billingBatchContext(operation: Operation): Promise<BillingBatchCo
   return rows[0];
 }
 
-async function cancelPreviousBatchItemCharges(batchId: string): Promise<void> {
-  const { rows } = await getPool().query<{
+async function cancelPreviousBatchItemCharges(batchId: string, db: PoolClient | ReturnType<typeof getPool> = getPool()): Promise<void> {
+  const { rows } = await db.query<{
     previous_asaas_payment_id: string | null;
   }>(
     `select distinct previous_asaas_payment_id
@@ -534,8 +536,8 @@ async function cancelPreviousBatchItemCharges(batchId: string): Promise<void> {
   }
 }
 
-async function executeBillingBatchOperation(operation: Operation): Promise<string | null> {
-  const ctx = await billingBatchContext(operation);
+async function executeBillingBatchOperation(operation: Operation, db: PoolClient | ReturnType<typeof getPool> = getPool()): Promise<string | null> {
+  const ctx = await billingBatchContext(operation, db);
   const customerId = await ensureCustomer({
     client_id: ctx.client_id,
     client_name: ctx.client_name,
@@ -543,8 +545,8 @@ async function executeBillingBatchOperation(operation: Operation): Promise<strin
     client_phone: ctx.client_phone,
     cpf_cnpj: ctx.cpf_cnpj,
     asaas_customer_id: ctx.asaas_customer_id,
-  } as SubscriptionContext);
-  await cancelPreviousBatchItemCharges(ctx.id);
+  } as SubscriptionContext, db);
+  await cancelPreviousBatchItemCharges(ctx.id, db);
   const input = {
     customer: customerId,
     billingType: ctx.billing_type || 'UNDEFINED',
@@ -560,7 +562,8 @@ async function executeBillingBatchOperation(operation: Operation): Promise<strin
   if (!payment) {
     // Uma queda depois do POST pode ocultar uma cobrança já criada no Asaas.
     const marked = await getPool().query(
-      `update public.asaas_operations set status = 'uncertain'
+      `update public.asaas_operations set status = 'uncertain',
+              request_payload = request_payload || '{"billingCreationAttempted":true}'::jsonb
         where id = $1 and status = 'processing' and attempts = $2`,
       [operation.id, operation.attempts],
     );
@@ -578,13 +581,13 @@ async function executeBillingBatchOperation(operation: Operation): Promise<strin
   const pix = payment.billingType === 'PIX'
     ? await asaas.getPixQrCode(payment.id)
     : null;
-  await getPool().query(
+  await db.query(
     `update public.client_billing_batches
         set asaas_payment_id = $2, payment_url = $3, bank_slip_url = $4,
             pix_payload = $5, billing_type = $6, provider_status = $7,
             status = case when $7 = 'OVERDUE' then 'overdue' else 'synced' end,
             sync_error = null
-      where id = $1`,
+      where id = $1 and status not in ('paid', 'cancelled')`,
     [ctx.id, payment.id, payment.invoiceUrl ?? '', payment.bankSlipUrl ?? '',
       pix?.payload ?? '', payment.billingType || ctx.billing_type, payment.status],
   );
@@ -592,7 +595,42 @@ async function executeBillingBatchOperation(operation: Operation): Promise<strin
 }
 
 export async function executeOperation(operation: Operation): Promise<string | null> {
-  if (operation.billing_batch_id) return executeBillingBatchOperation(operation);
+  if (operation.billing_batch_id) {
+    const scheduledId = operation.request_payload?.scheduledSubscriptionId;
+    if (typeof scheduledId !== 'string') return executeBillingBatchOperation(operation);
+    return withActor(null, async (client) => {
+      const project = await client.query<{ active: boolean }>(
+        `select (p.subscription_active and p.archived_at is null
+                 and p.archive_requested_at is null and ps.app_managed
+                 and ps.status = 'active' and ps.asaas_subscription_id is null) as active
+           from public.projects p join public.project_subscriptions ps on ps.project_id = p.id
+          where p.id = $1 and ps.id = $2 for update of p, ps`,
+        [operation.project_id, scheduledId],
+      );
+      if (!project.rows[0]?.active) {
+        if (operation.request_payload.billingCreationAttempted === true) {
+          operation.billingCreationStarted = true;
+          throw new Error('Emissão anterior precisa ser revisada antes de parar esta cobrança.');
+        }
+        await client.query(
+          "update public.client_billing_batches set status = 'cancelled' where id = $1",
+          [operation.billing_batch_id],
+        );
+        await client.query(
+          `update public.subscription_payments sp set status = 'cancelled'
+            from public.client_billing_batch_items bi
+           where bi.batch_id = $1 and bi.subscription_payment_id = sp.id
+             and sp.asaas_payment_id is null`, [operation.billing_batch_id],
+        );
+        await client.query(
+          "update public.client_billing_batch_items set status = 'cancelled' where batch_id = $1",
+          [operation.billing_batch_id],
+        );
+        return null;
+      }
+      return executeBillingBatchOperation(operation, client);
+    });
+  }
   if (operation.subscription_payment_id) return executeSubscriptionPaymentOperation(operation);
   if (operation.project_payment_id) return executeProjectPaymentOperation(operation);
   const ctx = await subscriptionContext(operation);
@@ -1351,6 +1389,7 @@ export async function runFinanceWorker(): Promise<void> {
   if (running) return;
   running = true;
   try {
+    let scheduleChecked = false;
     for (let i = 0; i < 20; i += 1) {
       const event = await claimWebhook();
       if (event) {
@@ -1358,6 +1397,12 @@ export async function runFinanceWorker(): Promise<void> {
         continue;
       }
       if (!hasAsaas) break;
+      if (!scheduleChecked) {
+        for (let j = 0; j < 20; j += 1) {
+          if (!await scheduleMonthlyCharge()) break;
+        }
+        scheduleChecked = true;
+      }
       const operation = await claimOperation();
       if (!operation) break;
       await finishOperation(operation);
