@@ -364,6 +364,16 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         && payment.asaas_payment_id
         && ['pending', 'overdue', 'failed'].includes(payment.status),
       )) return 'asaas-open' as const;
+      const activeBatch = await client.query(
+        `select 1 from public.client_billing_batch_items bi
+           join public.client_billing_batches b on b.id = bi.batch_id
+           join public.subscription_payments sp on sp.id = bi.subscription_payment_id
+          where sp.project_id = $1 and sp.competence = $2::date
+            and bi.status = 'active' and b.status in ('queued','synced','overdue','failed')
+          limit 1`,
+        [id, competenceDate],
+      );
+      if (activeBatch.rows[0]) return 'asaas-open' as const;
       const existingManualPayment = existing.rows.find((payment) =>
         payment.source === 'manual' && ['pending', 'overdue', 'failed'].includes(payment.status),
       );
