@@ -484,7 +484,7 @@ async function billingBatchContext(operation: Operation): Promise<BillingBatchCo
             b.billing_type, b.external_reference, b.asaas_payment_id,
             c.name as client_name, c.email as client_email, c.phone as client_phone,
             c.cpf_cnpj, c.asaas_customer_id,
-            string_agg(label, '; ' order by due_date, label) as description
+            string_agg(items.label, '; ' order by items.due_date, items.label) as description
        from public.client_billing_batches b
        join public.clients c on c.id = b.client_id
        join (
