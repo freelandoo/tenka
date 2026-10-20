@@ -685,9 +685,10 @@ export async function executeOperation(operation: Operation): Promise<string | n
       await client.query(
         `update public.project_subscriptions
             set asaas_subscription_id = $2, status = 'active', started_at = coalesce(started_at, now()),
+                first_due_date = coalesce(first_due_date, $3::date),
                 paused_at = null, last_synced_at = now(), sync_error = null
           where id = $1`,
-        [ctx.id, subscription.id],
+        [ctx.id, subscription.id, ctx.next_due_date],
       );
       await client.query(
         'update public.projects set subscription_active = true where id = $1',

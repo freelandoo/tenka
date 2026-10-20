@@ -115,7 +115,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const pool = getPool();
     const [projectsRes, assigneesRes] = await Promise.all([
       pool.query(
-        `select p.* from public.projects p
+        `select p.*, ps.first_due_date as subscription_first_due_date from public.projects p
+          left join public.project_subscriptions ps on ps.project_id = p.id
           where p.archived_at is null
             and ($2 or exists (select 1 from public.project_assignees a
                                 where a.project_id = p.id and a.user_id = $1))

@@ -70,6 +70,12 @@ describe('worker de mensalidades', () => {
     }));
   });
 
+  it('guarda o primeiro vencimento quando a ativação é confirmada', async () => {
+    await executeOperation(operation('activate_subscription'));
+    const update = hoisted.queries.find((query) => query.sql.includes('first_due_date = coalesce'));
+    expect(update?.values).toEqual(['subscription-local', 'sub-1', '2026-10-15']);
+  });
+
   it('cancelar remove a assinatura e encerra a recorrência local sem apagar histórico', async () => {
     await executeOperation(operation('cancel_subscription'));
 

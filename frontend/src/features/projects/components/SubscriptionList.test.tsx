@@ -179,7 +179,21 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('Total ativo · 1 de 2')).toBeInTheDocument();
     // Soma só a ativa; a desligada aparece como receita parada.
     expect(screen.getByText('R$ 299,90/mês')).toBeInTheDocument();
-    expect(screen.getByText(/R\$ 299,90\/mês desligado/)).toBeInTheDocument();
+    expect(screen.getByText(/R\$ 299,90\/mês inativo nesta competência/)).toBeInTheDocument();
+  });
+
+  it('mostra inativa antes do primeiro vencimento e ativa no mês inicial', async () => {
+    const project = makeProject({ name: 'Enzo Cortes', monthly_fee_cents: 5000,
+      subscription_first_due_date: '2026-11-26' });
+    const { rerender } = render(<SubscriptionList projects={[project]} isAdmin
+      competence="2026-10" competenceLabel="Outubro de 2026" onChanged={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Sem cobrança')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Gerenciar mensalidade inativa de Enzo Cortes' })).toBeInTheDocument();
+    expect(screen.getByText('Total ativo · 0 de 1')).toBeInTheDocument();
+    rerender(<SubscriptionList projects={[project]} isAdmin
+      competence="2026-11" competenceLabel="Novembro de 2026" onChanged={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Gerenciar mensalidade ativa de Enzo Cortes' })).toBeInTheDocument();
+    expect(screen.getByText('Total ativo · 1 de 1')).toBeInTheDocument();
   });
 
   it('soma centavos como número mesmo se a API mandar string (bug do bigint)', () => {

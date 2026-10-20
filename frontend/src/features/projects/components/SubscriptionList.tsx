@@ -166,6 +166,16 @@ export function SubscriptionList({
     manageFinance?.subscription?.status,
   ]);
 
+  const activeInCompetence = (p: BoardProject) => {
+    if (!p.subscription_active) return false;
+    const firstMonth = p.subscription_first_due_date?.slice(0, 7);
+    if (!firstMonth || competence >= firstMonth) return true;
+    // Um registro anterior pode representar um recebimento histórico legítimo.
+    return payments.some((payment) => payment.project_id === p.id
+      && payment.competence.slice(0, 7) === competence
+      && payment.status !== 'cancelled');
+  };
+
   // Só projetos COM mensalidade cadastrada; maior valor primeiro, e as ativas
   // antes das desligadas para o que está rendendo ficar no topo.
   const linhas = useMemo(
@@ -174,10 +184,10 @@ export function SubscriptionList({
         .filter((p) => cents(p.monthly_fee_cents) > 0)
         .sort(
           (a, b) =>
-            Number(b.subscription_active) - Number(a.subscription_active) ||
+            Number(activeInCompetence(b)) - Number(activeInCompetence(a)) ||
             cents(b.monthly_fee_cents) - cents(a.monthly_fee_cents),
         ),
-    [projects],
+    [projects, competence, payments],
   );
 
   const { total, ativas, parada } = useMemo(() => {
@@ -185,7 +195,7 @@ export function SubscriptionList({
     let ativas = 0;
     let parada = 0;
     for (const p of linhas) {
-      if (p.subscription_active) {
+      if (activeInCompetence(p)) {
         total += cents(p.monthly_fee_cents);
         ativas += 1;
       } else {
@@ -193,7 +203,7 @@ export function SubscriptionList({
       }
     }
     return { total, ativas, parada };
-  }, [linhas]);
+  }, [linhas, competence, payments]);
 
   const paymentsByProject = useMemo(
     () => {
@@ -345,6 +355,7 @@ export function SubscriptionList({
       )}
       <ul className="costs__list">
         {linhas.map((p) => {
+          const activeForMonth = activeInCompetence(p);
           const projectPayments = paymentsByProject.get(p.id) ?? [];
           const hasSettledPayment = projectPayments.some((payment) =>
             ['confirmed', 'received', 'legacy_paid'].includes(payment.status),
@@ -356,7 +367,7 @@ export function SubscriptionList({
           );
           const canRegisterManual = Boolean(isAdmin && !hasSettledPayment && !hasOpenAsaasPayment);
           return (
-            <li key={p.id} className={`fees__row${p.subscription_active ? '' : ' is-off'}`}>
+            <li key={p.id} className={`fees__row${activeForMonth ? '' : ' is-off'}`}>
               <span className="fees__main">
                 <span className="fees__name">{p.name}</span>
                 {p.client_name && <small className="fees__client">{p.client_name}</small>}
@@ -399,7 +410,7 @@ export function SubscriptionList({
                     </span>
                   </span>;
                 }) : <span className="finance-badge finance-badge--not-issued">
-                  {paymentsLoading ? 'Consultando' : p.subscription_active ? 'Não emitida' : 'Sem cobrança'}
+                  {paymentsLoading ? 'Consultando' : activeForMonth ? 'Não emitida' : 'Sem cobrança'}
                 </span>}
                 {canRegisterManual && (
                   <button type="button" className="panel-iconbtn fees__billing-icon"
@@ -414,15 +425,16 @@ export function SubscriptionList({
               {isAdmin ? (
                 <button
                   type="button"
-                  className={`costs__toggle fees__status-button${p.subscription_active ? ' is-on' : ''}`}
-                  aria-label={`Gerenciar mensalidade ${p.subscription_active ? 'ativa' : 'inativa'} de ${p.name}`}
+                  className={`costs__toggle fees__status-button${activeForMonth ? ' is-on' : ''}`}
+                  aria-label={`Gerenciar mensalidade ${activeForMonth ? 'ativa' : 'inativa'} de ${p.name}`}
+                  title={p.subscription_active && !activeForMonth ? 'Inativa nesta competência; a recorrência já está ativada para um mês posterior.' : undefined}
                   onClick={() => void openSubscriptionManagement(p)}
                 >
-                  {p.subscription_active ? 'Ativa' : 'Inativa'}
+                  {activeForMonth ? 'Ativa' : 'Inativa'}
                 </button>
               ) : (
-                <span className={`costs__toggle${p.subscription_active ? ' is-on' : ''}`}>
-                  {p.subscription_active ? 'Ativa' : 'Inativa'}
+                <span className={`costs__toggle${activeForMonth ? ' is-on' : ''}`}>
+                  {activeForMonth ? 'Ativa' : 'Inativa'}
                 </span>
               )}
             </li>
@@ -436,7 +448,7 @@ export function SubscriptionList({
           {parada > 0 && (
             <small className="fees__parada">
               {' '}
-              — {formatCurrencyFromCents(parada)}/mês desligado
+              — {formatCurrencyFromCents(parada)}/mês inativo nesta competência
             </small>
           )}
         </span>

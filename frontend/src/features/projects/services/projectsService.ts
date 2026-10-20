@@ -14,6 +14,7 @@ import type {
 
 export interface BoardProject extends ProjectRow {
   assignees: ProjectAssigneeRow[];
+  subscription_first_due_date?: string | null;
 }
 
 export interface CreateProjectInput {
