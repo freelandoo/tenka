@@ -716,11 +716,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
              billing_type = excluded.billing_type,
              due_day = excluded.due_day,
              next_due_date = excluded.next_due_date,
-             status = case when $6 = 'pending_activation' then $6 else project_subscriptions.status end,
+             status = case
+               when $6 = 'pending_activation' then $6
+               when project_subscriptions.status = 'draft' and project_subscriptions.asaas_subscription_id is null then 'inactive'
+               else project_subscriptions.status end,
              sync_error = null
            returning id, asaas_subscription_id`,
           [id, parsed.data.amountCents, billingType, parsed.data.dueDay,
-            nextDueDate, parsed.data.activate ? 'pending_activation' : 'draft',
+            nextDueDate, parsed.data.activate ? 'pending_activation' : 'inactive',
             `project-subscription:${id}`, req.userId],
         );
         const subscription = rows[0];
@@ -752,7 +755,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             current: {
               amountCents: parsed.data.amountCents, dueDay: parsed.data.dueDay,
               nextDueDate, billingType,
-              status: parsed.data.activate ? 'pending_activation' : (previous?.status ?? 'draft'),
+              status: parsed.data.activate ? 'pending_activation' : (previous?.status ?? 'inactive'),
             },
           })],
         );

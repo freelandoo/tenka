@@ -38,6 +38,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   // O formulário só configura valor e vencimento. O estado da recorrência é
   // preservado em edições e passa a ser administrado exclusivamente no Financeiro.
   const [subscriptionIsActive, setSubscriptionIsActive] = useState(project?.subscription_active ?? false);
+  const [subscriptionChoice, setSubscriptionChoice] = useState<'active' | 'inactive' | ''>('');
   const [subscriptionBaseline, setSubscriptionBaseline] =
     useState<{ amountCents: number; dueDay: number; exists: boolean } | null>(null);
 
@@ -140,6 +141,10 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   }, [selecionado, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
+    if (!isEdit && hasMonthlyFee && !subscriptionChoice) {
+      toast('error', 'Escolha se deseja ativar a mensalidade agora.');
+      return;
+    }
     setSubmitting(true);
     const valueCents = values.value.trim() === '' ? 0 : parseCurrencyToCents(values.value) ?? 0;
     const monthlyFeeCents = values.monthlyFee.trim() === ''
@@ -185,9 +190,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           description: values.description,
           valueCents,
           monthlyFeeCents,
-          // Toda mensalidade nova nasce desligada. A ativação consciente fica
-          // na Carteira/Financeiro, onde o impacto é explicado antes da ação.
-          subscriptionActive: false,
+          subscriptionActive: subscriptionChoice === 'active',
           dueDay: values.dueDay ? Number(values.dueDay) : null,
           clientName: values.clientName,
           clientPhone,
@@ -462,7 +465,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         <section className="project-form__finance" aria-labelledby="project-subscription-title">
           <div className="project-form__finance-heading">
             <span id="project-subscription-title" className="panel-eyebrow">Mensalidade do projeto</span>
-            <small>Informe apenas o valor e o dia. Ativação e pausa ficam no Financeiro.</small>
+            <small>{isEdit ? 'Informe o valor e o dia. Ativação e pausa ficam no Financeiro.' : 'Informe o valor, o dia e escolha se deseja ativar a cobrança.'}</small>
           </div>
           <div className="project-form__finance-grid">
             <div className="panel-field">
@@ -478,7 +481,15 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
               {errors.dueDay && <p className="panel-field__error">{errors.dueDay.message}</p>}
             </div>
           </div>
-          {hasMonthlyFee && (
+          {hasMonthlyFee && !isEdit && (
+            <fieldset className="project-form__finance-notice">
+              <legend>Ativar cobrança mensal no Asaas?</legend>
+              <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'active'} onChange={() => setSubscriptionChoice('active')} /> Sim, ativar agora</label>{' '}
+              <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'inactive'} onChange={() => setSubscriptionChoice('inactive')} /> Não, manter inativa</label>
+              <p>Ao ativar, o Asaas cria a recorrência para o próximo vencimento disponível e pode avisar o cliente.</p>
+            </fieldset>
+          )}
+          {hasMonthlyFee && isEdit && (
             <p className="project-form__finance-notice" role="status">
               {subscriptionIsActive
                 ? 'Esta mensalidade já está ativa. Para desativar ou reativar, use a área Financeiro.'

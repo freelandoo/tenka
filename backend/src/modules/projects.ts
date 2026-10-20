@@ -54,7 +54,7 @@ const createSchema = z.object({
   description: z.string().default(''),
   valueCents: z.number().int().nonnegative(),
   monthlyFeeCents: z.number().int().nonnegative().default(0),
-  subscriptionActive: z.boolean().default(false),
+  subscriptionActive: z.boolean().optional(),
   clientName: z.string().default(''),
   clientPhone: z.string().default(''),
   clientEmail: z.string().default(''),
@@ -67,6 +67,8 @@ const createSchema = z.object({
   assigneeIds: z.array(z.string().uuid()).default([]),
 }).refine((value) => value.monthlyFeeCents === 0 || value.dueDay !== null, {
   message: 'due-day-required-for-subscription',
+}).refine((value) => value.monthlyFeeCents === 0 || value.subscriptionActive !== undefined, {
+  message: 'subscription-choice-required',
 }).refine((value) => !value.subscriptionActive || value.monthlyFeeCents > 0, {
   message: 'monthly-fee-required-for-activation',
 });
@@ -584,7 +586,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
              values ($1::uuid,$2,'UNDEFINED',$3,$4,$5,$6,$7)
              returning id`,
             [newId, i.monthlyFeeCents, i.dueDay ?? 10, nextDueDate,
-              i.subscriptionActive ? 'pending_activation' : 'draft',
+              i.subscriptionActive ? 'pending_activation' : 'inactive',
               `project-subscription:${newId}`, req.userId],
           );
           const subscription = subscriptionResult.rows[0];

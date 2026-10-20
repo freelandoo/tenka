@@ -140,7 +140,9 @@ describe('ProjectFormModal — contato do cliente', () => {
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-10-15');
     await user.type(screen.getByLabelText('Valor mensal (R$)'), '299,90');
     await user.type(screen.getByLabelText('Dia do vencimento'), '10');
-    expect(screen.getByText(/será salva como inativa/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
+    expect(projectsService.createProject).not.toHaveBeenCalled();
+    await user.click(screen.getByLabelText('Não, manter inativa'));
     await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
 
     await waitFor(() =>
@@ -156,6 +158,24 @@ describe('ProjectFormModal — contato do cliente', () => {
       ),
     );
     expect(clientsService.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('envia ativação somente quando escolhida explicitamente', async () => {
+    const user = userEvent.setup();
+    render(<ProjectFormModal project={null} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await user.selectOptions(await screen.findByLabelText('Cadastro'), existingClient.id);
+    await user.type(screen.getByLabelText('Telefone'), '5511999998888');
+    await user.type(screen.getByLabelText('E-mail'), 'cliente@exemplo.com');
+    await user.type(screen.getByLabelText('CPF/CNPJ (opcional)'), '12345678909');
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto ativo');
+    await user.type(screen.getByLabelText('Data de entrega *'), '2026-11-15');
+    await user.type(screen.getByLabelText('Valor mensal (R$)'), '59,90');
+    await user.type(screen.getByLabelText('Dia do vencimento'), '10');
+    await user.click(screen.getByLabelText('Sim, ativar agora'));
+    await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
+    await waitFor(() => expect(projectsService.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ subscriptionActive: true, monthlyFeeCents: 5990 }),
+    ));
   });
 });
 
