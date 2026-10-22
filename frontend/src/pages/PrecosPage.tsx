@@ -10,6 +10,7 @@ import { trackContactClick } from '../lib/analytics';
 import { CONTACT_EMAIL, PHONE_DISPLAY, PHONE_E164, whatsappUrl } from '../config/contact';
 import TenkaHologram from '../tabloid/hologram/TenkaHologram';
 import { DIVISIONS, DIVISION_LIST } from '../tabloid/divisions';
+import TabloidHeader from '../tabloid/TabloidHeader';
 import PriceCard from '../pricing/PriceCard';
 import PortfolioCard from '../pricing/PortfolioCard';
 import { HOSTING, PLANS, PORTFOLIO, formatBRL } from '../pricing/plans';
@@ -89,29 +90,7 @@ export default function PrecosPage() {
   return (
     <div ref={root} className="tf-root pc" data-division="tech">
       {/* ---------------------------------------------------------- cabeçalho */}
-      <header className="pc-header">
-        <Link to="/" className="pc-header__brand" aria-label="TENKA — página inicial">
-          <img src="/images/brand/tenka-tech.svg" alt="" width={150} height={35} />
-        </Link>
-        <nav className="pc-header__nav" aria-label="Divisões">
-          {DIVISION_LIST.map((division) => (
-            <Link key={division.id} to={division.to} className="tf-mono" style={{ ['--d' as string]: division.accent }}>
-              <i aria-hidden="true" />
-              {division.short}
-            </Link>
-          ))}
-          <span className="tf-mono pc-header__here" aria-current="page">
-            <i aria-hidden="true" />
-            Preços
-          </span>
-        </nav>
-        <div className="pc-header__right">
-          {/* o WhatsApp saiu daqui: mora no botão flutuante do site (App.tsx) */}
-          <span className="tf-mono tf-live pc-header__live">
-            <span className="tf-dot" /> No ar
-          </span>
-        </div>
-      </header>
+      <TabloidHeader current="/precos" />
 
       {/* --------------------------------------------------------------- herói */}
       <section className="pc-hero">
