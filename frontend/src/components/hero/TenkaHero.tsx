@@ -6,6 +6,7 @@ import { useHeroSlides } from '../../hooks/useHeroSlides';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useViewport } from '../../hooks/useViewport';
 import { getCardRole, getRoleVars, toTweenVars } from '../../utils/heroRoles';
+import { canRunLivePreview } from '../../utils/devicePerf';
 import { isRenderableImageUrl } from '../../utils/imageValidation';
 import { darkenHex } from '../../utils/color';
 import HeroHeader from './HeroHeader';
@@ -45,6 +46,20 @@ export default function TenkaHero() {
   const isMobile = useViewport(768);
   const prefersReducedMotion = useReducedMotion();
 
+  /**
+   * Quais divisões podem rodar o preview ao vivo dentro do card.
+   *
+   * O autoplay sozinho leva as quatro ao centro em menos de meio minuto. Se
+   * cada passagem carregasse a página da divisão, um visitante que só olha a
+   * home baixaria /games (Three.js), /studios, /tech e /innovation-week sem ter
+   * pedido nenhuma. Carrega a primeira (a vitrine precisa estar viva na
+   * abertura) e, depois dela, só o que o visitante escolher — seta, teclado,
+   * toque, indicador ou clique no card.
+   */
+  const [liveIds, setLiveIds] = useState<readonly string[]>([]);
+  const previewsSupported = useMemo(canRunLivePreview, []);
+  const [isHeroOnScreen, setIsHeroOnScreen] = useState(true);
+
   const containerRef = useRef<HTMLElement | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -70,6 +85,42 @@ export default function TenkaHero() {
       activeIndexRef.current = 0;
     }
   }, [total, activeIndex]);
+
+  // A divisão de abertura já nasce liberada para o preview ao vivo.
+  useEffect(() => {
+    const first = slides[0]?.id;
+    if (!first || !previewsSupported) return;
+    setLiveIds((ids) => (ids.includes(first) ? ids : [...ids, first]));
+  }, [slides, previewsSupported]);
+
+  const requestPreview = useCallback(
+    (id: string | undefined) => {
+      if (!id || !previewsSupported) return;
+      setLiveIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+    },
+    [previewsSupported],
+  );
+
+  // Hero fora da tela (o visitante rolou para o conteúdo abaixo): nada de
+  // autoplay nem de preview rodando atrás das costas dele.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting;
+        setIsHeroOnScreen(visible);
+        if (!visible) progressTweenRef.current?.pause();
+        else if (!hoverPausedRef.current && !document.hidden) {
+          progressTweenRef.current?.resume();
+        }
+      },
+      { threshold: 0.12 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [status]);
 
   // Preload real screenshots only — never the null placeholders.
   useEffect(() => {
@@ -405,11 +456,14 @@ export default function TenkaHero() {
   };
 
   const navigate = contextSafe(
-    (direction: Direction) => {
+    (direction: Direction, userInitiated = false) => {
       if (total < 2 || isAnimatingRef.current) return;
       const from = activeIndexRef.current;
       const to =
         direction === 'next' ? (from + 1) % total : (from - 1 + total) % total;
+      // Escolha do visitante é o gatilho da experiência completa: a divisão
+      // em que ele parar ganha o preview ao vivo; a do autoplay, não.
+      if (userInitiated) requestPreview(slides[to]?.id);
       runTransition(from, to, direction);
     },
   );
@@ -420,7 +474,7 @@ export default function TenkaHero() {
     if (isAnimatingRef.current) return;
     const forwardSteps = (index - from + total) % total;
     const backwardSteps = (from - index + total) % total;
-    navigate(forwardSteps <= backwardSteps ? 'next' : 'previous');
+    navigate(forwardSteps <= backwardSteps ? 'next' : 'previous', true);
   });
 
   // Keep stable references for handlers registered once (Observer, keyboard).
@@ -450,8 +504,8 @@ export default function TenkaHero() {
         type: 'touch,pointer',
         tolerance: 24,
         lockAxis: true,
-        onLeft: () => navigateRef.current('next'),
-        onRight: () => navigateRef.current('previous'),
+        onLeft: () => navigateRef.current('next', true),
+        onRight: () => navigateRef.current('previous', true),
       });
 
       return () => {
@@ -468,10 +522,10 @@ export default function TenkaHero() {
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        navigateRef.current('next');
+        navigateRef.current('next', true);
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        navigateRef.current('previous');
+        navigateRef.current('previous', true);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -531,6 +585,9 @@ export default function TenkaHero() {
         slides={slides}
         activeIndex={activeIndex}
         isAnimating={isAnimating}
+        liveIds={liveIds}
+        previewsEnabled={isHeroOnScreen}
+        releaseWhenIdle={isMobile}
         registerCard={registerCard}
         onCardClick={(index) => goToIndexRef.current(index)}
       />
@@ -540,8 +597,8 @@ export default function TenkaHero() {
         index={activeIndex}
         total={total}
         isAnimating={isAnimating}
-        onPrevious={() => navigateRef.current('previous')}
-        onNext={() => navigateRef.current('next')}
+        onPrevious={() => navigateRef.current('previous', true)}
+        onNext={() => navigateRef.current('next', true)}
       />
 
       <HeroNavigation

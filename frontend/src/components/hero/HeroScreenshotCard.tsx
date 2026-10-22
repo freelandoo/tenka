@@ -13,10 +13,35 @@ import SmartLink from '../SmartLink';
  */
 const SHOW_PLACEHOLDER_LABELS = true;
 
+/** Tempo da esmaecida do preview antes de ele sair de cena (ms). */
+const SUSPEND_FADE_MS = 220;
+
+/**
+ * Quanto um preview suspenso sobrevive na memória de aparelhos pequenos.
+ *
+ * Maior que uma volta inteira do autoplay (4 divisões × 7 s) de propósito: se
+ * fosse menor, o carrossel girando sozinho descarregaria e recarregaria a mesma
+ * página a cada volta — trocar memória parada por um pico de CPU recorrente é
+ * péssimo negócio no celular. Assim a liberação acontece quando o carrossel
+ * parou de verdade (aba oculta, hero fora da tela, visitante em outra divisão).
+ */
+const IDLE_RELEASE_MS = 45000;
+
+/**
+ * - `live`: o card é o ativo e o preview roda inteiro.
+ * - `idle`: o card saiu do centro; o preview fica montado, porém sem render.
+ * - `off`: nada de preview — ninguém pediu este card ainda, ou o aparelho não
+ *   comporta.
+ */
+export type PreviewMode = 'live' | 'idle' | 'off';
+
 interface HeroScreenshotCardProps {
   slide: TenkaHeroSlide;
   role: CardRole;
   disabled: boolean;
+  previewMode: PreviewMode;
+  /** Aparelho pequeno: devolve a memória do preview suspenso em vez de guardá-la. */
+  releaseWhenIdle: boolean;
   registerRef: (el: HTMLDivElement | null) => void;
   onActivate?: () => void;
 }
@@ -25,6 +50,8 @@ export default function HeroScreenshotCard({
   slide,
   role,
   disabled,
+  previewMode,
+  releaseWhenIdle,
   registerRef,
   onActivate,
 }: HeroScreenshotCardProps) {
@@ -35,43 +62,77 @@ export default function HeroScreenshotCard({
     setFailedUrl(null);
   }, [slide.imageUrl]);
 
+  const willEmbed = isEmbeddableUrl(slide.previewUrl);
+  const isLive = willEmbed && previewMode === 'live';
+
   /**
    * O preview ao vivo só monta quando o card chega ao centro, e só depois que a
    * página assentou.
    *
-   * Antes, os três cards montavam `<iframe>` ao mesmo tempo: abrir a home
-   * carregava /games, /studios e /tech inteiros — medido em 15,7 MB e LCP de
-   * 21,2 s no mobile. `loading="lazy"` não ajudava porque os três estão no
-   * viewport. Agora o primeiro paint não carrega nenhum, e cada divisão só é
-   * buscada se o visitante parar nela.
+   * Antes, os quatro cards montavam `<iframe>` de uma vez: abrir a home
+   * carregava /games, /studios, /tech e /innovation-week inteiros — medido em
+   * 15,7 MB e LCP de 21,2 s no mobile. `loading="lazy"` não ajudava porque
+   * todos estão no viewport.
    *
-   * `mounted` é unidirecional de propósito: uma vez carregado, o preview não é
-   * desmontado ao trocar de slide — desmontar faria o iframe recarregar do zero
-   * a cada ida e volta do carrossel.
+   * Depois disso o preview passou a montar só no centro, mas nunca
+   * desmontava — e o autoplay, sozinho, levava os quatro ao centro em menos de
+   * meio minuto. Resultado: quatro páginas vivas em paralelo, cada uma com seu
+   * `requestAnimationFrame` (e seu contexto WebGL) rodando para sempre atrás de
+   * um card a 60% de escala e 2px de blur.
+   *
+   * Agora só o card ativo roda. Ao sair do centro o iframe continua montado
+   * (voltar é instantâneo, sem recarregar a página de dentro) mas com
+   * `display:none` — o documento deixa de ser renderizado e o navegador para de
+   * disparar `requestAnimationFrame` lá dentro, que é o que consome CPU/GPU.
    */
-  const [mounted, setMounted] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    if (mounted || role !== 'center') return;
+    if (loaded || !isLive) return;
 
     const schedule =
       window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 600));
     const cancel = window.cancelIdleCallback ?? window.clearTimeout;
-    const id = schedule(() => setMounted(true));
+    const id = schedule(() => setLoaded(true));
     return () => cancel(id as never);
-  }, [role, mounted]);
+  }, [isLive, loaded]);
 
-  const willEmbed = isEmbeddableUrl(slide.previewUrl);
-  const showEmbed = willEmbed && mounted;
+  // `display:none` zera o processamento, mas a memória (incluindo o contexto
+  // WebGL) continua reservada. No celular isso é o recurso escasso: depois de
+  // um tempo fora do centro, o preview é devolvido de vez.
+  useEffect(() => {
+    if (!loaded || isLive) return;
+    if (!releaseWhenIdle && previewMode !== 'off') return;
+
+    const timer = window.setTimeout(
+      () => setLoaded(false),
+      previewMode === 'off' ? 0 : IDLE_RELEASE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [loaded, isLive, releaseWhenIdle, previewMode]);
+
+  // Esmaece antes de sumir: o card leva ~0,9 s viajando para o slot lateral, e
+  // a troca de preview por imagem/cor acontece dentro dos primeiros 220 ms —
+  // sem corte seco, sem tela branca.
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    if (isLive) {
+      setPainted(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setPainted(false), SUSPEND_FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isLive]);
+
+  const showEmbed = loaded && willEmbed;
   const showImage =
-    !willEmbed &&
-    isRenderableImageUrl(slide.imageUrl) &&
-    slide.imageUrl !== failedUrl;
+    isRenderableImageUrl(slide.imageUrl) && slide.imageUrl !== failedUrl;
 
   return (
     <div
       ref={registerRef}
       data-hero-card
       data-hero-role={role}
+      data-hero-preview={isLive ? 'live' : loaded ? 'idle' : 'off'}
       className="th-card pointer-events-auto absolute opacity-0"
       style={{ transformStyle: 'preserve-3d' }}
     >
@@ -90,41 +151,30 @@ export default function HeroScreenshotCard({
           </div>
         </div>
 
-        {/* Screenshot area — solid placeholder until the admin sets an image */}
+        {/* Screenshot area — a camada de baixo (imagem estática do admin ou cor
+            sólida) está sempre montada; o preview ao vivo entra por cima só
+            quando é a vez deste card. É ela que segura a aparência enquanto o
+            iframe está suspenso. */}
         <div
           className="relative flex-1"
           style={{ backgroundColor: slide.placeholderColor }}
-          role={showEmbed || showImage ? undefined : 'img'}
-          aria-label={showEmbed || showImage ? undefined : slide.imageAlt}
+          role={showImage ? undefined : 'img'}
+          aria-label={showImage ? undefined : slide.imageAlt}
         >
-          {showEmbed ? (
-            /*
-             * Live preview of the real destination site. Non-interactive on
-             * purpose (pointer-events-none): gestures/click stay with the
-             * showroom, and clicking the card opens the site itself.
-             */
-            <iframe
-              src={slide.previewUrl ?? undefined}
-              title={slide.imageAlt}
-              loading="lazy"
-              tabIndex={-1}
-              aria-hidden="true"
-              scrolling="no"
-              className="pointer-events-none h-full w-full border-0"
-              style={{ backgroundColor: slide.placeholderColor }}
-            />
-          ) : showImage ? (
+          {showImage ? (
             <img
               src={slide.imageUrl ?? undefined}
               alt={slide.imageAlt}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover"
               draggable={false}
               onError={() => setFailedUrl(slide.imageUrl)}
             />
           ) : (
-            // Enquanto o preview ainda não montou, fica só a cor sólida do
-            // card — o rótulo de placeholder é para quando não há nada
-            // configurado, não para o intervalo até o iframe carregar.
+            // Sem imagem configurada: fica a cor sólida do card. O rótulo de
+            // placeholder é para quando não há nada configurado, não para o
+            // intervalo até o iframe carregar.
             !willEmbed &&
             SHOW_PLACEHOLDER_LABELS && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-center">
@@ -138,8 +188,33 @@ export default function HeroScreenshotCard({
             )
           )}
 
+          {showEmbed && (
+            /*
+             * Live preview of the real destination site. Non-interactive on
+             * purpose (pointer-events-none): gestures/click stay with the
+             * showroom, and clicking the card opens the site itself.
+             */
+            <iframe
+              src={slide.previewUrl ?? undefined}
+              title={slide.imageAlt}
+              loading="lazy"
+              tabIndex={-1}
+              aria-hidden="true"
+              scrolling="no"
+              className="pointer-events-none absolute inset-0 h-full w-full border-0"
+              style={{
+                backgroundColor: slide.placeholderColor,
+                // `display:none` é o que de fato congela o documento de dentro;
+                // a opacidade só cobre a esmaecida antes disso.
+                display: painted ? 'block' : 'none',
+                opacity: isLive ? 1 : 0,
+                transition: `opacity ${SUSPEND_FADE_MS}ms linear`,
+              }}
+            />
+          )}
+
           {/* Division label */}
-          <span className="absolute bottom-3 left-3 rounded bg-black/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/60">
+          <span className="absolute bottom-3 left-3 z-10 rounded bg-black/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/60">
             {slide.navLabel}
           </span>
         </div>
