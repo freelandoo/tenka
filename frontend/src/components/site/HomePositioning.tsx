@@ -1,37 +1,29 @@
 import { useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import CaseArchive, { CASES } from './CaseArchive';
 import SiteFooter from './SiteFooter';
-import { routeFor } from '../../seo/routes';
 import { trackContactClick } from '../../lib/analytics';
 import { useInView } from '../../hooks/useInView';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import {
-  AUDIENCE_PATHS,
-  BENEFITS,
-  DIVISION_CARDS,
-  HEADLINE,
-  LEAD,
-  METHOD,
-  SLOGAN,
-} from '../../data/positioning';
+import { DIVISION_CARDS, HEADLINE, LEAD, SLOGAN } from '../../data/positioning';
 
 /**
  * Conteúdo da home, abaixo do hero.
  *
  * A home era só a vitrine das divisões: nenhum H2, nenhuma proposta de valor em
  * texto, nenhum CTA de contato e link para apenas uma das três divisões (as
- * outras duas eram `<button>` do carrossel, que buscador não segue). Esta é a
- * página de verdade — posicionamento, o que a TENKA entrega, caminhos por
- * necessidade, prova navegável, método e conversão.
+ * outras duas eram `<button>` do carrossel, que buscador não segue). Isso
+ * continua resolvido aqui — mas só com o que a home precisa ter: posicionamento
+ * (H1 e proposta), as divisões em `<a>` de verdade com as entradas comerciais, e
+ * o fechamento.
  *
- * Regra que vale para tudo aqui: nenhuma afirmação que não dê para conferir no
- * próprio site. A prova é o Arquivo TENKA (projetos no ar, abertos num clique),
- * não número de cliente nem depoimento.
+ * O resto mudou de endereço, porque o trabalho da home é a pessoa escolher a
+ * divisão e ir: benefícios, caminhos por necessidade e as perguntas foram para
+ * `/sobre` (que já tinha o método, duplicado daqui) e a prova navegável para
+ * `/projetos`, que já monta o mesmo Arquivo TENKA. Nada do que saiu foi perdido:
+ * saiu da home e passou a ter uma página só dele.
  */
 
 const ACCENT = '#FF7A30';
-const HOME_FAQ = routeFor('/')?.faq ?? [];
 
 /** Entrada discreta ao chegar na tela. Fica parada com `prefers-reduced-motion`. */
 function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -117,25 +109,6 @@ export default function HomePositioning() {
           </Reveal>
         </section>
 
-        {/* Benefícios */}
-        <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
-          <Reveal>
-            <SectionTitle eyebrow="Por que a Tenka">
-              Qualidade que aparece no que você recebe
-            </SectionTitle>
-            <ul className="mt-10 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
-              {BENEFITS.map((benefit) => (
-                <li key={benefit.title} className="border-t border-white/15 pt-5">
-                  <h3 className="text-[15px] font-semibold leading-snug text-white">
-                    {benefit.title}
-                  </h3>
-                  <p className="mt-3 text-[13px] leading-[1.7] text-white/60">{benefit.body}</p>
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-        </section>
-
         {/* As três divisões — em <a> de verdade, com as entradas comerciais. */}
         <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
           <Reveal>
@@ -183,109 +156,6 @@ export default function HomePositioning() {
             </div>
           </Reveal>
         </section>
-
-        {/* Caminhos por necessidade, no lugar de separar empresa de pessoa. */}
-        <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
-          <Reveal>
-            <SectionTitle eyebrow="Por onde começar">Qual é o seu desejo?</SectionTitle>
-            <div className="mt-10 grid gap-5 md:grid-cols-2">
-              {AUDIENCE_PATHS.map((path) => (
-                <div key={path.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-7">
-                  <h3 className="font-display text-xl uppercase leading-none tracking-[-0.02em]">
-                    {path.label}
-                  </h3>
-                  <p className="mt-4 text-[14px] leading-[1.7] text-white/65">{path.body}</p>
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {path.links.map((link) => (
-                      <Link
-                        key={link.to}
-                        to={link.to}
-                        className="inline-flex min-h-[40px] items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 transition-colors hover:bg-white/10 hover:text-white"
-                      >
-                        {link.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </section>
-
-        {/* Prova — os projetos no ar, não adjetivo. */}
-        <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
-          <Reveal>
-            <SectionTitle eyebrow="Prova">Abra e veja funcionando</SectionTitle>
-            <p className="mt-6 max-w-2xl text-[15px] leading-[1.75] text-white/65">
-              {`${CASES.length} projetos no ar, abertos aqui mesmo: passe o mouse para ver em movimento e entre para girar, jogar e navegar. É a forma mais rápida de julgar a nossa entrega sem depender do que escrevemos sobre ela.`}
-            </p>
-            <div className="mt-10">
-              <CaseArchive />
-            </div>
-            <Link
-              to="/projetos"
-              className="mt-9 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition-colors hover:text-white"
-            >
-              Ver o arquivo completo →
-            </Link>
-          </Reveal>
-        </section>
-
-        {/* Método */}
-        <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
-          <Reveal>
-            <SectionTitle eyebrow="Como trabalhamos">Do desejo ao que fica operando</SectionTitle>
-            <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {METHOD.map((phase) => (
-                <li key={phase.step} className="border-t border-white/15 pt-4">
-                  <span
-                    className="text-[11px] font-bold tracking-[0.2em]"
-                    style={{ color: ACCENT }}
-                  >
-                    {phase.step}
-                  </span>
-                  <h3 className="mt-2 text-base font-semibold text-white">{phase.title}</h3>
-                  <p className="mt-2 text-[13px] leading-[1.7] text-white/55">
-                    {phase.description}
-                  </p>
-                </li>
-              ))}
-            </ol>
-            <Link
-              to="/sobre"
-              className="mt-9 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition-colors hover:text-white"
-            >
-              Conhecer a Tenka →
-            </Link>
-          </Reveal>
-        </section>
-
-        {/* Perguntas — mesma lista que gera o FAQPage JSON-LD (seo/routes.ts). */}
-        {HOME_FAQ.length > 0 && (
-          <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-16 sm:px-8">
-            <Reveal>
-              <SectionTitle eyebrow="Perguntas">Antes de falar com a gente</SectionTitle>
-              <div className="mt-9 max-w-3xl">
-                {HOME_FAQ.map((item) => (
-                  <details key={item.question} className="group border-b border-white/10 py-5">
-                    <summary className="flex cursor-pointer list-none items-start justify-between gap-5 text-[15px] font-semibold text-white/90 transition-colors hover:text-white">
-                      {item.question}
-                      <span
-                        aria-hidden="true"
-                        className="mt-1 shrink-0 text-white/40 transition-transform duration-300 group-open:rotate-45"
-                      >
-                        +
-                      </span>
-                    </summary>
-                    <p className="mt-4 max-w-2xl text-[14px] leading-[1.75] text-white/60">
-                      {item.answer}
-                    </p>
-                  </details>
-                ))}
-              </div>
-            </Reveal>
-          </section>
-        )}
 
         {/* Conversão */}
         <section className="mx-auto max-w-6xl border-t border-white/10 px-5 py-20 sm:px-8">

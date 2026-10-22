@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
-import { METHOD, SLOGAN } from '../data/positioning';
+import { AUDIENCE_PATHS, BENEFITS, METHOD, SLOGAN } from '../data/positioning';
+import { routeFor } from '../seo/routes';
 
 const ACCENT = '#FF7A30';
+
+/** Mesma lista que gera o FAQPage JSON-LD desta rota (seo/routes.ts). */
+const FAQ = routeFor('/sobre')?.faq ?? [];
 
 /**
  * `/sobre` existia no menu da home e no menu mobile desde sempre, apontando para
@@ -66,6 +70,43 @@ export default function SobrePage() {
         </div>
       </ShellSection>
 
+      <ShellSection title="Por onde começar" accent={ACCENT}>
+        <div className="grid gap-5 md:grid-cols-2">
+          {AUDIENCE_PATHS.map((path) => (
+            <div key={path.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-7">
+              <h3 className="font-display text-xl uppercase leading-none tracking-[-0.02em]">
+                {path.label}
+              </h3>
+              <p className="mt-4 text-[14px] leading-[1.7] text-white/65">{path.body}</p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {path.links.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className="inline-flex min-h-[40px] items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </ShellSection>
+
+      <ShellSection title="Por que a Tenka" accent={ACCENT}>
+        <ul className="grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+          {BENEFITS.map((benefit) => (
+            <li key={benefit.title} className="border-t border-white/15 pt-5">
+              <h3 className="text-[15px] font-semibold leading-snug text-white">
+                {benefit.title}
+              </h3>
+              <p className="mt-3 text-[13px] leading-[1.7] text-white/60">{benefit.body}</p>
+            </li>
+          ))}
+        </ul>
+      </ShellSection>
+
       <ShellSection title="Como trabalhamos" accent={ACCENT}>
         <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {METHOD.map((phase) => (
@@ -120,6 +161,21 @@ export default function SobrePage() {
           Contar minha ideia
         </Link>
       </ShellSection>
+      {FAQ.length > 0 && (
+        <ShellSection title="Perguntas" accent={ACCENT}>
+          <div className="max-w-3xl divide-y divide-white/10">
+            {FAQ.map((item) => (
+              <details key={item.question} className="group py-4">
+                <summary className="cursor-pointer text-sm font-semibold text-white marker:content-none">
+                  {item.question}
+                </summary>
+                <p className="mt-3 text-[14px] leading-[1.75] text-white/65">{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </ShellSection>
+      )}
+
     </SiteShell>
   );
 }

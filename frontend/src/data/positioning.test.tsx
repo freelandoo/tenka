@@ -71,10 +71,17 @@ describe('home: tela e HTML estático contam a mesma história', () => {
     }
   });
 
-  it('publica FAQPage na home', () => {
-    expect(home.faq?.length).toBeGreaterThan(0);
-    const types = schemasFor(home).map((block) => block['@type']);
-    expect(types).toContain('FAQPage');
+  // As perguntas de marca saíram da home junto com benefícios, caminhos e
+  // prova: a home ficou com posicionamento, divisões e fechamento. O FAQPage
+  // acompanhou o texto para /sobre — schema sem o conteúdo à vista na mesma
+  // página é exatamente o que o Google pede para não fazer.
+  it('publica FAQPage onde as perguntas aparecem, e não na home', () => {
+    expect(home.faq).toBeUndefined();
+    expect(schemasFor(home).map((block) => block['@type'])).not.toContain('FAQPage');
+
+    const sobre = routeFor('/sobre')!;
+    expect(sobre.faq?.length).toBeGreaterThan(0);
+    expect(schemasFor(sobre).map((block) => block['@type'])).toContain('FAQPage');
   });
 });
 
