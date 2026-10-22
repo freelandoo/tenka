@@ -27,7 +27,6 @@ const GRAIN_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='1
 const GRAIN_URL = `url("data:image/svg+xml,${encodeURIComponent(GRAIN_SVG)}")`;
 
 type Direction = 'next' | 'previous';
-type NavigationSource = 'user' | 'wheel' | 'autoplay';
 
 export default function TenkaHero() {
   const { slides: storedSlides, status } = useHeroSlides();
@@ -56,7 +55,6 @@ export default function TenkaHero() {
   const reducedMotionRef = useRef(prefersReducedMotion);
   const hoverPausedRef = useRef(false);
   const hasEnteredRef = useRef(false);
-  const lastNavStartRef = useRef(0);
 
   isMobileRef.current = isMobile;
   reducedMotionRef.current = prefersReducedMotion;
@@ -132,7 +130,7 @@ export default function TenkaHero() {
         scaleX: 1,
         duration: AUTOPLAY_DELAY / 1000,
         ease: 'none',
-        onComplete: () => navigate('next', 'autoplay'),
+        onComplete: () => navigate('next'),
       },
     );
     if (hoverPausedRef.current || document.hidden) {
@@ -190,7 +188,7 @@ export default function TenkaHero() {
     }
 
     tl.from(
-      q('[data-hero-eyebrow], [data-hero-description]'),
+      q('[data-hero-eyebrow], [data-hero-headline], [data-hero-description]'),
       { y: 26, autoAlpha: 0, duration: 0.6, stagger: 0.08 },
       0.5,
     ).from(
@@ -228,7 +226,6 @@ export default function TenkaHero() {
 
     isAnimatingRef.current = true;
     setIsAnimating(true);
-    lastNavStartRef.current = performance.now();
 
     const mobile = isMobileRef.current;
     const centerVars = getRoleVars('center', mobile);
@@ -241,7 +238,7 @@ export default function TenkaHero() {
     const prevEl = cardRefs.current.get(slides[prevIndex]?.id ?? '');
     const nextEl = cardRefs.current.get(slides[nextIndex]?.id ?? '');
 
-    const copyEls = q('[data-hero-eyebrow], [data-hero-description]');
+    const copyEls = q('[data-hero-eyebrow], [data-hero-headline], [data-hero-description]');
     const counterEl = q('[data-hero-counter-current]');
     const shadeEl = q('[data-hero-shade]');
 
@@ -408,17 +405,8 @@ export default function TenkaHero() {
   };
 
   const navigate = contextSafe(
-    (direction: Direction, source: NavigationSource = 'user') => {
+    (direction: Direction) => {
       if (total < 2 || isAnimatingRef.current) return;
-      // Wheel momentum keeps emitting events after a transition finishes;
-      // require a short settle window before the wheel can navigate again.
-      if (
-        source === 'wheel' &&
-        performance.now() - lastNavStartRef.current <
-          TRANSITION_DURATION * 1000 + 300
-      ) {
-        return;
-      }
       const from = activeIndexRef.current;
       const to =
         direction === 'next' ? (from + 1) % total : (from - 1 + total) % total;
@@ -449,16 +437,14 @@ export default function TenkaHero() {
     () => {
       if (!containerRef.current || total < 2) return;
 
-      const wheelObserver = Observer.create({
-        target: containerRef.current,
-        type: 'wheel',
-        preventDefault: true,
-        onChangeY: (self) => {
-          if (Math.abs(self.deltaY) < 8) return;
-          navigateRef.current(self.deltaY > 0 ? 'next' : 'previous', 'wheel');
-        },
-      });
-
+      // A roda do mouse NÃO troca mais de divisão.
+      //
+      // O observer de `wheel` rodava com `preventDefault: true`: o hero ocupa a
+      // tela inteira, então o cursor está sempre sobre ele e a rolagem vertical
+      // era engolida pelo carrossel. Com a home ganhando conteúdo abaixo do
+      // hero (posicionamento, divisões, prova, conversão), isso tornaria a
+      // página inteira inalcançável pela rolagem. A troca de divisão continua
+      // disponível por seta, teclado, indicador, toque e autoplay.
       const gestureObserver = Observer.create({
         target: containerRef.current,
         type: 'touch,pointer',
@@ -469,7 +455,6 @@ export default function TenkaHero() {
       });
 
       return () => {
-        wheelObserver.kill();
         gestureObserver.kill();
       };
     },
@@ -566,6 +551,19 @@ export default function TenkaHero() {
         accentColor={activeSlide.accentColor}
         onSelect={(index) => goToIndexRef.current(index)}
       />
+
+      {/* Aviso de que a página continua abaixo. O hero ocupa a tela inteira e
+          parece um app de uma só tela — sem esta pista, o conteúdo de
+          posicionamento, prova e conversão passa batido. Só no desktop: no
+          celular a rolagem é reflexo, e aqui embaixo o espaço é da copy. */}
+      <a
+        href="#posicionamento"
+        data-hero-fade
+        className="absolute bottom-10 right-6 z-[60] hidden items-center gap-3 text-[10px] font-bold uppercase tracking-[0.28em] text-white/55 transition-colors hover:text-white md:flex"
+      >
+        Role para ver
+        <span aria-hidden="true" className="th-home-scroll-hint block h-7 w-px bg-white/40" />
+      </a>
 
       <HeroProgress />
 

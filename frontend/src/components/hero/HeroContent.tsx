@@ -36,6 +36,14 @@ export default function HeroContent({
         {slide.eyebrow}
       </p>
 
+      {/* A frase da divisão estava no dado (`headline`) e tinha até estilo
+          próprio no CSS, mas nenhum componente a renderizava: o hero mostrava
+          só o rótulo da divisão. É a mensagem da divisão — entra aqui, na
+          coluna de copy, onde não disputa espaço com a vitrine. */}
+      <p data-hero-headline className="th-home-headline mt-2">
+        {slide.headline}
+      </p>
+
       <p
         data-hero-description
         className="mt-2 line-clamp-3 max-w-[420px] text-[13px] leading-[1.35] text-white/90 md:mt-3 md:line-clamp-4 md:text-[15px] md:leading-[1.45] [@media(max-height:560px)]:hidden"

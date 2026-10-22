@@ -6,3 +6,61 @@
 @media(max-width:767px){.th-home-group-logo{width:142px}}
 @media(prefers-reduced-motion:reduce){.th-environment *{animation-duration:.01ms!important;animation-iteration-count:1!important}}
 .th-headline-wrap{top:14%}.th-headline{font-size:clamp(3.2rem,5.2vw,6rem)}
+
+/* Pista de rolagem: um traço que desce e volta. Discreto de propósito — é um
+   aviso de que a página continua, não um elemento de composição. */
+.th-home-scroll-hint {
+  transform-origin: top;
+  animation: th-scroll-hint 1.9s ease-in-out infinite;
+}
+
+@keyframes th-scroll-hint {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .th-home-scroll-hint {
+    animation: none;
+    transform: scaleY(1);
+  }
+}
+
+/* Frase da divisão, na coluna de copy. Barlow Condensed e o mesmo aperto de
+   letra do resto do hero; `pre-line` porque a quebra vem do dado. */
+.th-home-headline {
+  color: #fff;
+  font: 800 clamp(1.8rem, 3.1vw, 2.9rem) / 0.88 'Barlow Condensed', sans-serif;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 18px rgba(8, 9, 11, 0.3);
+  white-space: pre-line;
+}
+
+@media (max-width: 767px) {
+  .th-home-headline {
+    font-size: clamp(1.65rem, 7.6vw, 2.3rem);
+  }
+}
+
+/* Telas muito baixas (celular na horizontal): a frase sai junto com a
+   descrição, senão a copy cobre a vitrine inteira. */
+@media (max-height: 560px) {
+  .th-home-headline {
+    display: none;
+  }
+}
+
+/* Assinatura da marca ao lado do logo, no header do hero. */
+.th-home-signature {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}

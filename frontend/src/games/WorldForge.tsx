@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DivisionFooterLinks from '../components/site/DivisionFooterLinks';
 import { useGSAP } from '@gsap/react';
 import { Link } from 'react-router-dom';
 import { gsap, ScrollTrigger } from './lib/gsap';
@@ -382,6 +383,7 @@ export default function WorldForge() {
         <BrandMark official />
         <p>JOGOS DE NAVEGADOR · MOBILE · VR · EXPERIÊNCIAS CORPORATIVAS</p>
         <p className="tg-mono">CREATE. BUILD. PLAY. — 2026</p>
+        <DivisionFooterLinks current="/games" />
       </footer>
 
       <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={GAMES_BRIEF} />

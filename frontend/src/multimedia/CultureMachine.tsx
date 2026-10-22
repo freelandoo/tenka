@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DivisionFooterLinks from '../components/site/DivisionFooterLinks';
 import { useGSAP } from '@gsap/react';
 import { Link } from 'react-router-dom';
 import { gsap, ScrollTrigger } from './lib/gsap';
@@ -582,6 +583,7 @@ export default function CultureMachine() {
         <BrandMark official />
         <p>3D · VISUALIZAÇÃO · IDENTIDADE · BRANDING</p>
         <p>CREATE. BUILD. PLAY. — 2026</p>
+        <DivisionFooterLinks current="/studios" />
       </footer>
 
       <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={STUDIOS_BRIEF} />

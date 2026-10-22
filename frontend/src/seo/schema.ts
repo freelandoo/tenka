@@ -14,6 +14,7 @@ import {
   SERVICE_AREAS,
   SOCIAL_PROFILES,
 } from '../config/contact';
+import { SLOGAN } from '../data/positioning';
 import {
   ROUTES,
   SITE_NAME,
@@ -63,6 +64,10 @@ export function organizationSchema(): Json {
     '@id': `${SITE_URL}/#organization`,
     name: SITE_NAME,
     alternateName: 'TENKA',
+    // Assinatura da marca, a mesma que a home e o rodapé mostram. É declarável
+    // porque está publicada no site — ao contrário de nota, prêmio ou número de
+    // cliente, que não temos.
+    slogan: SLOGAN,
     url: `${SITE_URL}/`,
     logo: `${SITE_URL}/images/brand/tenka-group.svg`,
     image: `${SITE_URL}/images/og/tenka-group.jpg`,

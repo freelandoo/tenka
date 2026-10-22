@@ -154,7 +154,7 @@ export default function ProjetosPage() {
             className="inline-flex min-h-[44px] items-center rounded-full px-6 text-[11px] font-bold uppercase tracking-[0.18em] text-[#08090b] transition-opacity hover:opacity-85"
             style={{ backgroundColor: ACCENT }}
           >
-            Pedir um projeto
+            Contar minha ideia
           </Link>
         </div>
       </ShellSection>

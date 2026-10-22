@@ -12,6 +12,7 @@
  */
 
 import { COMPANY_NAME } from '../config/contact';
+import { HEADLINE, LEAD } from '../data/positioning';
 import { LEGAL_ROUTES } from './legal';
 import { SERVICE_ROUTES } from './services';
 
@@ -61,16 +62,41 @@ export interface SeoRoute {
 const CORE_ROUTES: SeoRoute[] = [
   {
     path: '/',
-    title: 'Tenka Group — Games em VR, 3D, Branding, Sites e Sistemas',
+    title: 'Tenka Group — Realize seu desejo | VR, 3D, sites e sistemas',
     description:
-      'Grupo TENKA: jogos e treinamentos em realidade virtual, maquetes e animações 3D, identidade visual e branding, sites, sistemas e automações. São Paulo.',
-    h1: 'Tenka Group — games em realidade virtual, 3D e branding, sites e sistemas',
-    intro:
-      'A TENKA é um grupo de tecnologia e entretenimento em São Paulo, organizado em três divisões que trabalham juntas: TENKA Games (jogos, experiências e treinamentos em realidade virtual), TENKA Studios (maquetes 3D, animações 3D, mockup de produto, identidade visual e branding) e TENKA Tech (sites, sistemas sob medida, aplicativos e automações com IA).',
+      'Realize seu desejo: a TENKA cria jogos e treinamentos em realidade virtual, maquetes 3D, identidade visual, sites, sistemas sob medida e automações. São Paulo.',
+    // O H1 da home é a frase de posicionamento, a mesma que a página mostra na
+    // tela — importada de `data/positioning` para que HTML estático e DOM
+    // renderizado nunca contem histórias diferentes. Os termos comerciais ficam
+    // no `intro` e nos `highlights`, que também vão para o HTML rastreável.
+    h1: HEADLINE,
+    intro: LEAD,
     highlights: [
       'TENKA Games — jogos de navegador, jogos mobile, jogos em VR, ativações de marca em realidade virtual e treinamentos corporativos em VR',
       'TENKA Studios — maquetes eletrônicas 3D, animações 3D, mockup digital de produtos, identidade visual, branding e logos',
       'TENKA Tech — sites, plataformas SaaS, sistemas sob medida, aplicativos, automações e agentes de IA',
+    ],
+    faq: [
+      {
+        question: 'O que a Tenka Group faz?',
+        answer:
+          'A TENKA é um grupo de tecnologia e entretenimento de São Paulo com três divisões que trabalham sob a mesma direção: TENKA Games (jogos, advergames, ativações e treinamentos em realidade virtual), TENKA Studios (maquete eletrônica 3D, animação 3D, mockup de produto, identidade visual e branding) e TENKA Tech (sites, sistemas sob medida, aplicativos e automações com agentes de IA).',
+      },
+      {
+        question: 'A TENKA atende pessoa física ou só empresa?',
+        answer:
+          'Atende os dois, dentro do que já está no catálogo. Empresas chegam por treinamento em VR, ativação de marca, sistema sob medida, automação e site. Profissionais e autônomos chegam por site profissional, identidade visual e automação de atendimento. O que define o atendimento é a necessidade, não o tipo de contrato.',
+      },
+      {
+        question: 'Como começa um projeto com a TENKA?',
+        answer:
+          'Com uma conversa de entendimento antes de qualquer proposta: o que você quer que aconteça, para quem, com que prazo e o que precisa estar operando no fim. A partir disso dizemos qual divisão conduz, o que o projeto exige e quanto tempo leva. Não trabalhamos com pacote fechado de prateleira, porque escopo e integração mudam completamente o esforço.',
+      },
+      {
+        question: 'O que significa "Realize seu desejo"?',
+        answer:
+          'É a assinatura da TENKA e também o método: o cliente chega com uma necessidade, uma ideia ou um desejo — às vezes ainda sem forma — e sai com uma entrega personalizada, construída e colocada no ar. Os projetos no ar listados no site são a forma de conferir isso antes de pedir um orçamento.',
+      },
     ],
     ogImage: '/images/og/tenka-group.jpg',
     priority: 1.0,
@@ -137,10 +163,10 @@ const CORE_ROUTES: SeoRoute[] = [
     path: '/projetos',
     title: 'Projetos e cases | Tenka Group',
     description:
-      'Projetos entregues pelas divisões da TENKA: jogos e experiências em VR, maquetes e animações 3D, identidade visual, sites e sistemas sob medida.',
+      'Projetos no ar da TENKA: jogos e experiências em VR, maquetes e animações 3D, identidade visual, sites e sistemas sob medida. Abra e veja funcionando.',
     h1: 'Projetos da TENKA',
     intro:
-      'Uma seleção do que as três divisões da TENKA já colocaram no ar — jogos e experiências imersivas, peças 3D e de marca, sites e sistemas em operação.',
+      'Não é portfólio em PDF: cada projeto abaixo está no ar e pode ser aberto agora — jogos e experiências imersivas, peças 3D e de marca, sites e sistemas em operação. É a forma mais direta de julgar a nossa entrega antes de pedir um orçamento.',
     ogImage: '/images/og/tenka-group.jpg',
     priority: 0.8,
     changefreq: 'monthly',
@@ -152,7 +178,7 @@ const CORE_ROUTES: SeoRoute[] = [
       'Quem é a TENKA: um grupo de São Paulo com três divisões — Games, Studios e Tech — que atende empresas em jogos e VR, 3D e branding, sites e sistemas.',
     h1: 'Sobre a TENKA',
     intro:
-      'A TENKA é um grupo de tecnologia e entretenimento sediado em São Paulo. Três divisões, um mesmo time de produção: Games, Studios e Tech. O que normalmente exigiria três fornecedores diferentes acontece sob a mesma direção.',
+      'A TENKA é um grupo de tecnologia e entretenimento sediado em São Paulo. Existe para transformar necessidade, ideia e desejo em entrega concreta e personalizada — e para isso reúne criação, tecnologia, design e estratégia em três divisões sob a mesma direção: Games, Studios e Tech. O que normalmente exigiria três fornecedores diferentes acontece em um só lugar.',
     ogImage: '/images/og/tenka-group.jpg',
     priority: 0.6,
     changefreq: 'monthly',
@@ -164,7 +190,7 @@ const CORE_ROUTES: SeoRoute[] = [
       'Fale com a TENKA: WhatsApp (11) 98427-4134, grupotenka@gmail.com. Games e realidade virtual, 3D e branding, sites e sistemas. Atendimento a partir de São Paulo.',
     h1: 'Fale com a TENKA',
     intro:
-      'Conte o que precisa entrar em operação e encaminhamos para a divisão certa. Atendemos a partir de São Paulo, para empresas em todo o Brasil.',
+      'Conte o seu desejo — mesmo que ainda esteja em forma de ideia solta. A gente responde dizendo qual divisão conduz, o que o projeto exige e quanto tempo leva. Atendemos a partir de São Paulo, para empresas e profissionais em todo o Brasil.',
     highlights: [
       'WhatsApp e telefone: (11) 98427-4134',
       'E-mail: grupotenka@gmail.com',

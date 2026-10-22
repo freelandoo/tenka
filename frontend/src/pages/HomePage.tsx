@@ -1,19 +1,22 @@
 import TenkaHero from '../components/hero/TenkaHero';
-import { routeFor } from '../seo/routes';
+import HomePositioning from '../components/site/HomePositioning';
 import { useSeo } from '../seo/useSeo';
 
-const HOME = routeFor('/')!;
-
+/**
+ * A home tem dois andares: o hero (a vitrine das divisões, tela cheia) e, abaixo
+ * dele, a página de verdade — posicionamento, entregas, prova e conversão.
+ *
+ * O H1 morava aqui como `sr-only` porque não havia texto nenhum na tela. Agora
+ * ele é visível, dentro do `HomePositioning`, com a mesma frase que o manifesto
+ * de SEO serve no HTML estático.
+ */
 export default function HomePage() {
-  useSeo(HOME);
+  useSeo('/');
 
   return (
     <main>
-      {/* O hero é um carrossel de divisões sem título de display — por isso a
-          home não tinha H1 nenhum. Ele entra como `sr-only`: cabeçalho real
-          para crawler e leitor de tela, sem alterar a composição visual. */}
-      <h1 className="sr-only">{HOME.h1}</h1>
       <TenkaHero />
+      <HomePositioning />
     </main>
   );
 }

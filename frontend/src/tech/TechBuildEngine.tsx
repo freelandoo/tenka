@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DivisionFooterLinks from '../components/site/DivisionFooterLinks';
 import { useGSAP } from '@gsap/react';
 import { Link } from 'react-router-dom';
 import { gsap } from './lib/gsap';
@@ -277,7 +278,7 @@ export default function TechBuildEngine() {
         </section>
       </main>
 
-      <footer className="tt-footer tt-mono"><BrandMark official /><p>SITES · SAAS · AUTOMAÇÕES · APLICATIVOS</p><p>CREATE. BUILD. PLAY. — 2026</p></footer>
+      <footer className="tt-footer tt-mono"><BrandMark official /><p>SITES · SAAS · AUTOMAÇÕES · APLICATIVOS</p><p>CREATE. BUILD. PLAY. — 2026</p><DivisionFooterLinks current="/tech" /></footer>
 
       <BriefModal open={briefOpen} onClose={() => setBriefOpen(false)} config={TECH_BRIEF} />
     </div>

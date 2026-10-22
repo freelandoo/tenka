@@ -6,7 +6,7 @@ import { useRef } from 'react';
  * Links por documento (<a>) porque levam âncora e, no caso da Innovation Week,
  * outro app.
  */
-interface ArchiveCase {
+export interface ArchiveCase {
   title: string;
   division: string;
   accent: string;
@@ -17,7 +17,7 @@ interface ArchiveCase {
   video?: string;
 }
 
-const CASES: ArchiveCase[] = [
+export const CASES: ArchiveCase[] = [
   {
     title: 'Innovation Week',
     division: 'Embalagem com identidade digital',

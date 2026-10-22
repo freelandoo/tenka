@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import SiteShell, { ShellSection } from '../components/site/SiteShell';
+import { METHOD, SLOGAN } from '../data/positioning';
 
 const ACCENT = '#FF7A30';
 
@@ -35,12 +36,6 @@ const DIVISIONS = [
   },
 ];
 
-const METHOD = [
-  ['01', 'Mapear', 'Problema, público, operação e o resultado que precisa acontecer.'],
-  ['02', 'Arquitetar', 'Fluxos, dados, integrações e decisões de produto antes de produzir.'],
-  ['03', 'Construir', 'Arte, código e interação avançando no mesmo ciclo, não em silos.'],
-  ['04', 'Operar', 'Publicação, monitoramento e melhoria contínua depois da entrega.'],
-];
 
 export default function SobrePage() {
   return (
@@ -73,16 +68,18 @@ export default function SobrePage() {
 
       <ShellSection title="Como trabalhamos" accent={ACCENT}>
         <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {METHOD.map(([index, title, description]) => (
-            <li key={index} className="border-t border-white/15 pt-4">
+          {METHOD.map((phase) => (
+            <li key={phase.step} className="border-t border-white/15 pt-4">
               <span
                 className="text-[11px] font-bold tracking-[0.2em]"
                 style={{ color: ACCENT }}
               >
-                {index}
+                {phase.step}
               </span>
-              <h3 className="mt-2 text-base font-semibold text-white">{title}</h3>
-              <p className="mt-2 text-[13px] leading-[1.65] text-white/55">{description}</p>
+              <h3 className="mt-2 text-base font-semibold text-white">{phase.title}</h3>
+              <p className="mt-2 text-[13px] leading-[1.65] text-white/55">
+                {phase.description}
+              </p>
             </li>
           ))}
         </ol>
@@ -112,12 +109,15 @@ export default function SobrePage() {
           equipamento no local são atendidos na região metropolitana de São Paulo e, sob
           combinação, em outras praças.
         </p>
+        <p className="mt-10 font-display text-lg uppercase tracking-[0.12em] text-white/80">
+          Tenka Group — {SLOGAN}
+        </p>
         <Link
           to="/contato"
-          className="mt-8 inline-flex min-h-[44px] items-center rounded-full px-6 text-[11px] font-bold uppercase tracking-[0.18em] text-[#08090b] transition-opacity hover:opacity-85"
+          className="mt-6 inline-flex min-h-[44px] items-center rounded-full px-6 text-[11px] font-bold uppercase tracking-[0.18em] text-[#08090b] transition-opacity hover:opacity-85"
           style={{ backgroundColor: ACCENT }}
         >
-          Falar com a TENKA
+          Contar minha ideia
         </Link>
       </ShellSection>
     </SiteShell>

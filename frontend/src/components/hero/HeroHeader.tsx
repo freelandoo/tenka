@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { LockKeyhole, Menu } from 'lucide-react';
 import type { TenkaHeroSlide } from '../../types/hero';
+import { SLOGAN } from '../../data/positioning';
 
 interface HeroHeaderProps {
   slides: TenkaHeroSlide[];
@@ -20,18 +21,27 @@ export default function HeroHeader({
   return (
     <header className="th-home-header absolute inset-x-0 top-0 z-[80]">
       <div className="flex items-center justify-between px-5 py-4 sm:px-10 sm:py-6 lg:px-14">
-        <Link
-          to="/"
-          data-hero-logo
-          aria-label="TENKA Group — página inicial"
-          className="flex min-h-[44px] items-center text-white"
-        >
-          <img
-            className="th-home-group-logo"
-            src="/images/brand/tenka-group.svg"
-            alt=""
-          />
-        </Link>
+        <div data-hero-logo className="flex items-center gap-4">
+          <Link
+            to="/"
+            aria-label="TENKA Group — página inicial"
+            className="flex min-h-[44px] items-center text-white"
+          >
+            <img
+              className="th-home-group-logo"
+              src="/images/brand/tenka-group.svg"
+              alt=""
+            />
+          </Link>
+          {/* A assinatura da marca junto do logo. Só no desktop: no celular o
+              header já é logo + menu, e uma terceira peça aperta os dois. */}
+          <span
+            className="th-home-signature hidden border-l border-white/25 pl-4 text-[13px] uppercase text-white/70 lg:inline-block"
+            aria-hidden="true"
+          >
+            {SLOGAN}
+          </span>
+        </div>
 
         {/* Center: division navigation (desktop only) */}
         <nav aria-label="Divisões" className="hidden items-center gap-9 md:flex">
