@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ContactPage from './pages/ContactPage';
 import SobrePage from './pages/SobrePage';
@@ -12,6 +12,21 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { usePageviews } from './lib/usePageviews';
 import ConsentBanner from './components/site/ConsentBanner';
+import WhatsAppDrawer from './components/site/WhatsAppDrawer';
+import { shouldTrack } from './lib/analytics';
+
+/**
+ * Botão de WhatsApp em todo o site público. Fora da área interna pela mesma
+ * régua do aviso de cookies e do GA (`shouldTrack`): o painel é ferramenta de
+ * trabalho, não vitrine. Montado uma vez aqui, não por página — a gaveta
+ * lembra que já abriu na sessão mesmo trocando de rota.
+ */
+function SiteWhatsApp() {
+  const { pathname } = useLocation();
+  if (!shouldTrack(pathname)) return null;
+  const page = pathname.split('/')[1] || 'home';
+  return <WhatsAppDrawer source={`site_${page}`} />;
+}
 
 // The Games experience bundles Three.js/GSAP/Lenis — lazy-loaded so the rest
 // of the site pays nothing for it.
@@ -80,6 +95,7 @@ export default function App() {
     // o usuário veria só o fundo laranja do index.html, sem nada para fazer.
     <RouteErrorBoundary>
       <ConsentBanner />
+      <SiteWhatsApp />
       <Routes>
         <Route path="/" element={<HomePage />} />
         {/* A antiga área /admin era pública e sem autenticação. Ela virou

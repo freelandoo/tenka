@@ -24,8 +24,6 @@ export interface LeadPayload {
   message?: string;
   /** Respostas cruas do briefing, por id de passo. */
   answers?: Record<string, unknown>;
-  /** Honeypot: preenchido = robô (o backend responde 201 e não grava). */
-  website?: string;
 }
 
 export async function saveLead(payload: LeadPayload): Promise<boolean> {

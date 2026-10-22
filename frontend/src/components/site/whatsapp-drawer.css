@@ -8,7 +8,8 @@
   position: fixed;
   right: clamp(16px, 2.4vw, 28px);
   bottom: calc(clamp(16px, 2.4vw, 28px) + var(--consent-h, 0px));
-  z-index: 80;
+  /* acima do cursor customizado do Games (70), abaixo da abertura da Studios (80) e do aviso de cookies (90) */
+  z-index: 75;
   display: flex;
   align-items: flex-end;
   gap: 14px;
@@ -19,44 +20,29 @@
 
 /* ------------------------------------------------------------- botão 3D */
 .wa-fab {
+  /* sem caixa: só o logo e o brilho verde (pedido do Alex) */
   position: relative;
   display: grid;
   place-items: center;
-  width: 66px;
-  height: 66px;
-  border: 1px solid rgba(var(--wa-rgb), 0.55);
-  background: radial-gradient(circle at 50% 45%, rgba(var(--wa-rgb), 0.28), rgba(4, 12, 8, 0.92) 70%);
-  box-shadow: 0 0 26px rgba(var(--wa-rgb), 0.55), 0 0 60px rgba(var(--wa-rgb), 0.25), 5px 5px 0 rgba(0, 0, 0, 0.6);
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   perspective: 240px;
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), filter 220ms;
 }
-.wa-fab:hover { transform: translate(-2px, -2px); box-shadow: 0 0 34px rgba(var(--wa-rgb), 0.75), 0 0 80px rgba(var(--wa-rgb), 0.35), 7px 7px 0 rgba(0, 0, 0, 0.6); }
-.wa-fab:active { transform: translate(1px, 1px); }
+.wa-fab:hover { transform: scale(1.08); filter: brightness(1.15); }
+.wa-fab:active { transform: scale(0.96); }
 .wa-fab:focus-visible { outline: 2px solid var(--wa); outline-offset: 4px; }
-.wa-fab__ring {
-  position: absolute;
-  inset: -1px;
-  border: 2px solid var(--wa);
-  animation: wa-ping 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-}
-@keyframes wa-ping { from { opacity: 0.8; transform: scale(1); } to { opacity: 0; transform: scale(1.55); } }
-.wa-fab__badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  display: grid;
-  place-items: center;
-  min-width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #ff2d3d;
-  color: #fff;
-  font: 800 11px/1 'Inter', sans-serif;
-  box-shadow: 0 0 12px rgba(255, 45, 61, 0.7);
-  animation: wa-bump 2.2s ease-in-out infinite;
-}
-@keyframes wa-bump { 0%, 70%, 100% { transform: scale(1); } 80% { transform: scale(1.25); } 90% { transform: scale(0.95); } }
+
+/* logo: glifo CSS por baixo, canvas 3D por cima quando fica pronto */
+.wa-logo { position: relative; display: grid; place-items: center; width: 100%; height: 100%; }
+.wa-logo__gl { position: absolute; inset: 0; opacity: 0; transition: opacity 500ms ease; filter: drop-shadow(0 0 4px rgba(var(--wa-rgb), 0.95)) drop-shadow(0 0 12px rgba(var(--wa-rgb), 0.7)) drop-shadow(0 0 26px rgba(var(--wa-rgb), 0.45)); }
+.wa-logo.is-3d .wa-logo__gl { opacity: 1; }
+.wa-logo .wa-glyph { transition: opacity 400ms ease; }
+.wa-logo.is-3d .wa-glyph { opacity: 0; animation-play-state: paused; }
 
 .wa-glyph {
   position: relative;
@@ -132,23 +118,6 @@
   letter-spacing: -0.01em;
 }
 .wa-drawer__text { margin: 10px 0 0; color: rgba(239, 250, 243, 0.72); font-size: 13.5px; line-height: 1.5; }
-.wa-drawer__form { display: grid; gap: 10px; }
-.wa-drawer__field { display: grid; gap: 5px; }
-.wa-drawer__field span { font: 700 9.5px/1 'Space Mono', monospace; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(239, 250, 243, 0.55); }
-.wa-drawer__field input {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid rgba(239, 250, 243, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
-  font: 500 15px/1 'Inter', sans-serif;
-  outline: none;
-  transition: border-color 200ms;
-}
-.wa-drawer__field input:focus { border-color: var(--wa); }
-.wa-drawer__hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-.wa-drawer__error { margin: 0; color: #ff8a8a; font-size: 12.5px; }
 .wa-drawer__cta {
   display: flex;
   align-items: center;
@@ -178,7 +147,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wa-glyph { animation: none; transform: rotateY(-18deg); }
-  .wa-fab__ring, .wa-fab__badge, .wa-drawer__dot { animation: none; }
-  .wa-fab__ring { opacity: 0; }
+  .wa-drawer__dot { animation: none; }
   .wa-drawer__panel { transition: opacity 200ms ease; transform: none; }
 }
