@@ -205,7 +205,7 @@ const CORE_ROUTES: SeoRoute[] = [
       {
         question: 'Como funciona o orçamento?',
         answer:
-          'Cada projeto é orçado depois de uma conversa de entendimento: objetivo, público, prazo e o que precisa estar operando no fim. Não trabalhamos com pacote fechado de prateleira, porque escopo e integração mudam completamente o esforço.',
+          'Landing pages têm tabela pública, em três planos, na página de preços. Todo o resto é orçado depois de uma conversa de entendimento: objetivo, público, prazo e o que precisa estar operando no fim — escopo e integração mudam completamente o esforço.',
       },
       {
         question: 'Qual o prazo típico de um projeto?',
@@ -219,6 +219,36 @@ const CORE_ROUTES: SeoRoute[] = [
       },
     ],
     ogImage: '/images/og/tenka-group.jpg',
+    priority: 0.8,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/precos',
+    title: 'Preços de sites e landing pages | TENKA Tech',
+    description:
+      'Landing pages profissionais a partir de R$ 300: planos Essencial, Premium e Experiência com 3D, e hospedagem por R$ 60/mês. Veja o portfólio da TENKA Tech.',
+    h1: 'Um site à altura do seu negócio',
+    intro:
+      'Landing pages profissionais, com design moderno e foco na sua marca. Três planos de preço fechado e hospedagem mensal com o site no ar 24 horas e preparado para ser encontrado no Google.',
+    highlights: [
+      'Essencial — R$ 300: landing page estática, design personalizado e contato por WhatsApp',
+      'Premium — R$ 650: tudo do Essencial, com animações suaves, interações na página e experiência personalizada',
+      'Experiência — R$ 1.000: tudo do Premium, com elemento 3D, movimento em 3D e conceito visual exclusivo',
+      'Hospedagem e tráfego orgânico — R$ 60 por mês',
+    ],
+    faq: [
+      {
+        question: 'O que a hospedagem de R$ 60 por mês inclui?',
+        answer:
+          'O site disponível 24 horas por dia e preparado para ser encontrado no Google: título, descrição e estrutura de cada página pensados para busca orgânica.',
+      },
+      {
+        question: 'E se o meu projeto não cabe em nenhum dos três planos?',
+        answer:
+          'Sistemas, lojas, áreas de membro e integrações saem do escopo de landing page e são orçados à parte, depois de uma conversa sobre o que precisa estar funcionando no fim.',
+      },
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
     priority: 0.8,
     changefreq: 'monthly',
   },

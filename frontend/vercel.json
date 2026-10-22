@@ -76,6 +76,10 @@
       "destination": "/contato/index.html"
     },
     {
+      "source": "/precos",
+      "destination": "/precos/index.html"
+    },
+    {
       "source": "/games/treinamento-em-realidade-virtual",
       "destination": "/games/treinamento-em-realidade-virtual/index.html"
     },

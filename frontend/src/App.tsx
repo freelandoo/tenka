@@ -22,6 +22,8 @@ import ConsentBanner from './components/site/ConsentBanner';
 const GamesPage = lazyWithRetry(() => import('./pages/GamesPage'));
 const DesenvolvimentoPage = lazyWithRetry(() => import('./pages/DesenvolvimentoPage'));
 const MultimidiaPage = lazyWithRetry(() => import('./pages/MultimidiaPage'));
+// /precos carrega GSAP e (sob demanda, dentro dela) o three do holograma.
+const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
 
 // Área interna (autenticação + Kanban de projetos) — chunk independente,
 // nenhum custo para as experiências públicas.
@@ -125,6 +127,14 @@ export default function App() {
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/projetos" element={<ProjetosPage />} />
         <Route path="/contato" element={<ContactPage />} />
+        <Route
+          path="/precos"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <PrecosPage />
+            </Suspense>
+          }
+        />
         <Route path="/politica-de-privacidade" element={<PoliticaPrivacidadePage />} />
         <Route
           path="/painel/*"

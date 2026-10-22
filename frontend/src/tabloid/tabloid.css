@@ -1,0 +1,143 @@
+/* Pele "tabloide futurista" da TENKA (prefixo tf-), porte da pele Reality da
+   Casa Views. A cor da divisão chega por `data-division` em `.tf-root` e vira
+   `--tf-acc`. Regras: cantos retos, sombra dura, movimento só em transform e
+   opacity, nada animado em camada do tamanho da janela. */
+
+.tf-root {
+  --tf-ink: #f2f6f7;
+  --tf-dim: rgba(242, 246, 247, 0.62);
+  --tf-faint: rgba(242, 246, 247, 0.14);
+  --tf-bg: #04070a;
+  --tf-panel: #0a0f13;
+  --tf-acc: #00d9e0;
+  --tf-acc-rgb: 0, 217, 224;
+  --tf-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --tf-display: 'Archivo', 'Anton', sans-serif;
+  --tf-mono: 'Space Mono', 'IBM Plex Mono', monospace;
+  position: relative;
+  min-height: 100dvh;
+  overflow-x: clip;
+  background-color: var(--tf-bg);
+  /* grade + vinheta: pintadas uma vez, rolam com o conteúdo */
+  background-image:
+    radial-gradient(120% 70% at 50% 0%, rgba(var(--tf-acc-rgb), 0.12), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 48px 48px, 48px 48px;
+  color: var(--tf-ink);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.tf-root[data-division='tech'] { --tf-acc: #00d9e0; --tf-acc-rgb: 0, 217, 224; }
+.tf-root[data-division='studios'] { --tf-acc: #e0262f; --tf-acc-rgb: 224, 38, 47; }
+.tf-root[data-division='games'] { --tf-acc: #ff6a0a; --tf-acc-rgb: 255, 106, 10; }
+.tf-root *, .tf-root *::before, .tf-root *::after { border-radius: 0; }
+.tf-root ::selection { background: var(--tf-acc); color: #000; }
+
+/* tipografia */
+.tf-display {
+  font-family: var(--tf-display);
+  font-variation-settings: 'wdth' 125;
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 0.86;
+  letter-spacing: -0.02em;
+}
+.tf-mono {
+  font-family: var(--tf-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.tf-acc { color: var(--tf-acc); }
+
+/* título gasto (o .rv-grunge da Casa Views) */
+.tf-grunge {
+  color: transparent;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(4, 7, 10, 0.2) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(0deg, rgba(4, 7, 10, 0.12) 0 1px, transparent 1px 18px),
+    linear-gradient(180deg, #ffffff 0%, #d6dde0 38%, #ffffff 52%, #aeb8bc 74%, #eef3f4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035 0.09' numOctaves='5' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 -16 0 0 0 12.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035 0.09' numOctaves='5' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 -16 0 0 0 12.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+.tf-grunge-acc {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(4, 7, 10, 0.22) 0 1px, transparent 1px 22px),
+    linear-gradient(180deg, var(--tf-acc), color-mix(in srgb, var(--tf-acc) 70%, #fff) 50%, var(--tf-acc));
+}
+
+/* faixa em seta */
+.tf-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 26px 7px 12px;
+  background: var(--tf-acc);
+  color: #000;
+  font: 700 11px/1 var(--tf-mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+}
+.tf-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50% !important;
+  background: currentColor;
+}
+.tf-live .tf-dot { animation: tf-blink 1.4s steps(2, jump-none) infinite; }
+@keyframes tf-blink { 50% { opacity: 0.2; } }
+
+/* moldura de canto cortado */
+.tf-cut { clip-path: polygon(0 0, calc(100% - var(--c, 18px)) 0, 100% var(--c, 18px), 100% 100%, 0 100%); }
+.tf-cut-bl { clip-path: polygon(0 0, 100% 0, 100% 100%, var(--c, 14px) 100%, 0 calc(100% - var(--c, 14px))); }
+
+/* botões */
+.tf-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border: 1px solid var(--tf-acc);
+  background: var(--tf-acc);
+  color: #000;
+  font: 700 12px/1 var(--tf-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 rgba(var(--tf-acc-rgb), 0.28);
+  transition: transform 220ms var(--tf-ease), box-shadow 220ms var(--tf-ease);
+}
+.tf-btn:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 rgba(var(--tf-acc-rgb), 0.35); }
+.tf-btn:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0 rgba(var(--tf-acc-rgb), 0.35); }
+.tf-btn--ghost { background: transparent; color: var(--tf-acc); box-shadow: none; }
+.tf-btn--ghost:hover { background: rgba(var(--tf-acc-rgb), 0.1); box-shadow: none; }
+.tf-btn .tf-arrow { transition: transform 220ms var(--tf-ease); }
+.tf-btn:hover .tf-arrow { transform: translate(3px, -3px); }
+.tf-btn:focus-visible, .tf-root a:focus-visible { outline: 2px solid var(--tf-acc); outline-offset: 3px; }
+
+/* letreiro corrido (faixa fina — não é camada de janela) */
+.tf-marquee { overflow: hidden; border-block: 1px solid var(--tf-faint); background: rgba(0, 0, 0, 0.5); }
+.tf-marquee__track { display: flex; width: max-content; animation: tf-marquee 38s linear infinite; }
+.tf-marquee__track > span { padding: 14px 0; white-space: nowrap; }
+@keyframes tf-marquee { to { transform: translateX(-50%); } }
+
+/* cantos de mira (HUD) */
+.tf-hud { position: absolute; inset: 0; pointer-events: none; }
+.tf-hud i { position: absolute; width: 18px; height: 18px; border-color: rgba(var(--tf-acc-rgb), 0.7); border-style: solid; }
+.tf-hud i:nth-child(1) { top: 0; left: 0; border-width: 1px 0 0 1px; }
+.tf-hud i:nth-child(2) { top: 0; right: 0; border-width: 1px 1px 0 0; }
+.tf-hud i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
+.tf-hud i:nth-child(4) { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+
+/* entrada: o GSAP anima; sem JS ou em movimento reduzido fica visível */
+.tf-js [data-tf-in] { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-marquee__track, .tf-live .tf-dot { animation: none; }
+  .tf-js [data-tf-in] { opacity: 1; }
+}
