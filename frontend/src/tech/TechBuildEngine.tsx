@@ -12,6 +12,8 @@ import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import { useHashScroll } from '../hooks/useHashScroll';
 import TechLabs from './portfolio/TechLabs';
+import TenkaHologram from '../tabloid/hologram/TenkaHologram';
+import { DIVISIONS } from '../tabloid/divisions';
 import './tech.css';
 
 const SERVICES = [
@@ -98,12 +100,10 @@ function DigitalEnvironment() {
           <circle cx="833" cy="143" r="5" /><circle cx="1282" cy="138" r="5" />
         </g>
       </svg>
+      {/* A marca TENKA em holograma (a mesma de /precos). Grande no herói,
+          encolhe no scroll e percorre a página pela linha do tempo do GSAP. */}
       <div className="tt-core">
-        <i className="tt-core-face tt-core-face--front" />
-        <i className="tt-core-face tt-core-face--top" />
-        <i className="tt-core-face tt-core-face--side" />
-        <span className="tt-core-mark">T_</span>
-        <span className="tt-core-orbit"><b /><b /><b /><b /></span>
+        <TenkaHologram accent={DIVISIONS.tech.accent} className="h-full w-full" />
       </div>
       <div className="tt-packets"><i /><i /><i /><i /><i /></div>
       <div className="tt-environment-shade" />
@@ -149,7 +149,13 @@ export default function TechBuildEngine() {
     gsap.timeline({ defaults: { ease: 'power3.out' } })
       .from('.tt-header', { yPercent: -100, opacity: 0, duration: 0.8 })
       .from('.tt-hero-copy > *', { y: 38, opacity: 0, duration: 0.78, stagger: 0.09 }, '-=.4')
-      .from('.tt-core', { scale: 0.54, opacity: 0, rotate: -18, duration: 1.2 }, '-=.85');
+      .from('.tt-core', { scale: 0.8, opacity: 0, duration: 1.2 }, '-=.85');
+
+    // herói → serviços: a marca encolhe e começa a andar
+    gsap.to('.tt-core', {
+      scale: 0.42, x: '-8vw', y: '6vh', ease: 'none',
+      scrollTrigger: { trigger: '.tt-hero', start: 'top top', end: 'bottom top', scrub: 1 },
+    });
 
     gsap.to('.tt-network-plane--back', {
       yPercent: 12, xPercent: -4, ease: 'none',
@@ -162,9 +168,10 @@ export default function TechBuildEngine() {
     gsap.timeline({
       scrollTrigger: { trigger: '.tt-services', start: 'top bottom', end: 'bottom top', scrub: 1.3 },
     })
-      .to('.tt-core', { x: '-24vw', y: '12vh', scale: 0.72, rotate: 24, duration: 1 })
-      .to('.tt-core', { x: '16vw', y: '31vh', scale: 1.08, rotate: 54, duration: 1 })
-      .to('.tt-core', { x: '-12vw', y: '52vh', scale: 0.62, rotate: 82, duration: 1 });
+      // sem rotate 2D: a marca tem que continuar de pé e legível (o giro é o do holograma)
+      .to('.tt-core', { x: '-24vw', y: '12vh', scale: 0.32, duration: 1 })
+      .to('.tt-core', { x: '16vw', y: '31vh', scale: 0.46, duration: 1 })
+      .to('.tt-core', { x: '-12vw', y: '52vh', scale: 0.3, duration: 1 });
 
     gsap.utils.toArray<HTMLElement>('.tt-reveal').forEach((element) => {
       gsap.from(element, {
@@ -264,7 +271,7 @@ export default function TechBuildEngine() {
             ))}
           </ol>
           <div className="tt-architecture tt-reveal" aria-hidden="true">
-            <span className="tt-arch-core">T_</span>
+            <span className="tt-arch-core"><TenkaSymbol className="tt-arch-symbol" /></span>
             <i className="tt-arch-node tt-arch-node--1">SITE</i><i className="tt-arch-node tt-arch-node--2">SAAS</i><i className="tt-arch-node tt-arch-node--3">AUTO</i><i className="tt-arch-node tt-arch-node--4">APP</i>
             <svg viewBox="0 0 800 400"><path d="M400 200 130 78M400 200 670 78M400 200 130 322M400 200 670 322" /></svg>
           </div>
