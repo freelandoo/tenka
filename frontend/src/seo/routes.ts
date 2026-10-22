@@ -173,7 +173,7 @@ const CORE_ROUTES: SeoRoute[] = [
       {
         question: 'Como começa um projeto com a TENKA?',
         answer:
-          'Com uma conversa de entendimento antes de qualquer proposta: o que você quer que aconteça, para quem, com que prazo e o que precisa estar operando no fim. A partir disso dizemos qual divisão conduz, o que o projeto exige e quanto tempo leva. Não trabalhamos com pacote fechado de prateleira, porque escopo e integração mudam completamente o esforço.',
+          'Com uma conversa de entendimento antes de qualquer proposta: o que você quer que aconteça, para quem, com que prazo e o que precisa estar operando no fim. A partir disso dizemos qual divisão conduz, o que o projeto exige e quanto tempo leva. A exceção são as landing pages, que têm três planos de preço fechado na página de preços; o resto é sob medida, porque escopo e integração mudam completamente o esforço.',
       },
       {
         question: 'O que significa "Realize seu desejo"?',
