@@ -28,6 +28,7 @@ const DIVISIONS = [
 ];
 
 const GROUP = [
+  { to: '/precos', label: 'Preços de sites' },
   { to: '/projetos', label: 'Projetos no ar' },
   { to: '/sobre', label: 'Sobre a TENKA' },
   { to: '/contato', label: 'Contar minha ideia' },

@@ -202,6 +202,8 @@ export default function TechBuildEngine() {
           <button type="button" onClick={() => navigate('produtos')}>PRODUTOS</button>
           <button type="button" onClick={() => navigate('metodo')}>MÉTODO</button>
           <button type="button" onClick={() => navigate('contato')}>CONTATO</button>
+          {/* único item que sai da página: a tabela de sites mora em /precos */}
+          <Link to="/precos" className="tt-nav-link">PREÇOS</Link>
         </nav>
         <button type="button" className="tt-header-cta tt-mono" onClick={() => setBriefOpen(true)}>INICIAR PROJETO <span aria-hidden="true">↗</span></button>
         <button className="tt-menu" type="button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? 'FECHAR' : 'MENU'}</button>

@@ -134,6 +134,7 @@ export default function MobileMenu({
             vive dentro do Painel (/painel/admin), atrás de login e do papel de
             admin — não é item de menu de visitante. */}
         {[
+          { to: '/precos', label: 'Preços' },
           { to: '/projetos', label: 'Projetos' },
           { to: '/sobre', label: 'Sobre' },
           { to: '/contato', label: 'Contato' },

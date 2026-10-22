@@ -69,6 +69,12 @@ export default function HeroHeader({
             className="hidden items-center gap-7 lg:flex"
           >
             <Link
+              to="/precos"
+              className="min-h-[44px] py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white transition-colors hover:text-white"
+            >
+              Preços
+            </Link>
+            <Link
               to="/projetos"
               className="min-h-[44px] py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70 transition-colors hover:text-white"
             >
