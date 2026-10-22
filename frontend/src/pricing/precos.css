@@ -26,7 +26,6 @@
 .pc-header__here { color: var(--tf-ink); border-bottom: 2px solid var(--tf-acc); padding-bottom: 3px; }
 .pc-header__right { display: flex; align-items: center; gap: 18px; }
 .pc-header__live { display: inline-flex; align-items: center; gap: 8px; color: var(--tf-acc); }
-.pc-header__cta { padding: 11px 16px; font-size: 11px; }
 @media (max-width: 860px) {
   .pc-header__nav, .pc-header__live { display: none; }
 }

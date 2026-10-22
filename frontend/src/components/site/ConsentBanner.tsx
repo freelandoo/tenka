@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { readConsent, writeConsent } from '../../lib/consent';
 import { shouldTrack } from '../../lib/analytics';
@@ -28,6 +28,24 @@ export default function ConsentBanner() {
     if (readConsent() === null && shouldTrack(pathname)) setVisible(true);
   }, [pathname]);
 
+  // Publica a altura do aviso em `--consent-h`: o que flutua no rodapé (botão
+  // de WhatsApp) sobe enquanto ele existe, em vez de ficar escondido atrás.
+  const bannerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = bannerRef.current;
+    if (!visible || !el) {
+      root.style.removeProperty('--consent-h');
+      return;
+    }
+    const observer = new ResizeObserver(() => root.style.setProperty('--consent-h', `${el.offsetHeight}px`));
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--consent-h');
+    };
+  }, [visible]);
+
   if (!visible) return null;
 
   const decide = (choice: 'granted' | 'denied') => {
@@ -37,6 +55,7 @@ export default function ConsentBanner() {
 
   return (
     <div
+      ref={bannerRef}
       role="region"
       aria-label="Aviso de cookies"
       className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/15 bg-[#0a0b0d]/95 px-5 py-4 backdrop-blur sm:px-8"

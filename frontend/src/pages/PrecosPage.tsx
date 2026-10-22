@@ -10,6 +10,7 @@ import { trackContactClick } from '../lib/analytics';
 import { CONTACT_EMAIL, PHONE_DISPLAY, PHONE_E164, whatsappUrl } from '../config/contact';
 import TenkaHologram from '../tabloid/hologram/TenkaHologram';
 import { DIVISIONS, DIVISION_LIST } from '../tabloid/divisions';
+import WhatsAppDrawer from '../components/site/WhatsAppDrawer';
 import PriceCard from '../pricing/PriceCard';
 import PortfolioCard from '../pricing/PortfolioCard';
 import { HOSTING, PLANS, PORTFOLIO, formatBRL } from '../pricing/plans';
@@ -106,18 +107,10 @@ export default function PrecosPage() {
           </span>
         </nav>
         <div className="pc-header__right">
+          {/* o WhatsApp saiu daqui: mora no botão flutuante com a gaveta de lead */}
           <span className="tf-mono tf-live pc-header__live">
             <span className="tf-dot" /> No ar
           </span>
-          <a
-            className="tf-btn pc-header__cta"
-            href={whatsappUrl('Olá! Vim pela página de preços da TENKA.')}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackContactClick('whatsapp', 'precos-header')}
-          >
-            WhatsApp <span className="tf-arrow" aria-hidden="true">↗</span>
-          </a>
         </div>
       </header>
 
@@ -308,6 +301,9 @@ export default function PrecosPage() {
         </span>
         <span className="tf-mono">© TENKA Group</span>
       </footer>
+
+      <WhatsAppDrawer source="precos_whatsapp" division="tech" />
+
     </div>
   );
 }
