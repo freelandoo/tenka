@@ -16,6 +16,7 @@ import HeroNavigation from './HeroNavigation';
 import HeroProgress from './HeroProgress';
 import MobileMenu from './MobileMenu';
 import HeroEnvironment from './HeroEnvironment';
+import type { TenkaHeroSlide } from '../../types/hero';
 import './home-hero.css';
 
 gsap.registerPlugin(useGSAP, Observer);
@@ -29,7 +30,12 @@ const GRAIN_URL = `url("data:image/svg+xml,${encodeURIComponent(GRAIN_SVG)}")`;
 
 type Direction = 'next' | 'previous';
 
-export default function TenkaHero() {
+interface TenkaHeroProps {
+  /** Avisa a página quando o card ativo muda (a seção de baixo pega a cor dele). */
+  onActiveSlideChange?: (slide: TenkaHeroSlide) => void;
+}
+
+export default function TenkaHero({ onActiveSlideChange }: TenkaHeroProps = {}) {
   const { slides: storedSlides, status } = useHeroSlides();
 
   const slides = useMemo(
@@ -77,6 +83,11 @@ export default function TenkaHero() {
   const total = slides.length;
   const activeSlide = slides[activeIndex] ?? slides[0];
   const q = gsap.utils.selector(containerRef);
+
+  useEffect(() => {
+    if (activeSlide) onActiveSlideChange?.(activeSlide);
+    // só a troca de card importa; a função muda de identidade a cada render do pai
+  }, [activeSlide?.id]);
 
   // Keep the active index valid if the admin deactivates slides.
   useEffect(() => {

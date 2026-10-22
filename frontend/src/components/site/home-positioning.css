@@ -1,0 +1,188 @@
+/* Home abaixo do hero (prefixo hp-), sobre a pele tf-. A cor chega do card
+   ativo do hero em --hp-acc; registrada como <color> ela transita em vez de
+   saltar quando o card muda. */
+
+@property --hp-acc {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff6a0a;
+}
+
+.tf-root.hp {
+  --tf-acc: var(--hp-acc);
+  min-height: 0;
+  /* fundo preto chapado: só a grade fina, sem o brilho de cor do topo da pele */
+  background-color: #08090b;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px, 48px 48px;
+  transition: --hp-acc 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hp a { text-decoration: none; }
+.hp a:not(.tf-btn) { color: inherit; }
+.hp-js [data-hp-in] { opacity: 0; }
+
+/* faixa corrida no topo, na cor da divisão */
+.hp-marquee { border: 0; background: var(--tf-acc); color: #000; transition: background-color 700ms; }
+.hp-marquee__item { display: inline-flex; align-items: center; gap: 22px; padding-right: 22px; font-size: 12px; font-weight: 700; }
+.hp-marquee__item b { font-weight: 400; }
+
+/* letreiro vazado de fundo (paralaxe) */
+.hp-ghost {
+  position: absolute;
+  left: 0;
+  margin: 0;
+  font-size: clamp(110px, 18vw, 300px);
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--tf-acc) 22%, transparent);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ------------------------------------------------------------ posicionamento */
+.hp-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: 32px;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: clamp(72px, 9vw, 128px) clamp(16px, 4vw, 48px) clamp(64px, 7vw, 96px);
+  overflow: hidden;
+}
+.hp-hero .hp-ghost { bottom: 2%; }
+.hp-hero__copy { position: relative; z-index: 2; }
+.hp-hero__title { display: flex; flex-direction: column; margin: 26px 0 0; font-size: clamp(40px, 5vw, 86px); }
+.hp-hero__line { display: block; overflow: hidden; padding-bottom: 0.06em; }
+.hp-hero__line > span { display: inline-block; }
+.hp-hero__lead { max-width: 600px; margin: 28px 0 0; color: rgba(242, 246, 247, 0.72); font-size: clamp(15px, 1.2vw, 17px); line-height: 1.75; }
+.hp-hero__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+.hp-hero__stats { display: flex; flex-wrap: wrap; margin: 44px 0 0; border-top: 1px solid var(--tf-faint); }
+.hp-hero__stats > div { padding: 16px 28px 0 0; margin-right: 28px; border-right: 1px solid var(--tf-faint); }
+.hp-hero__stats > div:last-child { border-right: 0; }
+.hp-hero__stats dt { color: var(--tf-dim); font-size: 10px; }
+.hp-hero__stats dd { margin: 8px 0 0; font-size: clamp(24px, 2.4vw, 36px); color: var(--tf-acc); }
+.hp-hero__holo { position: relative; z-index: 1; will-change: transform; }
+.hp-hero__holo-box { position: relative; height: min(64vh, 560px); }
+.hp-hero__holo-box::before {
+  content: '';
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: 6%;
+  height: 22%;
+  background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--tf-acc) 24%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.hp-hero__hud { position: absolute; margin: 0; font-size: 9.5px; line-height: 1.8; color: var(--tf-dim); }
+.hp-hero__hud--tl { top: 14px; left: 18px; }
+.hp-hero__hud--br { right: 18px; bottom: 14px; text-align: right; }
+@media (max-width: 960px) {
+  .hp-hero { grid-template-columns: 1fr; }
+  .hp-hero__holo { order: -1; }
+  .hp-hero__holo-box { height: min(52vh, 380px); }
+  .hp-hero__title { font-size: clamp(38px, 11vw, 80px); }
+  .hp-hero__stats > div { padding-right: 16px; margin-right: 16px; }
+}
+
+/* ------------------------------------------------------------------ seções */
+.hp-section { max-width: 1360px; margin: 0 auto; padding: clamp(64px, 8vw, 110px) clamp(16px, 4vw, 48px) 0; }
+.hp-section__head { margin-bottom: 44px; }
+.hp-section__title { margin: 14px 0 0; font-size: clamp(36px, 5.4vw, 84px); }
+.hp-bar { display: block; width: 120px; height: 6px; margin-top: 20px; background: var(--tf-acc); transform-origin: left; }
+.hp-section__lead { max-width: 640px; margin: 22px 0 0; color: rgba(242, 246, 247, 0.65); font-size: 15px; line-height: 1.75; }
+
+/* ---------------------------------------------------------------- divisões */
+.hp-divs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; perspective: 1200px; }
+@media (max-width: 960px) { .hp-divs { grid-template-columns: 1fr; max-width: 560px; } }
+.hp-div__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 24px 22px;
+  border: 1px solid var(--tf-faint);
+  border-top: 4px solid var(--d);
+  background: #0c0f12;
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  isolation: isolate;
+  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 500ms var(--tf-ease), border-color 300ms, box-shadow 300ms;
+}
+.hp-div:hover .hp-div__body { transition: transform 120ms linear, border-color 300ms, box-shadow 300ms; border-color: color-mix(in srgb, var(--d) 55%, transparent); border-top-color: var(--d); }
+/* o card da divisão em destaque no hero ganha a cor dela por inteiro */
+.hp-div.is-live .hp-div__body {
+  border-color: var(--d);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--d) 16%, transparent), transparent 55%), #0c0f12;
+  box-shadow: 8px 8px 0 color-mix(in srgb, var(--d) 30%, transparent), 0 0 60px color-mix(in srgb, var(--d) 20%, transparent);
+}
+.hp-div__spot {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--d) 18%, transparent), transparent 60%);
+  opacity: 0;
+  transition: opacity 300ms;
+}
+.hp-div:hover .hp-div__spot { opacity: 1; }
+.hp-div__top { display: flex; align-items: center; justify-content: space-between; min-height: 26px; }
+.hp-div__index { color: var(--tf-dim); font-size: 10px; }
+.hp-div__live { --tf-acc: var(--d); font-size: 9.5px; padding-block: 6px; }
+.hp-div__name { display: flex; flex-direction: column; margin: 20px 0 0; font-size: clamp(40px, 4vw, 60px); color: var(--d); }
+.hp-div__brand { font-family: var(--tf-mono); font-size: 11px; letter-spacing: 0.3em; color: var(--tf-dim); margin-bottom: 6px; }
+.hp-div__what { margin: 14px 0 0; color: rgba(242, 246, 247, 0.85); font-size: 15px; line-height: 1.6; }
+.hp-div__entries { display: grid; margin: 20px 0 22px; padding: 0; list-style: none; border-top: 1px solid var(--tf-faint); }
+.hp-div__entries a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--tf-faint);
+  color: rgba(242, 246, 247, 0.7);
+  font-size: 14px;
+  transition: color 200ms, padding-left 300ms var(--tf-ease);
+}
+.hp-div__entries a:hover { color: #fff; padding-left: 8px; }
+.hp-div__entries b { color: var(--d); font-weight: 400; transition: transform 200ms var(--tf-ease); }
+.hp-div__entries a:hover b { transform: translate(3px, -3px); }
+.hp-div__go {
+  position: relative;
+  margin-top: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--d);
+  color: var(--d);
+  font-weight: 700;
+  overflow: hidden;
+  isolation: isolate;
+  transition: color 300ms;
+}
+.hp-div__go::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--d);
+  transform: translateX(-101%);
+  transition: transform 400ms var(--tf-ease);
+}
+.hp-div__go:hover { color: #000; }
+.hp-div__go:hover::before { transform: none; }
+.hp-div a:focus-visible { outline: 2px solid var(--d); outline-offset: 3px; }
+
+/* ------------------------------------------------------------------- fecho */
+.hp-final { position: relative; overflow: hidden; margin-top: clamp(64px, 8vw, 110px); padding: clamp(64px, 8vw, 110px) clamp(16px, 4vw, 48px); border-top: 1px solid var(--tf-faint); }
+.hp-ghost--final { top: 50%; transform: translateY(-50%); }
+.hp-final__inner { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto; }
+.hp-final__title { margin: 14px 0 0; font-size: clamp(48px, 9vw, 150px); }
+.hp-final__text { max-width: 620px; margin: 24px 0 0; color: rgba(242, 246, 247, 0.7); font-size: 15px; line-height: 1.75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-root.hp { transition: none; }
+  .hp-div__body { transform: none !important; }
+  .hp-js [data-hp-in] { opacity: 1; }
+}

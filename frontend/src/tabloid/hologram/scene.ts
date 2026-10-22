@@ -78,7 +78,15 @@ const smooth = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-export async function mountHologram(host: HTMLElement, options: HologramOptions): Promise<() => void> {
+export interface HologramHandle {
+  /** Troca a cor da divisão sem reconstruir a cena (a home muda a cada card). */
+  setAccent: (hex: string) => void;
+  destroy: () => void;
+}
+
+const NOOP_HANDLE: HologramHandle = { setAccent: () => {}, destroy: () => {} };
+
+export async function mountHologram(host: HTMLElement, options: HologramOptions): Promise<HologramHandle> {
   const { reduced, onFirstFrame, onFailure, signal } = options;
   const disposables: { dispose(): void }[] = [];
 
@@ -101,7 +109,7 @@ export async function mountHologram(host: HTMLElement, options: HologramOptions)
   }
   if (signal?.aborted) {
     renderer.dispose();
-    return () => {};
+    return NOOP_HANDLE;
   }
 
   // ---------------------------------------------------------------- cena
@@ -126,6 +134,8 @@ export async function mountHologram(host: HTMLElement, options: HologramOptions)
   const uNear = uniform(1);
   const uFar = uniform(3);
   const uAccent = uniform(new Color(options.accent));
+  // a cor nova chega por `setAccent` e o quadro desliza até ela (~0,5 s)
+  const accentTarget = new Color(options.accent);
 
   // ------------------------------------------------------------- linhas
   const lineGeo = new BufferGeometry();
@@ -263,6 +273,7 @@ export async function mountHologram(host: HTMLElement, options: HologramOptions)
       uFlicker.value = time < glitchUntil ? 0.45 + Math.random() * 0.5 : 0.94 + Math.sin(time * 9) * 0.04;
     }
 
+    uAccent.value.lerp(accentTarget, 1 - Math.exp(-dt * 6));
     sway.rotation.y = Math.sin((time / SWAY_SECONDS) * Math.PI * 2) * SWAY;
     const K = 30;
     const C = 2 * Math.sqrt(K) * 0.9;
@@ -312,16 +323,25 @@ export async function mountHologram(host: HTMLElement, options: HologramOptions)
   }
 
   let destroyed = false;
-  return () => {
-    if (destroyed) return;
-    destroyed = true;
-    renderer.setAnimationLoop(null);
-    resize.disconnect();
-    onScreen.disconnect();
-    window.removeEventListener('pointermove', onPointer);
-    document.removeEventListener('visibilitychange', onVisibility);
-    for (const d of disposables) d.dispose();
-    renderer.dispose();
-    canvas.remove();
+  return {
+    setAccent: (hex: string) => {
+      accentTarget.set(hex);
+      if (reduced) {
+        uAccent.value.copy(accentTarget);
+        draw();
+      }
+    },
+    destroy: () => {
+      if (destroyed) return;
+      destroyed = true;
+      renderer.setAnimationLoop(null);
+      resize.disconnect();
+      onScreen.disconnect();
+      window.removeEventListener('pointermove', onPointer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      for (const d of disposables) d.dispose();
+      renderer.dispose();
+      canvas.remove();
+    },
   };
 }

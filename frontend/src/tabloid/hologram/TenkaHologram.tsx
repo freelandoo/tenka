@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import type { HologramHandle } from './scene';
 
 /**
  * Marca TENKA holográfica em 3D — decorativa. Mesma cadeia do `Coliseu3D`:
@@ -19,13 +20,20 @@ export default function TenkaHologram({ accent, className = '' }: { accent: stri
   const host = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<Stage>('svg');
   const reduced = useReducedMotion();
+  // a cor fica fora das dependências da montagem: trocar de cor não reconstrói a cena
+  const accentRef = useRef(accent);
+  accentRef.current = accent;
+  const handle = useRef<HologramHandle | null>(null);
+
+  useEffect(() => {
+    handle.current?.setAccent(accent);
+  }, [accent]);
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     const control = new AbortController();
     const alive = () => !control.signal.aborted;
-    let destroy: (() => void) | null = null;
     let readyTimer = 0;
 
     const start = () =>
@@ -33,7 +41,7 @@ export default function TenkaHologram({ accent, className = '' }: { accent: stri
         .then(({ mountHologram }) => {
           if (!alive()) return null;
           return mountHologram(el, {
-            accent,
+            accent: accentRef.current,
             reduced,
             signal: control.signal,
             onFirstFrame: () => {
@@ -44,10 +52,10 @@ export default function TenkaHologram({ accent, className = '' }: { accent: stri
             onFailure: () => alive() && setStage('svg'),
           });
         })
-        .then((end) => {
-          if (!end) return;
-          if (!alive()) end();
-          else destroy = end;
+        .then((mounted) => {
+          if (!mounted) return;
+          if (!alive()) mounted.destroy();
+          else handle.current = mounted;
         })
         .catch(() => {
           // sem WebGPU nem WebGL2 (ou o chunk não veio): fica o SVG
@@ -64,11 +72,11 @@ export default function TenkaHologram({ accent, className = '' }: { accent: stri
       appear.disconnect();
       control.abort();
       window.clearTimeout(readyTimer);
-      destroy?.();
-      destroy = null;
+      handle.current?.destroy();
+      handle.current = null;
       setStage('svg');
     };
-  }, [accent, reduced]);
+  }, [reduced]);
 
   return (
     <div aria-hidden="true" className={`pointer-events-none relative select-none ${className}`}>
