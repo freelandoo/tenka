@@ -32,8 +32,10 @@ import {
  * e isso um template resolve.
  *
  * O React chama `createRoot(root).render()`, que **limpa** os filhos de `#root`
- * antes de montar. Logo o bloco abaixo nunca aparece junto da interface: é
- * fallback para crawler e para navegação sem JS, e desaparece na hidratação.
+ * antes de montar. Logo o bloco abaixo nunca aparece junto da interface — mas
+ * aparece ANTES dela, sozinho na tela, durante todo o download e parse do
+ * bundle. Por isso ele sai com `display:none` (ver renderRoute): é fallback
+ * para crawler e para navegação sem JS, não conteúdo para quem usa o site.
  *
  * ponytail: template estático, não render real. Se um dia uma página precisar
  * que o corpo completo apareça no HTML (ex.: blog indexando artigo longo),
@@ -71,6 +73,21 @@ export function seoPlugin(): Plugin {
 
 function renderRoute(template: string, route: SeoRoute): string {
   const head = [
+    // O bloco rastreável vive dentro de #root e, até o React montar, é a ÚNICA
+    // coisa pintada: ~1.800 palavras de h1/p/ul cruas. Com o preflight do
+    // Tailwind já aplicado (a folha carrega antes), elas saem todas do mesmo
+    // tamanho e sem margem — a "parede de texto desformatado" que o usuário vê
+    // por centenas de ms com cache quente e por segundos numa rede lenta.
+    // Medido em 400 kbps: visível de 0,6 s a 9 s.
+    //
+    // Esconder não tira nada de ninguém: quem não executa JavaScript (os
+    // crawlers de IA para quem este bloco existe) também não aplica CSS e
+    // continua lendo o HTML inteiro; quem executa — Google incluído — recebe a
+    // interface real, já que o createRoot limpa o #root na montagem.
+    // O <noscript> devolve o bloco a quem tem JS desligado e depende dele para
+    // navegar.
+    '<style>#tenka-seo-fallback{display:none}</style>',
+    '<noscript><style>#tenka-seo-fallback{display:block}</style></noscript>',
     `<title>${escapeHtml(route.title)}</title>`,
     `<link rel="canonical" href="${escapeAttr(canonicalFor(route.path))}" />`,
     ...metaTagsFor(route).map(
