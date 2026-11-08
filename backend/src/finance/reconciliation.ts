@@ -1,6 +1,6 @@
 import { paymentStatus } from './status';
 
-export type ReconciliationKind = 'subscription' | 'project_payment';
+export type ReconciliationKind = 'subscription' | 'project_payment' | 'billing_batch';
 export type ReconciliationDivergence =
   | 'none' | 'missing_local' | 'missing_provider'
   | 'status' | 'amount' | 'due_date' | 'multiple';
@@ -53,6 +53,9 @@ export function projectPaymentStatusFromProvider(providerStatus: string): string
   if (mapped === 'refund_requested') return 'refund_requested';
   if (mapped === 'chargeback') return 'chargeback';
   if (mapped === 'cancelled') return 'cancelled';
+  if (mapped === 'overdue') return 'overdue';
+  if (mapped === 'failed') return 'failed';
+  if (mapped === 'awaiting_risk_analysis') return 'awaiting_risk_analysis';
   return 'pending';
 }
 
@@ -62,9 +65,15 @@ export const PROJECT_PAYMENT_SETTLED = new Set([
 ]);
 
 function expectedLocalStatus(kind: ReconciliationKind, providerStatus: string): string {
-  return kind === 'project_payment'
-    ? projectPaymentStatusFromProvider(providerStatus)
-    : paymentStatus(providerStatus);
+  const mapped = paymentStatus(providerStatus);
+  if (kind === 'project_payment') return projectPaymentStatusFromProvider(providerStatus);
+  if (kind === 'billing_batch') {
+    if (mapped === 'received' || mapped === 'confirmed') return 'paid';
+    if (mapped === 'pending' || mapped === 'awaiting_risk_analysis' || mapped === 'dunning') {
+      return 'synced';
+    }
+  }
+  return mapped;
 }
 
 export function compareFinancialPayment(
@@ -101,6 +110,8 @@ export function reconcileFinancialPayments(
   localPayments: LocalFinancialPayment[],
   providerPayments: ProviderFinancialPayment[],
   subscriptionProjects: ReadonlyMap<string, string>,
+  billingBatchProjects: ReadonlyMap<string, string> = new Map(),
+  projectPaymentProjects: ReadonlyMap<string, string> = new Map(),
 ): ReconciliationRow[] {
   const providerById = new Map(providerPayments.map((payment) => [payment.id, payment]));
   const localIds = new Set(localPayments.map((payment) => payment.asaasPaymentId));
@@ -112,11 +123,19 @@ export function reconcileFinancialPayments(
     const subscriptionProject = provider.subscription
       ? subscriptionProjects.get(provider.subscription)
       : undefined;
-    if (!projectReference && !subscriptionProject) continue;
-    const kind: ReconciliationKind = projectReference ? 'project_payment' : 'subscription';
+    const batchReference = provider.externalReference?.match(/^client-billing:([0-9a-f-]{36})$/i);
+    const batchProject = batchReference?.[1]
+      ? billingBatchProjects.get(batchReference[1])
+      : undefined;
+    const projectPaymentProject = projectReference?.[1]
+      ? projectPaymentProjects.get(projectReference[1])
+      : undefined;
+    if (!projectReference && !subscriptionProject && !batchReference) continue;
+    const kind: ReconciliationKind = projectReference
+      ? 'project_payment' : subscriptionProject ? 'subscription' : 'billing_batch';
     rows.push({
       kind,
-      projectId: subscriptionProject ?? null,
+      projectId: subscriptionProject ?? batchProject ?? projectPaymentProject ?? null,
       asaasPaymentId: provider.id,
       localStatus: null,
       providerStatus: provider.status,

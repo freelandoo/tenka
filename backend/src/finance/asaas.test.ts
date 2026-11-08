@@ -107,6 +107,17 @@ describe('cliente Asaas', () => {
     ), expect.any(Object));
   });
 
+  it('preserva a espera informada pelo rate limit', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      errors: [{ description: 'Muitas requisições.' }],
+    }), { status: 429, headers: { 'ratelimit-reset': '45' } }));
+
+    await expect(asaas.getPayment('pay_1')).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 45,
+    });
+  });
+
   it('ignora assinatura já apagada ao procurar pela referência externa', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
       data: [{ id: 'sub_old', status: 'INACTIVE', nextDueDate: '2026-10-10', value: 300,

@@ -5,6 +5,8 @@ dist
 .env
 .env.*
 !.env.example
+finance-test.env
+*.dump
 
 # Saídas de QA visual (screenshots do Playwright MCP)
 .playwright-mcp

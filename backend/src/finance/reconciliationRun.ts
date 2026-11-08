@@ -24,9 +24,9 @@ async function listProviderPayments(dueDateFrom: string, dueDateTo: string) {
   for (let offset = 0; offset < 10_000; offset += limit) {
     const page = await asaas.listPayments({ dueDateFrom, dueDateTo, offset, limit });
     payments.push(...page.data);
-    if (!page.hasMore && page.data.length < limit) break;
+    if (!page.hasMore && page.data.length < limit) return payments;
   }
-  return payments;
+  throw new Error('Conciliação excedeu 10.000 cobranças; reduza o intervalo para evitar dados truncados.');
 }
 
 export async function runReconciliation(
@@ -34,16 +34,25 @@ export async function runReconciliation(
   dueDateTo: string,
   actorId: string | null,
 ): Promise<ReconciliationSummary> {
-  const [providerPayments, projectRows, subscriptionRows, subscriptions] = await Promise.all([
+  const [providerPayments, projectRows, batchRows, subscriptionRows, subscriptions] = await Promise.all([
     listProviderPayments(dueDateFrom, dueDateTo),
     getPool().query<{
-      project_id: string; asaas_payment_id: string; status: string;
+      id: string; project_id: string; asaas_payment_id: string | null; status: string;
       amount_cents: number; due_date: string | null;
     }>(
-      `select project_id, asaas_payment_id, status, amount_cents, due_date
+      `select id, project_id, asaas_payment_id, status, amount_cents, due_date
          from public.project_payments
-        where asaas_payment_id is not null
-          and due_date between $1::date and $2::date`,
+        where due_date between $1::date and $2::date
+          and (asaas_payment_id is not null or external_reference is not null)`,
+      [dueDateFrom, dueDateTo],
+    ),
+    getPool().query<{
+      id: string; anchor_project_id: string; asaas_payment_id: string | null; status: string;
+      amount_cents: number; due_date: string;
+    }>(
+      `select id, anchor_project_id, asaas_payment_id, status, amount_cents, due_date
+         from public.client_billing_batches
+        where due_date between $1::date and $2::date`,
       [dueDateFrom, dueDateTo],
     ),
     getPool().query<{
@@ -63,9 +72,9 @@ export async function runReconciliation(
   ]);
 
   const localPayments: LocalFinancialPayment[] = [
-    ...projectRows.rows.map((row) => ({
+    ...projectRows.rows.filter((row) => row.asaas_payment_id).map((row) => ({
       kind: 'project_payment' as const, projectId: row.project_id,
-      asaasPaymentId: row.asaas_payment_id, status: row.status,
+      asaasPaymentId: row.asaas_payment_id!, status: row.status,
       amountCents: row.amount_cents, dueDate: row.due_date,
     })),
     ...subscriptionRows.rows.map((row) => ({
@@ -73,11 +82,25 @@ export async function runReconciliation(
       asaasPaymentId: row.asaas_payment_id, status: row.status,
       amountCents: row.amount_cents, dueDate: row.due_date,
     })),
+    ...batchRows.rows.filter((row) => row.asaas_payment_id).map((row) => ({
+      kind: 'billing_batch' as const, projectId: row.anchor_project_id,
+      asaasPaymentId: row.asaas_payment_id!, status: row.status,
+      amountCents: row.amount_cents, dueDate: row.due_date,
+    })),
   ];
   const subscriptionProjects = new Map(
     subscriptions.rows.map((row) => [row.asaas_subscription_id, row.project_id]),
   );
-  const rows = reconcileFinancialPayments(localPayments, providerPayments, subscriptionProjects);
+  const billingBatchProjects = new Map(
+    batchRows.rows.map((row) => [row.id, row.anchor_project_id]),
+  );
+  const projectPaymentProjects = new Map(
+    projectRows.rows.map((row) => [row.id, row.project_id]),
+  );
+  const rows = reconcileFinancialPayments(
+    localPayments, providerPayments, subscriptionProjects,
+    billingBatchProjects, projectPaymentProjects,
+  );
   const ranAt = new Date().toISOString();
   await withActor(actorId, async (client) => {
     for (const row of rows) {

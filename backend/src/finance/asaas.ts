@@ -10,6 +10,7 @@ export class AsaasError extends Error {
     message: string,
     readonly status: number,
     readonly details?: unknown,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
   }
@@ -36,7 +37,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       const errors = Array.isArray(body.errors)
         ? body.errors.map((item) => (item as { description?: string }).description).filter(Boolean)
         : [];
-      throw new AsaasError(errors.join(' ') || `Asaas respondeu HTTP ${response.status}.`, response.status, body);
+      const reset = Number(response.headers.get('ratelimit-reset'));
+      throw new AsaasError(
+        errors.join(' ') || `Asaas respondeu HTTP ${response.status}.`,
+        response.status,
+        body,
+        Number.isFinite(reset) && reset >= 0 ? reset : undefined,
+      );
     }
     return body as T;
   } catch (error) {
@@ -77,6 +84,9 @@ export interface AsaasPayment {
   externalReference?: string;
   subscription?: string;
   deleted?: boolean;
+  netValue?: number;
+  creditDate?: string;
+  refunds?: Array<Record<string, unknown>>;
 }
 
 export interface AsaasPixQrCode {

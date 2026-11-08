@@ -17,6 +17,9 @@ interface SubscriptionRow {
   id: string;
   project_id: string;
   asaas_subscription_id: string;
+  status: string;
+  app_managed: boolean;
+  provider_event_at: string | null;
 }
 
 interface PaymentRow {
@@ -103,8 +106,16 @@ class FakeDb {
     }),
   };
 
-  seedSubscription(row: SubscriptionRow): void {
-    this.subscriptions.push(row);
+  seedSubscription(
+    row: Pick<SubscriptionRow, 'id' | 'project_id' | 'asaas_subscription_id'>
+      & Partial<SubscriptionRow>,
+  ): void {
+    this.subscriptions.push({
+      status: 'inactive',
+      app_managed: true,
+      provider_event_at: null,
+      ...row,
+    });
   }
 
   seedPayment(row: Partial<PaymentRow> & Pick<PaymentRow, 'project_id' | 'competence'>): void {
@@ -180,6 +191,19 @@ class FakeDb {
     if (sql.includes('public.subscription_payments')) return this.paymentQuery(sql, values);
     if (sql.includes('public.project_payments')) return this.projectPaymentQuery(sql, values);
     if (sql.includes('public.project_subscriptions')) {
+      if (sql.startsWith('update')) {
+        const row = this.subscriptions.find((item) => item.id === values[0]);
+        if (!row) return { rows: [], rowCount: 0 };
+        const eventAt = String(values[6]);
+        if (row.provider_event_at && eventAt < row.provider_event_at) {
+          return { rows: [], rowCount: 0 };
+        }
+        row.asaas_subscription_id = values[2] === 'cancelled' ? '' : String(values[1]);
+        row.status = String(values[2]);
+        row.app_managed = false;
+        row.provider_event_at = eventAt;
+        return { rows: [], rowCount: 1 };
+      }
       const rows = values.length === 0 ? [...this.subscriptions] : this.subscriptions.filter(
         (row) => row.asaas_subscription_id === values[0],
       );
@@ -412,13 +436,26 @@ describe('worker financeiro — caminho feliz', () => {
     expect(hoisted.db.event('evt_adocao').status).toBe('done');
   });
 
-  it('conclui sem gravar nada um evento que não carrega cobrança', async () => {
+  it('processa evento de assinatura conhecida sem descartá-lo silenciosamente', async () => {
     hoisted.db.seedEvent({ id: 'evt_1', event: 'SUBSCRIPTION_CREATED', subscription: { id: 'sub_1' } });
 
     await runFinanceWorker();
 
     expect(hoisted.db.payments).toHaveLength(0);
+    expect(hoisted.db.subscriptions[0]).toMatchObject({
+      status: 'pending_activation',
+      app_managed: false,
+      provider_event_at: PROCESSED_AT,
+    });
     expect(hoisted.db.event().status).toBe('done');
+  });
+
+  it('envia Checkout sem sessão local para revisão', async () => {
+    hoisted.db.seedEvent({ id: 'evt_checkout', event: 'CHECKOUT_PAID', checkout: { id: 'chk_1' } });
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.event().status).toBe('needs_review');
   });
 });
 

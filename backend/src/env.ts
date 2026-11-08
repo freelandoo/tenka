@@ -27,6 +27,9 @@ loadDotEnv();
 
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? '',
+  /** Mantem compatibilidade com provedores legados; habilite apos validar a CA. */
+  databaseSslRejectUnauthorized:
+    process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true',
   /** Railway injeta PORT; local cai para 8080. */
   port: Number(process.env.PORT ?? 8080),
   corsOrigin: process.env.CORS_ORIGIN ?? '*',
@@ -74,7 +77,7 @@ export const env = {
   asaasApiKey: (process.env.ASAAS_API_KEY ?? '').trim(),
   /** Token definido no webhook do Asaas e recebido em `asaas-access-token`. */
   asaasWebhookToken: (process.env.ASAAS_WEBHOOK_TOKEN ?? '').trim(),
-  asaasTimeoutMs: Math.max(1_000, Number(process.env.ASAAS_TIMEOUT_MS ?? 15_000)),
+  asaasTimeoutMs: Math.max(1_000, Number(process.env.ASAAS_TIMEOUT_MS ?? 60_000)),
   /** Intervalo da conciliação automática, em horas. Zero desliga o job. */
   financeReconciliationHours: Math.max(
     0, Number(process.env.FINANCE_RECONCILIATION_HOURS ?? 6),

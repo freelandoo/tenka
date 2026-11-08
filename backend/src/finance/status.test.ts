@@ -10,6 +10,8 @@ describe('mapeamento financeiro do Asaas', () => {
     expect(paymentStatus('REFUND_REQUESTED')).toBe('refund_requested');
     expect(paymentStatus('DUNNING_RECEIVED')).toBe('dunning');
     expect(paymentStatus('AWAITING_RISK_ANALYSIS')).toBe('awaiting_risk_analysis');
+    expect(paymentStatus('CREDIT_CARD_CAPTURE_REFUSED')).toBe('failed');
+    expect(paymentStatus('REPROVED_BY_RISK_ANALYSIS')).toBe('failed');
   });
 
   it('deriva a competência do vencimento', () => {

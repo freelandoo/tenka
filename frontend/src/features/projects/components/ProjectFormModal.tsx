@@ -483,10 +483,10 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           </div>
           {hasMonthlyFee && !isEdit && (
             <fieldset className="project-form__finance-notice">
-              <legend>Ativar cobrança mensal no Asaas?</legend>
+              <legend>Ativar agenda mensal de cobranças?</legend>
               <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'active'} onChange={() => setSubscriptionChoice('active')} /> Sim, ativar agora</label>{' '}
               <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'inactive'} onChange={() => setSubscriptionChoice('inactive')} /> Não, manter inativa</label>
-              <p>Ao ativar, o Asaas cria a recorrência para o próximo vencimento disponível e pode avisar o cliente.</p>
+              <p>A Tenka agenda uma cobrança avulsa por mês no Asaas. Esta opção ainda não faz débito automático no cartão. Os avisos seguem a configuração existente no Asaas.</p>
             </fieldset>
           )}
           {hasMonthlyFee && isEdit && (

@@ -61,6 +61,18 @@ async function main(): Promise<void> {
     time: new Date().toISOString(),
   }));
 
+  // Readiness separado do liveness: deploys continuam subindo, mas tráfego e
+  // operação podem distinguir um processo vivo de um banco realmente pronto.
+  app.get('/ready', async (_req, reply) => {
+    const db = await pingDb();
+    return reply.code(db ? 200 : 503).send({
+      status: db ? 'ready' : 'not-ready',
+      service: 'tenka-backend',
+      db,
+      time: new Date().toISOString(),
+    });
+  });
+
   app.get('/', async () => ({
     name: 'tenka-backend',
     message: 'API do TENKA — esqueleto (fase F1). Rotas de domínio chegam nas próximas fases.',

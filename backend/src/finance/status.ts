@@ -23,6 +23,9 @@ export function paymentStatus(providerStatus: string): LocalPaymentStatus {
   if (status === 'DELETED') return 'cancelled';
   if (status === 'DUNNING_REQUESTED' || status === 'DUNNING_RECEIVED') return 'dunning';
   if (status === 'AWAITING_RISK_ANALYSIS') return 'awaiting_risk_analysis';
+  if (status === 'CREDIT_CARD_CAPTURE_REFUSED' || status === 'REPROVED_BY_RISK_ANALYSIS') {
+    return 'failed';
+  }
   return 'pending';
 }
 

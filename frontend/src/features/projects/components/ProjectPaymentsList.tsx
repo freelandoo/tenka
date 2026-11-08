@@ -31,6 +31,9 @@ const STATUS_LABEL: Record<ProjectPaymentRow['status'], string> = {
   refunded: 'Estornado',
   refund_requested: 'Estorno pedido',
   chargeback: 'Chargeback',
+  overdue: 'Em atraso',
+  failed: 'Falha',
+  awaiting_risk_analysis: 'Em análise de risco',
 };
 
 /** Ação pendente de confirmação — nenhuma delas tem desfazer na Tenka. */
@@ -113,7 +116,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     let pendingCount = 0;
     let paidCount = 0;
     for (const item of payments) {
-      if (item.status === 'pending') {
+      if (['pending', 'overdue', 'failed', 'awaiting_risk_analysis'].includes(item.status)) {
         pendingTotal += cents(item.amount_cents);
         pendingCount += 1;
       } else if (item.status === 'paid') {
@@ -317,7 +320,9 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
             : 'Tentar novamente com vencimento hoje.'}
           disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}><ReceiptText size={14} /></button>
       )}
-      {item.sync_status === 'synced' && item.status === 'pending' && item.asaas_payment_id && <>
+      {item.sync_status === 'synced'
+        && ['pending', 'overdue', 'failed'].includes(item.status)
+        && item.asaas_payment_id && <>
         <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Registrar pagamento por fora — ${label}`} title="Registrar pagamento por fora"
           disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'receipt', item })}><Banknote size={14} /></button>
@@ -325,7 +330,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
           aria-label={`Cancelar cobrança — ${label}`} title="Cancelar cobrança"
           disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'cancel', item })}><Trash2 size={14} /></button>
       </>}
-      {item.provider_status === 'OVERDUE' && item.status === 'pending'
+      {item.provider_status === 'OVERDUE' && ['pending', 'overdue'].includes(item.status)
         && <small className="finance-warning" title="O Asaas marcou esta cobrança como vencida.">Vencida</small>}
       {item.sync_status === 'queued' && <small className="finance-warning">Sincronizando</small>}
       {item.sync_status === 'failed' && <small className="finance-warning" title={item.sync_error ?? ''}>Falha</small>}
@@ -410,7 +415,9 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                     <button type="button" className="project-payments__quick-add" disabled={!isAdmin || hasPaid} aria-label={`${group.hasStages ? 'Adicionar etapa' : 'Dividir valor'} — ${group.projectName}`} title={hasPaid ? 'Reabra os pagamentos antes de alterar a divisão' : group.hasStages ? 'Adicionar outra etapa' : 'Dividir o valor do projeto'} onClick={() => openPlan(group)}><Plus size={13} /></button>
                   </span>
                   <span className={`project-payments__status is-${allPaid ? 'paid' : 'pending'}`}>
-                    {allPaid ? 'Pago' : group.hasStages ? 'Em etapas' : STATUS_LABEL[onlyPayment.status]}
+                    {allPaid ? 'Pago' : group.hasStages ? 'Em etapas'
+                      : onlyPayment.provider_status === 'PARTIALLY_REFUNDED'
+                        ? 'Estorno parcial' : STATUS_LABEL[onlyPayment.status]}
                   </span>
                   {group.hasStages ? (
                     <span className="project-payments__individual-hint">Individual</span>
@@ -435,7 +442,10 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                           </span>
                           {renderDate(item)}
                           <span className="costs__amount">{formatCurrencyFromCents(item.amount_cents)}</span>
-                          <span className={`project-payments__status is-${item.status}`}>{STATUS_LABEL[item.status]}</span>
+                          <span className={`project-payments__status is-${item.status}`}>
+                            {item.provider_status === 'PARTIALLY_REFUNDED'
+                              ? 'Estorno parcial' : STATUS_LABEL[item.status]}
+                          </span>
                           {editable || item.sync_status !== 'local'
                             ? renderPaymentActions(item, `${group.projectName} — Etapa ${index + 1} de ${group.items.length} · ${item.name}`)
                             : <span className="project-payments__individual-hint">Ative o plano</span>}

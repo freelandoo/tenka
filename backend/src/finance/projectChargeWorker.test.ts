@@ -23,7 +23,9 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../env', () => ({ hasAsaas: true, env: { asaasEnvironment: 'sandbox' } }));
 vi.mock('./asaas', () => ({
   asaas: hoisted.asaas,
-  AsaasError: class AsaasError extends Error { status = 500; },
+  AsaasError: class AsaasError extends Error {
+    constructor(message: string, readonly status = 500) { super(message); }
+  },
 }));
 vi.mock('../db/pool', () => ({
   getPool: () => ({ query: async (sql: string, values: unknown[] = []) => {
@@ -52,6 +54,7 @@ vi.mock('../db/pool', () => ({
 }));
 
 import { executeOperation, type Operation } from './worker';
+import { AsaasError } from './asaas';
 
 const operation = (kind: Operation['kind']): Operation => ({
   id: 'operation-1', project_id: 'project-1', subscription_id: null,
@@ -98,14 +101,18 @@ describe('worker de cobranças de projeto', () => {
       externalReference: 'project-payment:77777777-7777-4777-8777-777777777777',
     }));
     expect(hoisted.asaas.getPixQrCode).toHaveBeenCalledWith('pay_1');
-    expect(hoisted.asaas.listCustomerNotifications).toHaveBeenCalledWith('cus_1');
+    expect(hoisted.asaas.listCustomerNotifications).not.toHaveBeenCalled();
     expect(hoisted.asaas.updateCustomerNotifications).not.toHaveBeenCalled();
+    expect(hoisted.queries.some((query) =>
+      query.sql.includes("set status = 'uncertain'")
+      && query.values[0] === 'operation-1',
+    )).toBe(true);
     expect(hoisted.queries.some((query) =>
       query.sql.startsWith('update public.project_payments') && query.values.includes('pay_1'),
     )).toBe(true);
   });
 
-  it('corrige canais do cliente antes de emitir a cobrança', async () => {
+  it('preserva os canais configurados no Asaas ao emitir a cobrança', async () => {
     hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
       id: 'not_1', customer: 'cus_1', enabled: false,
       emailEnabledForCustomer: false, smsEnabledForCustomer: false,
@@ -116,11 +123,8 @@ describe('worker de cobranças de projeto', () => {
 
     await executeOperation(operation('create_project_charge'));
 
-    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
-      id: 'not_1', enabled: true, emailEnabledForCustomer: true,
-      smsEnabledForCustomer: true, phoneCallEnabledForCustomer: false,
-      whatsappEnabledForCustomer: false,
-    }]);
+    expect(hoisted.asaas.listCustomerNotifications).not.toHaveBeenCalled();
+    expect(hoisted.asaas.updateCustomerNotifications).not.toHaveBeenCalled();
     expect(hoisted.asaas.createPayment).toHaveBeenCalled();
   });
 
@@ -140,11 +144,7 @@ describe('worker de cobranças de projeto', () => {
       email: undefined,
       mobilePhone: '11999999999',
     }));
-    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
-      id: 'not_1', enabled: true, emailEnabledForCustomer: false,
-      smsEnabledForCustomer: true, phoneCallEnabledForCustomer: false,
-      whatsappEnabledForCustomer: false,
-    }]);
+    expect(hoisted.asaas.updateCustomerNotifications).not.toHaveBeenCalled();
     expect(hoisted.asaas.createPayment).toHaveBeenCalled();
   });
 
@@ -161,21 +161,35 @@ describe('worker de cobranças de projeto', () => {
 
     await executeOperation(operation('create_project_charge'));
 
-    expect(hoisted.asaas.updateCustomerNotifications).toHaveBeenCalledWith('cus_1', [{
-      id: 'not_1', enabled: false, emailEnabledForCustomer: false,
-      smsEnabledForCustomer: false, phoneCallEnabledForCustomer: false,
-      whatsappEnabledForCustomer: false,
-    }]);
+    expect(hoisted.asaas.updateCustomerNotifications).not.toHaveBeenCalled();
     expect(hoisted.asaas.createPayment).toHaveBeenCalled();
   });
 
-  it('bloqueia a emissão quando o Asaas não retorna configuração de avisos', async () => {
+  it('não depende da leitura de avisos para emitir a cobrança', async () => {
     hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [] });
 
-    await expect(executeOperation(operation('create_project_charge')))
-      .rejects.toThrow('cobrança não emitida');
+    await expect(executeOperation(operation('create_project_charge'))).resolves.toBe('pay_1');
+    expect(hoisted.asaas.listCustomerNotifications).not.toHaveBeenCalled();
+    expect(hoisted.asaas.createPayment).toHaveBeenCalled();
+  });
 
-    expect(hoisted.asaas.createPayment).not.toHaveBeenCalled();
+  it('marca timeout de criação como resultado incerto antes do POST', async () => {
+    const op = operation('create_project_charge');
+    hoisted.asaas.createPayment.mockRejectedValueOnce(new AsaasError('timeout', 504));
+
+    await expect(executeOperation(op)).rejects.toThrow('timeout');
+
+    expect(op.billingCreationStarted).toBe(true);
+    expect(hoisted.queries.some((query) => query.sql.includes("set status = 'uncertain'")))
+      .toBe(true);
+  });
+
+  it('permite retry quando o Asaas recusou explicitamente sem criar cobrança', async () => {
+    const op = operation('create_project_charge');
+    hoisted.asaas.createPayment.mockRejectedValueOnce(new AsaasError('CPF inválido', 400));
+
+    await expect(executeOperation(op)).rejects.toThrow('CPF inválido');
+    expect(op.billingCreationStarted).toBe(false);
   });
 
   it('reaproveita cobrança existente pela referência e não duplica', async () => {

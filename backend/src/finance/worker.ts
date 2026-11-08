@@ -7,6 +7,7 @@ import { projectPaymentStatusFromProvider } from './reconciliation';
 import { competenceFromDueDate, paymentStatus } from './status';
 import { markArchiveCleanupAttention, tryFinalizePendingArchive } from './archiveCleanup';
 import { scheduleMonthlyCharge } from './monthlyScheduler';
+import { providerPaymentFacts } from './paymentFacts';
 
 export interface Operation {
   id: string;
@@ -305,25 +306,8 @@ async function ensureCustomer(ctx: SubscriptionContext | ProjectPaymentContext, 
   const customer = ctx.asaas_customer_id
     ? await asaas.updateCustomer(ctx.asaas_customer_id, input)
     : (await asaas.findCustomer(externalReference)) ?? (await asaas.createCustomer(input));
-  const currentNotifications = await asaas.listCustomerNotifications(customer.id);
-  if (currentNotifications.data.length === 0) {
-    throw new Error('O Asaas não retornou as notificações do cliente; cobrança não emitida.');
-  }
-  const notifications = currentNotifications.data.map((notification) => ({
-    id: notification.id,
-    enabled: hasEmail || hasPhone,
-    emailEnabledForCustomer: hasEmail,
-    smsEnabledForCustomer: hasPhone,
-    phoneCallEnabledForCustomer: false,
-    whatsappEnabledForCustomer: false,
-  }));
-  const needsUpdate = currentNotifications.data.some((notification) =>
-    notification.enabled !== (hasEmail || hasPhone) ||
-    notification.emailEnabledForCustomer !== hasEmail ||
-    notification.smsEnabledForCustomer !== hasPhone ||
-    notification.phoneCallEnabledForCustomer ||
-    notification.whatsappEnabledForCustomer);
-  if (needsUpdate) await asaas.updateCustomerNotifications(customer.id, notifications);
+  // A régua de comunicação é configurada no Asaas. Sincronizar o cliente não
+  // deve sobrescrever preferências nem criar avisos duplicados.
   await db.query(
     `update public.clients
         set asaas_customer_id = $2, asaas_customer_synced_at = now(),
@@ -349,6 +333,24 @@ function todayInSaoPaulo(now = new Date()): string {
 function providerDueDate(dueDate: string): string {
   const today = todayInSaoPaulo();
   return dueDate < today ? today : dueDate;
+}
+
+async function markBillingCreationAttempt(operation: Operation): Promise<void> {
+  const marked = await getPool().query(
+    `update public.asaas_operations set status = 'uncertain',
+            request_payload = request_payload || '{"billingCreationAttempted":true}'::jsonb
+      where id = $1 and status = 'processing' and attempts = $2`,
+    [operation.id, operation.attempts],
+  );
+  if (marked.rowCount !== 1) {
+    throw new Error('Operação de cobrança não está mais sob controle deste worker.');
+  }
+  operation.billingCreationStarted = true;
+}
+
+function explicitProviderRejection(error: unknown): boolean {
+  return error instanceof AsaasError
+    && error.status >= 400 && error.status < 500 && error.status !== 408;
 }
 
 async function projectPaymentContext(operation: Operation): Promise<ProjectPaymentContext> {
@@ -465,7 +467,16 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   const existing = ctx.asaas_payment_id
     ? await asaas.getPayment(ctx.asaas_payment_id)
     : await asaas.findPayment(externalReference);
-  const payment = existing ?? await asaas.createPayment(input);
+  let payment = existing;
+  if (!payment) {
+    await markBillingCreationAttempt(operation);
+    try {
+      payment = await asaas.createPayment(input);
+    } catch (error) {
+      if (explicitProviderRejection(error)) operation.billingCreationStarted = false;
+      throw error;
+    }
+  }
   const pix = payment.billingType === 'PIX'
     ? await asaas.getPixQrCode(payment.id)
     : null;
@@ -561,20 +572,11 @@ async function executeBillingBatchOperation(operation: Operation, db: PoolClient
   let payment = existing;
   if (!payment) {
     // Uma queda depois do POST pode ocultar uma cobrança já criada no Asaas.
-    const marked = await getPool().query(
-      `update public.asaas_operations set status = 'uncertain',
-              request_payload = request_payload || '{"billingCreationAttempted":true}'::jsonb
-        where id = $1 and status = 'processing' and attempts = $2`,
-      [operation.id, operation.attempts],
-    );
-    if (marked.rowCount !== 1) throw new Error('Operação de cobrança não está mais sob controle deste worker.');
-    operation.billingCreationStarted = true;
+    await markBillingCreationAttempt(operation);
     try {
       payment = await asaas.createPayment(input);
     } catch (error) {
-      if (error instanceof AsaasError && error.status >= 400 && error.status < 500 && error.status !== 408) {
-        operation.billingCreationStarted = false;
-      }
+      if (explicitProviderRejection(error)) operation.billingCreationStarted = false;
       throw error;
     }
   }
@@ -828,7 +830,12 @@ async function finishOperation(operation: Operation): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Falha desconhecida.';
-    const retryMinutes = Math.min(60, 2 ** Math.min(operation.attempts, 5));
+    const providerWait = error instanceof AsaasError && error.status === 429
+      ? Math.ceil((error.retryAfterSeconds ?? 0) / 60)
+      : 0;
+    const retryMinutes = Math.min(60, Math.max(
+      providerWait, 2 ** Math.min(operation.attempts, 5),
+    ));
     const nextStatus = operation.billingCreationStarted === true
       || uncertainOutcome(error, operation.attempts) ? 'uncertain' : 'failed';
     await withActor(null, async (client) => {
@@ -895,6 +902,7 @@ class WebhookNeedsReviewError extends Error {}
 
 const PROJECT_PAYMENT_REFERENCE = /^project-payment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const BILLING_BATCH_REFERENCE = /^client-billing:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const PROJECT_SUBSCRIPTION_REFERENCE = /^project-subscription:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 function providerStatusForEvent(eventType: string, payment: Record<string, unknown>): string {
   const byEvent: Record<string, string> = {
@@ -906,12 +914,22 @@ function providerStatusForEvent(eventType: string, payment: Record<string, unkno
     PAYMENT_CHARGEBACK_REQUESTED: 'CHARGEBACK_REQUESTED',
     PAYMENT_CHARGEBACK_DISPUTE: 'CHARGEBACK_DISPUTE',
     PAYMENT_AWAITING_RISK_ANALYSIS: 'AWAITING_RISK_ANALYSIS',
+    PAYMENT_CREDIT_CARD_CAPTURE_REFUSED: 'CREDIT_CARD_CAPTURE_REFUSED',
+    PAYMENT_REPROVED_BY_RISK_ANALYSIS: 'REPROVED_BY_RISK_ANALYSIS',
   };
   return byEvent[eventType] ?? String(payment.status ?? 'PENDING');
 }
 
 function paymentDate(payment: Record<string, unknown>, key: string): string | null {
   return typeof payment[key] === 'string' ? payment[key] as string : null;
+}
+
+function billingBatchStatus(providerStatus: string): string {
+  const local = paymentStatus(providerStatus);
+  if (local === 'received' || local === 'confirmed') return 'paid';
+  if (['cancelled', 'overdue', 'failed', 'refunded', 'refund_requested', 'chargeback']
+    .includes(local)) return local;
+  return 'synced';
 }
 
 async function processProjectPaymentWebhook(
@@ -952,6 +970,7 @@ async function processProjectPaymentWebhook(
     }
   }
   const localStatus = projectPaymentStatusFromProvider(providerStatus);
+  const facts = providerPaymentFacts(payment, event.event_type);
   const applied = await getPool().query(
     `update public.project_payments
         set amount_cents = round(($2::numeric) * 100)::bigint,
@@ -974,14 +993,21 @@ async function processProjectPaymentWebhook(
                      when $4 in ('refunded','refund_requested','chargeback') then paid_at
                      else null end,
             payment_date = coalesce($13::date,$12::date),
-            provider_event_at = $14::timestamptz
+            provider_event_at = $14::timestamptz,
+            net_amount_cents = coalesce($15::bigint, net_amount_cents),
+            refunded_amount_cents = coalesce($16::bigint, refunded_amount_cents),
+            provider_refunds = case when $17::jsonb = '[]'::jsonb
+                                    then provider_refunds else $17::jsonb end,
+            credit_date = coalesce($18::date, credit_date)
       where id = $1
         and (provider_event_at is null or $14::timestamptz >= provider_event_at)`,
     [projectPaymentId, Number(payment.value ?? 0), paymentDate(payment, 'dueDate'),
       localStatus, String(payment.id), externalReference, String(payment.invoiceUrl ?? ''),
       String(payment.bankSlipUrl ?? ''), String(payment.pixPayload ?? ''),
       String(payment.billingType ?? 'UNDEFINED'), providerStatus,
-      paymentDate(payment, 'paymentDate'), paymentDate(payment, 'clientPaymentDate'), event.event_at],
+      paymentDate(payment, 'paymentDate'), paymentDate(payment, 'clientPaymentDate'), event.event_at,
+      facts.netAmountCents, facts.refundedAmountCents, JSON.stringify(facts.refunds),
+      paymentDate(payment, 'creditDate')],
   );
   if ((applied.rowCount ?? 0) === 0) return;
   await recordPaymentWebhookActivity(event, existing.rows[0].project_id, {
@@ -1008,13 +1034,11 @@ async function processBillingBatchWebhook(
     throw new WebhookNeedsReviewError(`Cobrança consolidada não encontrada: ${batchId}.`);
   }
   const localStatus = paymentStatus(providerStatus);
-  const batchStatus = localStatus === 'received' || localStatus === 'confirmed'
-    ? 'paid'
-    : localStatus === 'cancelled'
-      ? 'cancelled'
-      : localStatus === 'overdue' ? 'overdue' : 'synced';
+  const batchStatus = billingBatchStatus(providerStatus);
+  const facts = providerPaymentFacts(payment, event.event_type);
+  let applied = false;
   await withActor(null, async (client) => {
-    await client.query(
+    const updated = await client.query(
       `update public.client_billing_batches
           set amount_cents = round(($2::numeric) * 100)::bigint,
               due_date = coalesce($3::date, due_date),
@@ -1025,13 +1049,25 @@ async function processBillingBatchWebhook(
               pix_payload = $8,
               billing_type = $9,
               provider_status = $10,
+              provider_event_at = $11::timestamptz,
+              net_amount_cents = coalesce($12::bigint, net_amount_cents),
+              refunded_amount_cents = coalesce($13::bigint, refunded_amount_cents),
+              provider_refunds = case when $14::jsonb = '[]'::jsonb
+                                      then provider_refunds else $14::jsonb end,
+              payment_date = coalesce($15::date, payment_date),
+              credit_date = coalesce($16::date, credit_date),
               sync_error = null
-        where id = $1`,
+        where id = $1
+          and (provider_event_at is null or $11::timestamptz >= provider_event_at)`,
       [batchId, Number(payment.value ?? 0), paymentDate(payment, 'dueDate'),
         batchStatus, String(payment.id), String(payment.invoiceUrl ?? ''),
         String(payment.bankSlipUrl ?? ''), String(payment.pixPayload ?? ''),
-        String(payment.billingType ?? 'UNDEFINED'), providerStatus],
+        String(payment.billingType ?? 'UNDEFINED'), providerStatus, event.event_at,
+        facts.netAmountCents, facts.refundedAmountCents, JSON.stringify(facts.refunds),
+        paymentDate(payment, 'paymentDate'), paymentDate(payment, 'creditDate')],
     );
+    if ((updated.rowCount ?? 0) === 0) return;
+    applied = true;
     if (batchStatus === 'paid') {
       await client.query(
         `update public.subscription_payments sp
@@ -1081,6 +1117,7 @@ async function processBillingBatchWebhook(
       );
     }
   });
+  if (!applied) return;
   await recordPaymentWebhookActivity(event, batch.rows[0].anchor_project_id, {
     scope: 'cobranca_consolidada',
     billingBatchId: batchId,
@@ -1145,6 +1182,7 @@ async function processSubscriptionPaymentWebhook(
     throw new WebhookNeedsReviewError('Cobrança sem referência de assinatura reconhecida.');
   }
   const status = paymentStatus(providerStatus);
+  const facts = providerPaymentFacts(payment, event.event_type);
   if (event.event_type === 'PAYMENT_DELETED' && exactPayment.rows[0]) {
     const replacement = await getPool().query(
       `select 1
@@ -1220,7 +1258,8 @@ async function processSubscriptionPaymentWebhook(
         asaas_payment_id, payment_url, billing_type, provider_status,
         paid_at, confirmed_at, received_at, cancelled_at, source,
         payment_date, credit_date, client_payment_date, provider_event_at,
-        original_due_date, bank_slip_url, pix_payload)
+         original_due_date, bank_slip_url, pix_payload, net_amount_cents,
+         refunded_amount_cents, provider_refunds)
      values ($1,$2,$3::date,round(($4::numeric) * 100)::bigint,$5::date,$6,
              $7,$8,$9,$10,
              case when $6 in ('confirmed','received')
@@ -1231,7 +1270,7 @@ async function processSubscriptionPaymentWebhook(
                   then coalesce($13::date,$11::date)::timestamptz else null end,
              case when $6 = 'cancelled' then $14::timestamptz else null end,
              'asaas',$11::date,$12::date,$13::date,$14::timestamptz,
-             $15::date,$16,$17)
+              $15::date,$16,$17,$18::bigint,$19::bigint,$20::jsonb)
      on conflict (asaas_payment_id) where asaas_payment_id is not null do update set
        project_id = excluded.project_id,
        subscription_id = excluded.subscription_id,
@@ -1261,6 +1300,13 @@ async function processSubscriptionPaymentWebhook(
        original_due_date = excluded.original_due_date,
        bank_slip_url = excluded.bank_slip_url,
        pix_payload = excluded.pix_payload,
+       net_amount_cents = coalesce(excluded.net_amount_cents,
+                                   subscription_payments.net_amount_cents),
+       refunded_amount_cents = coalesce(excluded.refunded_amount_cents,
+                                        subscription_payments.refunded_amount_cents),
+       provider_refunds = case when excluded.provider_refunds = '[]'::jsonb
+                               then subscription_payments.provider_refunds
+                               else excluded.provider_refunds end,
        external_receipt_pending_at = null
      where subscription_payments.provider_event_at is null
         or excluded.provider_event_at >= subscription_payments.provider_event_at`,
@@ -1270,7 +1316,8 @@ async function processSubscriptionPaymentWebhook(
       paymentDate(payment, 'paymentDate'), paymentDate(payment, 'creditDate'),
       paymentDate(payment, 'clientPaymentDate'), event.event_at,
       paymentDate(payment, 'originalDueDate'), String(payment.bankSlipUrl ?? ''),
-      String(payment.pixPayload ?? '')],
+      String(payment.pixPayload ?? ''), facts.netAmountCents, facts.refundedAmountCents,
+      JSON.stringify(facts.refunds)],
   );
   if ((applied.rowCount ?? 0) === 0) return;
   await recordPaymentWebhookActivity(event, linked.project_id, {
@@ -1279,6 +1326,99 @@ async function processSubscriptionPaymentWebhook(
   });
   await reconcileReceiptIntent(event, String(payment.id), providerStatus);
   if (event.event_type === 'PAYMENT_DELETED') await tryFinalizePendingArchive(linked.project_id);
+}
+
+function subscriptionStatusForEvent(
+  eventType: string,
+  providerStatus: unknown,
+  currentStatus: string,
+): string {
+  if (eventType === 'SUBSCRIPTION_INACTIVATED') return 'inactive';
+  if (eventType === 'SUBSCRIPTION_DELETED') return 'cancelled';
+  if (!['SUBSCRIPTION_CREATED', 'SUBSCRIPTION_UPDATED'].includes(eventType)) {
+    throw new WebhookNeedsReviewError(`Evento de assinatura não suportado: ${eventType}.`);
+  }
+  const normalized = String(providerStatus ?? '').toUpperCase();
+  if (normalized === 'ACTIVE') return 'active';
+  if (normalized === 'INACTIVE') return 'inactive';
+  if (normalized === 'EXPIRED') return 'cancelled';
+  return eventType === 'SUBSCRIPTION_CREATED' ? 'pending_activation' : currentStatus;
+}
+
+async function processSubscriptionWebhook(
+  event: WebhookEvent,
+  subscription: Record<string, unknown>,
+): Promise<void> {
+  const providerId = typeof subscription.id === 'string' ? subscription.id : '';
+  const externalReference = typeof subscription.externalReference === 'string'
+    ? subscription.externalReference : '';
+  if (!providerId) throw new WebhookNeedsReviewError('Evento de assinatura sem identificador.');
+  const referenceProjectId = PROJECT_SUBSCRIPTION_REFERENCE.exec(externalReference)?.[1] ?? null;
+  const target = await getPool().query<{
+    id: string; project_id: string; status: string; provider_event_at: string | null;
+  }>(
+    `select id, project_id, status, provider_event_at
+       from public.project_subscriptions
+      where asaas_subscription_id = $1
+         or ($2::uuid is not null and project_id = $2::uuid)
+      order by (asaas_subscription_id = $1) desc
+      limit 1`,
+    [providerId, referenceProjectId],
+  );
+  const local = target.rows[0];
+  if (!local) {
+    throw new WebhookNeedsReviewError(
+      `Assinatura sem referência local reconhecida: ${externalReference || providerId}.`,
+    );
+  }
+  const status = subscriptionStatusForEvent(event.event_type, subscription.status, local.status);
+  const amount = Number(subscription.value);
+  const amountCents = Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : null;
+  const billingType = typeof subscription.billingType === 'string'
+    ? subscription.billingType : null;
+  const nextDueDate = typeof subscription.nextDueDate === 'string'
+    ? subscription.nextDueDate : null;
+  const applied = await withActor(null, async (client) => {
+    const updated = await client.query(
+      `update public.project_subscriptions
+          set asaas_subscription_id = case when $3 = 'cancelled' then null else $2 end,
+              status = $3,
+              amount_cents = coalesce($4::bigint, amount_cents),
+              billing_type = coalesce($5, billing_type),
+              next_due_date = coalesce($6::date, next_due_date),
+              app_managed = false,
+              started_at = case when $3 = 'active' then coalesce(started_at, $7::timestamptz)
+                                else started_at end,
+              paused_at = case when $3 = 'inactive' then coalesce(paused_at, $7::timestamptz)
+                               when $3 = 'active' then null else paused_at end,
+              cancelled_at = case when $3 = 'cancelled' then coalesce(cancelled_at, $7::timestamptz)
+                                  else cancelled_at end,
+              provider_event_at = $7::timestamptz,
+              last_synced_at = now(),
+              sync_error = null
+        where id = $1
+          and (provider_event_at is null or $7::timestamptz >= provider_event_at)`,
+      [local.id, providerId, status, amountCents, billingType, nextDueDate, event.event_at],
+    );
+    if ((updated.rowCount ?? 0) === 0) return false;
+    await client.query(
+      'update public.projects set subscription_active = $2 where id = $1',
+      [local.project_id, status === 'active'],
+    );
+    await client.query(
+      `insert into public.project_activity (project_id, actor_id, action, metadata)
+       values ($1,null,'assinatura_asaas_evento',$2::jsonb)
+       on conflict do nothing`,
+      [local.project_id, JSON.stringify({
+        providerEventId: event.id,
+        eventType: event.event_type,
+        asaasSubscriptionId: providerId,
+        status,
+      })],
+    );
+    return true;
+  });
+  if (!applied) return;
 }
 
 async function claimWebhook(): Promise<WebhookEvent | null> {
@@ -1360,6 +1500,17 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
             );
           }
         }
+      }
+    } else {
+      const subscription = event.payload.subscription as Record<string, unknown> | undefined;
+      if (event.event_type.startsWith('SUBSCRIPTION_') && subscription?.id) {
+        await processSubscriptionWebhook(event, subscription);
+      } else if (event.event_type.startsWith('CHECKOUT_')) {
+        throw new WebhookNeedsReviewError(
+          `Evento ${event.event_type} recebido antes da implementação das sessões de Checkout.`,
+        );
+      } else {
+        throw new WebhookNeedsReviewError(`Evento Asaas não suportado: ${event.event_type}.`);
       }
     }
     await getPool().query(

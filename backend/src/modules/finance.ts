@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { adminOnly } from '../auth/middleware';
-import { getPool, withActor } from '../db/pool';
-import { env, hasAsaas } from '../env';
+import { getPool, pingDb, withActor } from '../db/pool';
+import { env, hasAsaas, hasDatabase } from '../env';
 import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
 import { followingMonthlyDueDate, nextMonthlyDueDate } from '../finance/dueDate';
@@ -21,6 +21,7 @@ import {
 import { queueAlert } from '../finance/queueHealth';
 import { subscriptionChangePreview } from '../finance/subscriptionPreview';
 import { asaasEventDate } from '../finance/asaasDate';
+import { financeReadiness } from '../finance/readiness';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -305,6 +306,19 @@ async function consolidatedChargeCandidates(paymentId: string, dueDate: string) 
 }
 
 export async function financeRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/admin/finance/readiness', adminOnly, async (_req, reply) => reply.send(
+    financeReadiness({
+      databaseConfigured: hasDatabase,
+      databaseReachable: await pingDb(),
+      databaseTlsVerified: env.databaseSslRejectUnauthorized,
+      nodeEnv: env.nodeEnv,
+      asaasConfigured: hasAsaas,
+      asaasEnvironment: env.asaasEnvironment,
+      webhookTokenConfigured: env.asaasWebhookToken.length > 0,
+      publicApiUrl: env.publicApiUrl,
+      timeoutMs: env.asaasTimeoutMs,
+    }),
+  ));
   app.get('/admin/finance/overview', adminOnly, async (_req, reply) => {
     const [subscriptions, payments, plans, queue] = await Promise.all([
       getPool().query(
@@ -1662,15 +1676,23 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const payment = body.payment && typeof body.payment === 'object'
       ? body.payment as Record<string, unknown>
       : null;
+    const subscription = body.subscription && typeof body.subscription === 'object'
+      ? body.subscription as Record<string, unknown>
+      : null;
+    const checkout = body.checkout && typeof body.checkout === 'object'
+      ? body.checkout as Record<string, unknown>
+      : null;
     const eventAt = asaasEventDate(typeof body.dateCreated === 'string' ? body.dateCreated : '');
     await getPool().query(
       `insert into public.asaas_webhook_events
-         (provider_event_id,event_type,payload,payment_id,subscription_id,event_at)
-       values ($1,$2,$3::jsonb,$4,$5,$6::timestamptz)
+         (provider_event_id,event_type,payload,payment_id,subscription_id,checkout_id,event_at)
+       values ($1,$2,$3::jsonb,$4,$5,$6,$7::timestamptz)
        on conflict (provider_event_id) do nothing`,
       [eventId, eventType, JSON.stringify(body),
         typeof payment?.id === 'string' ? payment.id : null,
-        typeof payment?.subscription === 'string' ? payment.subscription : null,
+        typeof payment?.subscription === 'string' ? payment.subscription
+          : typeof subscription?.id === 'string' ? subscription.id : null,
+        typeof checkout?.id === 'string' ? checkout.id : null,
         eventAt],
     );
     financeWorker.kick();

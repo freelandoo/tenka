@@ -306,6 +306,7 @@ export interface ProjectPaymentRow {
   // 'refunded'/'chargeback' vêm do Asaas e não são um cancelamento: o dinheiro
   // entrou e voltou. A linha continua distribuída no contrato.
   status: 'draft' | 'pending' | 'paid' | 'cancelled'
+    | 'overdue' | 'failed' | 'awaiting_risk_analysis'
     | 'refunded' | 'refund_requested' | 'chargeback';
   position: number;
   notes: string;
@@ -326,6 +327,10 @@ export interface ProjectPaymentRow {
   sync_error: string | null;
   payment_date: string | null;
   provider_event_at: string | null;
+  net_amount_cents?: number | null;
+  refunded_amount_cents?: number | null;
+  credit_date?: string | null;
+  provider_refunds?: Array<Record<string, unknown>>;
   project_name?: string;
   client_name?: string;
   project_value_cents?: number;
@@ -353,6 +358,8 @@ export interface SubscriptionPaymentRow {
   client_payment_date: string | null;
   provider_event_at: string | null;
   net_amount_cents: number | null;
+  refunded_amount_cents?: number | null;
+  provider_refunds?: Array<Record<string, unknown>>;
   original_due_date: string | null;
   bank_slip_url: string;
   pix_payload: string;

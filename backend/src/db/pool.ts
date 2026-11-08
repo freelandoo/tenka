@@ -47,7 +47,7 @@ export function getPool(): Pool {
       // Railway/Provedores gerenciados normalmente exigem TLS em produção.
       ssl:
         env.nodeEnv === 'production' && !env.databaseUrl.includes('localhost')
-          ? { rejectUnauthorized: false }
+          ? { rejectUnauthorized: env.databaseSslRejectUnauthorized }
           : undefined,
       max: 10,
     });
