@@ -27,6 +27,8 @@ import { withBase } from '../base.ts';
 const html = document.documentElement;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 const params = new URLSearchParams(location.search);
+/** Rosa da Casa Views (substitui o vermelho da THE NEXT LABEL). */
+const PINK = { red: '#ff2e93', hot: '#ff5aa8', deep: '#8e0047' };
 
 async function gate(): Promise<boolean> {
   if (import.meta.env.DEV && params.has('preview')) return true;
@@ -98,10 +100,19 @@ function setup3d() {
   s.scene.add(portal.mesh);
   const particles = new ParticleField(Math.max(perf.particles, 900), Math.min(window.devicePixelRatio, perf.maxDpr), reduced ? 0.15 : 1);
   s.scene.add(particles.points);
+  // Cores do reality: o portal e as partículas em rosa (mesmos shaders da THE NEXT LABEL).
+  const tint = (m: THREE.Material, key: string, hex: string) => {
+    const u = (m as THREE.ShaderMaterial).uniforms?.[key];
+    if (u) (u.value as THREE.Color).set(hex);
+  };
+  tint(portal.mesh.material as THREE.Material, 'uRed', PINK.red);
+  tint(portal.mesh.material as THREE.Material, 'uHot', PINK.hot);
+  tint(portal.mesh.material as THREE.Material, 'uDeep', PINK.deep);
+  tint(particles.points.material as THREE.Material, 'uRed', PINK.hot);
   label = new DigitalLabelTwin(s.renderer, { autoLight: false });
   s.scene.add(label.group);
 
-  holo = new Hologram({ color: config.ar.color, accent: config.ar.accent, heightMeters: 1 });
+  holo = new Hologram({ color: PINK.red, accent: '#ffd3ea', heightMeters: 1 });
   holo.group.rotation.x = 0.14;
   s.scene.add(holo.group);
 
@@ -262,6 +273,7 @@ function go(i: number, toStep = 0) {
   gsap.set(next, { visibility: 'visible', opacity: 1, x: 0 });
   next.classList.add('active');
   html.dataset.slide = next.dataset.id;
+  html.classList.toggle('pz-paper-on', next.dataset.theme === 'paper');
 
   const intro = [...next.querySelectorAll<HTMLElement>('[data-a]:not([data-step])')];
   reveal(intro, prev && prev !== next ? 0.25 : 0.1);

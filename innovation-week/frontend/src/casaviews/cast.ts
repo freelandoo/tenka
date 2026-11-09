@@ -77,7 +77,7 @@ export class Cast {
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private live: Live[] = [];
-  private clock = new THREE.Clock();
+  private last = 0;
   private paused = true;
   private raf = 0;
   private t = 0;
@@ -105,10 +105,10 @@ export class Cast {
     const key = new THREE.DirectionalLight(0xffffff, 2.2);
     key.position.set(3, 6, 6);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xff2020, 3.2);
+    const rim = new THREE.DirectionalLight(0xff2e93, 3.2);
     rim.position.set(-4, 3, -5);
     this.scene.add(rim);
-    const rim2 = new THREE.DirectionalLight(0xff5040, 1.6);
+    const rim2 = new THREE.DirectionalLight(0xff5aa8, 1.6);
     rim2.position.set(5, 2, -4);
     this.scene.add(rim2);
 
@@ -117,9 +117,9 @@ export class Cast {
     glow.width = glow.height = 256;
     const g = glow.getContext('2d')!;
     const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grd.addColorStop(0, 'rgba(255,40,40,0.55)');
-    grd.addColorStop(0.45, 'rgba(255,22,22,0.18)');
-    grd.addColorStop(1, 'rgba(255,22,22,0)');
+    grd.addColorStop(0, 'rgba(255,46,147,0.55)');
+    grd.addColorStop(0.45, 'rgba(255,46,147,0.18)');
+    grd.addColorStop(1, 'rgba(255,46,147,0)');
     g.fillStyle = grd;
     g.fillRect(0, 0, 256, 256);
     const floor = new THREE.Mesh(
@@ -204,7 +204,7 @@ export class Cast {
     cancelAnimationFrame(this.raf);
     if (!p) {
       this.resize();
-      this.clock.getDelta();
+      this.last = performance.now();
       const loop = () => {
         this.frame();
         this.raf = requestAnimationFrame(loop);
@@ -222,7 +222,9 @@ export class Cast {
   }
 
   private frame() {
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - this.last) / 1000);
+    this.last = now;
     this.t += dt;
     for (const l of this.live) l?.mixer.update(dt);
     this.stage.rotation.y = Math.sin(this.t * 0.35) * this.sway;

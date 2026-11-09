@@ -141,6 +141,18 @@ async function pollProof(el: HTMLElement, d: CvCtx) {
   for (const b of $$(el, '[data-trk]')) countTo(b, vals[b.dataset.trk!] ?? 0, d.reduced, 1.4);
 }
 
+/** Contadores do slide: `data-count` (alvo), `data-from` (início) e `data-suf` ("mil", "mi"). */
+function runCounts(el: HTMLElement, d: CvCtx, dur = 1.8) {
+  for (const b of $$(el, '[data-count]')) {
+    const from = Number(b.dataset.from ?? 0);
+    const suf = b.dataset.suf ? ` ${b.dataset.suf}` : '';
+    const fmt = (n: number) => `${n}${suf}`;
+    b.dataset.v = String(from);
+    b.textContent = fmt(from);
+    window.setTimeout(() => countTo(b, Number(b.dataset.count), d.reduced, dur, fmt), 350);
+  }
+}
+
 function daysToPremiere() {
   const premiere = new Date('2027-03-01T00:00:00-03:00').getTime();
   return Math.max(0, Math.ceil((premiere - Date.now()) / 86_400_000));
@@ -166,13 +178,12 @@ export const HOOKS: Record<string, CvHooks> = {
 
   numeros: {
     scene: (c) => quiet(c, { portalI: 0.3 }),
-    enter: (el, d) => {
-      for (const b of $$(el, '[data-count]')) {
-        b.dataset.v = '0';
-        b.textContent = '0';
-        window.setTimeout(() => countTo(b, Number(b.dataset.count), d.reduced, 1.8, (n) => String(n)), 350);
-      }
-    },
+    enter: (el, d) => runCounts(el, d),
+  },
+
+  alcance: {
+    scene: (c) => quiet(c, { portalI: 0, partOpacity: 0 }),
+    enter: (el, d) => runCounts(el, d, 2.4),
   },
 
   elenco: {
