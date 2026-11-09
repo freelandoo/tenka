@@ -19,13 +19,9 @@ describe('previa de parcelamento', () => {
       .toEqual(['2026-01-31', '2026-02-28', '2026-03-31']);
   });
 
-  it('calcula intervalos quinzenal e semanal', () => {
-    const biweekly = splitInstallments(200, 2, '2026-01-29', 'biweekly');
-    const weekly = splitInstallments(200, 2, '2026-01-29', 'weekly');
-    expect(biweekly.error ? null : biweekly.installments.map((item) => item.dueDate))
-      .toEqual(['2026-01-29', '2026-02-12']);
-    expect(weekly.error ? null : weekly.installments.map((item) => item.dueDate))
-      .toEqual(['2026-01-29', '2026-02-05']);
+  it('recusa quantidade fora do limite nativo do Asaas', () => {
+    expect(splitInstallments(100, 1, '2026-01-29').error).toBe('quantidade-invalida');
+    expect(splitInstallments(2_200, 22, '2026-01-29').error).toBe('quantidade-invalida');
   });
 
   it('recusa data inexistente e quantidade acima do saldo em centavos', () => {

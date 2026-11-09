@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
 import { staffOnly, adminOnly } from '../auth/middleware';
@@ -13,11 +14,12 @@ import {
 import { contactStatusForProject } from '../whatsapp/repo';
 import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
-import { nextMonthlyDueDate } from '../finance/dueDate';
+import { firstHostingDueDate } from '../finance/dueDate';
 import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
 import { projectValueChangeError } from '../finance/projectValueChange';
 import {
   queueProjectPaymentOperation,
+  queueHostingCheckoutOperation,
   queueSubscriptionOperation,
   queueSubscriptionPaymentOperation,
 } from '../finance/queue';
@@ -62,15 +64,9 @@ const createSchema = z.object({
   company: z.enum(['tenka', 'pjcodeworks']).default('tenka'),
   clientId: z.string().uuid().nullable().default(null),
   dueDay: z.number().int().min(1).max(31).nullable().default(null),
-  dueDate: z.string(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   colorKey: z.string(),
   assigneeIds: z.array(z.string().uuid()).default([]),
-}).refine((value) => value.monthlyFeeCents === 0 || value.dueDay !== null, {
-  message: 'due-day-required-for-subscription',
-}).refine((value) => value.monthlyFeeCents === 0 || value.subscriptionActive !== undefined, {
-  message: 'subscription-choice-required',
-}).refine((value) => !value.subscriptionActive || value.monthlyFeeCents > 0, {
-  message: 'monthly-fee-required-for-activation',
 });
 
 const moveSchema = z.object({
@@ -95,6 +91,41 @@ const projectLifecycleSchema = z.object({
 
 function isAdmin(req: FastifyRequest): boolean {
   return req.profile?.role === 'admin';
+}
+
+async function createHostingCheckoutSession(
+  client: PoolClient,
+  projectId: string,
+  subscriptionId: string,
+  amountCents: number,
+  firstDueDate: string,
+  actorId: string,
+): Promise<{ id: string; queued: boolean }> {
+  const inserted = await client.query<{ id: string }>(
+    `insert into public.asaas_checkout_sessions
+       (project_id, subscription_id, amount_cents, first_due_date,
+        external_reference, created_by)
+     values ($1,$2,$3,$4::date,$5,$6)
+     on conflict (project_id, purpose)
+       where status in ('queued','active','paid') do nothing
+     returning id`,
+    [projectId, subscriptionId, amountCents, firstDueDate,
+      `project-subscription:${projectId}`, actorId],
+  );
+  const checkoutId = inserted.rows[0]?.id ?? (await client.query<{ id: string }>(
+    `select id from public.asaas_checkout_sessions
+      where project_id = $1 and purpose = 'hosting'
+        and status in ('queued','active','paid')
+      order by created_at desc limit 1`,
+    [projectId],
+  )).rows[0]?.id;
+  if (!checkoutId) throw new Error('Falha ao preparar o Checkout da hospedagem.');
+  const queued = inserted.rows[0]
+    ? await queueHostingCheckoutOperation(
+      client, projectId, checkoutId, 'Checkout recorrente após a entrega do projeto',
+    )
+    : false;
+  return { id: checkoutId, queued };
 }
 
 /** Garante que o usuário enxerga o projeto (admin ou atribuído). */
@@ -540,15 +571,6 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       );
       clientCpfCnpj = existingClient.rows[0]?.cpf_cnpj ?? '';
     }
-    if (i.subscriptionActive && !hasAsaas) {
-      return reply.code(503).send({ error: 'asaas-nao-configurado' });
-    }
-    if (i.subscriptionActive) {
-      if (!i.clientId) return reply.code(409).send({ error: 'cliente-obrigatorio-para-ativacao' });
-      if (!clientCpfCnpj?.trim()) {
-        return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio-para-ativacao' });
-      }
-    }
     try {
       const id = await withActor(req.userId!, async (client) => {
         // Se um cliente existente foi selecionado, telefone/e-mail editados no
@@ -577,48 +599,47 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           [
             newId,
             i.monthlyFeeCents,
-            Boolean(i.subscriptionActive),
+            false,
             i.clientName,
             i.clientPhone,
             i.clientEmail,
             i.company,
             i.clientId,
-            i.dueDay,
+            i.dueDay ?? Number(i.dueDate.slice(8, 10)),
           ],
         );
         if (i.monthlyFeeCents > 0) {
-          const nextDueDate = nextMonthlyDueDate(i.dueDay ?? 10);
+          const nextDueDate = firstHostingDueDate(i.dueDate);
+          const dueDay = Number(i.dueDate.slice(8, 10));
           // A referência é enviada como parâmetro próprio: reutilizar o UUID
           // como texto na mesma query faz o Postgres inferir dois tipos para $1.
           const subscriptionResult = await client.query<{ id: string }>(
             `insert into public.project_subscriptions
                (project_id, amount_cents, billing_type, due_day, next_due_date, status,
-                external_reference, created_by, app_managed, first_due_date, started_at)
-             values ($1::uuid,$2,'UNDEFINED',$3,$4,$5,$6,$7,true,
-                     case when $5 = 'active' then $4::date end,
-                     case when $5 = 'active' then now() end)
+                external_reference, created_by, app_managed, first_due_date, started_at,
+                hosting_status, contracted_at)
+             values ($1::uuid,$2,'CREDIT_CARD',$3,$4,'inactive',$5,$6,false,
+                     null,null,'pending_delivery',now())
              returning id`,
-            [newId, i.monthlyFeeCents, i.dueDay ?? 10, nextDueDate,
-              i.subscriptionActive ? 'active' : 'inactive',
+            [newId, i.monthlyFeeCents, dueDay, nextDueDate,
               `project-subscription:${newId}`, req.userId],
           );
           const subscription = subscriptionResult.rows[0];
           if (!subscription) throw new Error('Falha ao criar a assinatura do projeto.');
           await client.query(
             `insert into public.project_activity (project_id, actor_id, action, metadata)
-             values ($1,$2,'assinatura_configurada',$3::jsonb)`,
+             values ($1,$2,'hospedagem_contratada',$3::jsonb)`,
             [newId, req.userId, JSON.stringify({
               initial: true,
               amountCents: i.monthlyFeeCents,
-              dueDay: i.dueDay,
-              nextDueDate,
-              activate: i.subscriptionActive,
+              plannedDeliveryDate: i.dueDate,
+              plannedFirstDueDate: nextDueDate,
+              activation: 'on_delivery_checkout',
             })],
           );
         }
         return newId;
       });
-      if (i.subscriptionActive) financeWorker.kick();
       return reply.code(201).send({ id });
     } catch (err) {
       return sendDbError(err, reply);
@@ -708,7 +729,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           const before = current.rows[0]?.client_id ?? null;
           const after = (body.client_id as string | null) ?? null;
           if (current.rows[0] && before !== after) {
-            const [subscription, charges] = await Promise.all([
+            const [subscription, charges, checkout] = await Promise.all([
               client.query<{ status: string; asaas_subscription_id: string | null }>(
                 `select status, asaas_subscription_id
                    from public.project_subscriptions where project_id = $1`, [id]),
@@ -716,7 +737,13 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
                 `select count(*)::text as open from public.project_payments
                   where project_id = $1 and asaas_payment_id is not null and status = 'pending'`,
                 [id]),
+              client.query(
+                `select 1 from public.asaas_checkout_sessions
+                  where project_id = $1 and status in ('queued','active','paid') limit 1`,
+                [id],
+              ),
             ]);
+            if (checkout.rows[0]) return 'hosting-checkout' as const;
             const block = blocksClientChange({
               subscriptionStatus: subscription.rows[0]?.status ?? null,
               asaasSubscriptionId: subscription.rows[0]?.asaas_subscription_id ?? null,
@@ -748,6 +775,12 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             message: 'Ajuste primeiro as etapas ou parcelas: o novo total é menor que o valor distribuído.',
           });
         }
+        if (blocked === 'hosting-checkout') {
+          return reply.code(409).send({
+            error: 'cliente-vinculado-ao-checkout-da-hospedagem',
+            message: 'O Checkout da hospedagem já está vinculado ao cliente atual.',
+          });
+        }
         return reply.code(409).send({
           error: 'cliente-vinculado-a-cobrancas',
           message: clientChangeMessage(blocked),
@@ -768,10 +801,11 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       const project = await client.query<{
         subscription_id: string | null; subscription_status: string | null;
         asaas_subscription_id: string | null; archive_requested_at: string | null;
-        app_managed: boolean | null;
+        app_managed: boolean | null; hosting_status: string | null;
       }>(
         `select ps.id as subscription_id, ps.status as subscription_status,
-                ps.asaas_subscription_id, ps.app_managed, p.archive_requested_at
+                ps.asaas_subscription_id, ps.app_managed, ps.hosting_status,
+                p.archive_requested_at
            from public.projects p
            left join public.project_subscriptions ps on ps.project_id = p.id
           where p.id = $1 and p.archived_at is null for update of p`,
@@ -780,6 +814,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       const row = project.rows[0];
       if (!row) return 'missing' as const;
       if (row.archive_requested_at) return 'in-progress' as const;
+      const openCheckout = await client.query(
+        `select 1
+           from public.asaas_checkout_sessions cs
+           join public.project_subscriptions ps on ps.id = cs.subscription_id
+          where cs.project_id = $1
+            and (cs.status in ('queued','active')
+              or (cs.status = 'paid' and ps.asaas_subscription_id is null))
+          limit 1`,
+        [id],
+      );
+      if (openCheckout.rows[0]) return 'checkout-open' as const;
       const hasLiveSubscription = Boolean(
         row.subscription_id && (row.asaas_subscription_id || row.app_managed)
         && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''),
@@ -872,6 +917,15 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           parsed.data.reason ?? 'Arquivamento do projeto',
         );
       }
+      if (row.subscription_id && row.hosting_status && row.hosting_status !== 'legacy'
+          && !row.asaas_subscription_id) {
+        await client.query(
+          `update public.project_subscriptions
+              set status = 'cancelled', hosting_status = 'cancelled', cancelled_at = now()
+            where id = $1`,
+          [row.subscription_id],
+        );
+      }
       await client.query(
         `insert into public.project_activity (project_id, actor_id, action, metadata)
          values ($1,$2,'cobrancas_encerradas_por_arquivamento',$3::jsonb)`,
@@ -906,6 +960,10 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       error: 'cobranca-consolidada-em-aberto',
       message: 'Resolva a cobrança consolidada em aberto antes de arquivar o projeto.',
     });
+    if (result === 'checkout-open') return reply.code(409).send({
+      error: 'checkout-de-hospedagem-em-aberto',
+      message: 'Cancele ou aguarde expirar o Checkout da hospedagem antes de arquivar.',
+    });
     if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const archived = await tryFinalizePendingArchive(id);
     if (result.queued) financeWorker.kick();
@@ -925,17 +983,26 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         subscription_id: string | null; subscription_status: string | null;
         asaas_subscription_id: string | null;
         app_managed: boolean | null;
+        hosting_status: string | null; amount_cents: number | null;
+        finalized_at: string | null; client_id: string | null; cpf_cnpj: string | null;
       }>(
         `select ps.id as subscription_id, ps.status as subscription_status,
-                ps.asaas_subscription_id, ps.app_managed
+                ps.asaas_subscription_id, ps.app_managed, ps.hosting_status,
+                ps.amount_cents, p.finalized_at, p.client_id, c.cpf_cnpj
            from public.projects p
            left join public.project_subscriptions ps on ps.project_id = p.id
+           left join public.clients c on c.id = p.client_id and c.archived_at is null
           where p.id = $1 for update of p`,
         [id],
       );
       const row = found.rows[0];
       if (!row) return 'missing' as const;
-      const live = Boolean(row.subscription_id && (row.asaas_subscription_id || row.app_managed)
+      if (row.finalized_at) {
+        return { queued: false, alreadyFinalized: true, checkoutIssue: null as string | null };
+      }
+      const deliveryFlow = Boolean(row.subscription_id && row.hosting_status === 'pending_delivery');
+      const live = Boolean(!deliveryFlow && row.subscription_id
+        && (row.asaas_subscription_id || row.app_managed)
         && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''));
       if (live && !parsed.data.subscriptionAction) return 'action-required' as const;
       let queued = false;
@@ -955,21 +1022,138 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           {}, parsed.data.reason ?? 'Finalização do projeto',
         );
       }
-      await client.query('update public.projects set finalized_at = now() where id = $1', [id]);
-      return { queued };
+      const delivered = await client.query<{ delivery_date: string }>(
+        `update public.projects set finalized_at = now() where id = $1
+         returning timezone('America/Sao_Paulo', finalized_at)::date::text as delivery_date`,
+        [id],
+      );
+      const deliveryDate = delivered.rows[0]!.delivery_date;
+      let checkoutIssue: string | null = null;
+      let checkoutSessionId: string | null = null;
+      if (deliveryFlow && row.subscription_id && row.amount_cents) {
+        const firstDueDate = firstHostingDueDate(deliveryDate);
+        await client.query(
+          `update public.project_subscriptions
+              set due_day = extract(day from $3::date)::int,
+                  next_due_date = $2::date, first_due_date = $2::date,
+                  delivery_triggered_at = now(), hosting_status = 'pending_delivery',
+                  status = 'inactive', app_managed = false,
+                  billing_type = 'CREDIT_CARD', sync_error = null
+            where id = $1`,
+          [row.subscription_id, firstDueDate, deliveryDate],
+        );
+        await client.query(
+          `update public.projects
+              set due_day = extract(day from $2::date)::int,
+                  subscription_active = false
+            where id = $1`,
+          [id, deliveryDate],
+        );
+        if (!hasAsaas) checkoutIssue = 'asaas-nao-configurado';
+        else if (!row.client_id) checkoutIssue = 'cliente-obrigatorio';
+        else if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) checkoutIssue = 'cpf-cnpj-obrigatorio';
+        else {
+          const checkout = await createHostingCheckoutSession(
+            client, id, row.subscription_id, Number(row.amount_cents), firstDueDate, req.userId!,
+          );
+          checkoutSessionId = checkout.id;
+          queued = checkout.queued;
+        }
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'projeto_entregue',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            deliveryDate, firstHostingDueDate: firstDueDate,
+            checkoutSessionId, checkoutIssue,
+          })],
+        );
+      }
+      return { queued, alreadyFinalized: false, checkoutIssue, checkoutSessionId };
     });
     if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
     if (result === 'action-required') return reply.code(409).send({ error: 'acao-da-assinatura-obrigatoria' });
     if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
     if (result.queued) financeWorker.kick();
-    return reply.send({ ok: true, queued: result.queued });
+    return reply.send({ ok: true, ...result });
   });
+
+  app.post('/projects/:id/hosting-checkout', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const result = await withActor(req.userId!, async (client) => {
+      const found = await client.query<{
+        subscription_id: string | null; amount_cents: number | null;
+        first_due_date: string | null; hosting_status: string | null;
+        finalized_at: string | null; client_id: string | null; cpf_cnpj: string | null;
+      }>(
+        `select ps.id as subscription_id, ps.amount_cents, ps.first_due_date,
+                ps.hosting_status, p.finalized_at, p.client_id, c.cpf_cnpj
+           from public.projects p
+           left join public.project_subscriptions ps on ps.project_id = p.id
+           left join public.clients c on c.id = p.client_id and c.archived_at is null
+          where p.id = $1 for update of p`,
+        [id],
+      );
+      const row = found.rows[0];
+      if (!row) return 'missing' as const;
+      if (!row.finalized_at) return 'not-finalized' as const;
+      if (!row.subscription_id || !row.amount_cents || !row.first_due_date
+          || row.hosting_status === 'legacy') return 'not-contracted' as const;
+      if (!row.client_id) return 'client' as const;
+      if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
+      if (['checkout_pending', 'authorized', 'active'].includes(row.hosting_status ?? '')) {
+        return 'already-open' as const;
+      }
+      const checkout = await createHostingCheckoutSession(
+        client, id, row.subscription_id, Number(row.amount_cents),
+        row.first_due_date, req.userId!,
+      );
+      await client.query(
+        `update public.project_subscriptions
+            set hosting_status = 'pending_delivery', sync_error = null
+          where id = $1`,
+        [row.subscription_id],
+      );
+      return checkout;
+    });
+    const errors: Record<string, [number, string]> = {
+      missing: [404, 'projeto-inexistente'],
+      'not-finalized': [409, 'projeto-ainda-nao-entregue'],
+      'not-contracted': [409, 'hospedagem-nao-contratada'],
+      client: [409, 'cliente-obrigatorio'],
+      document: [409, 'cpf-cnpj-obrigatorio'],
+      'already-open': [409, 'checkout-ou-hospedagem-ja-ativo'],
+    };
+    if (typeof result === 'string') {
+      const [status, error] = errors[result] ?? [409, 'checkout-nao-pode-ser-gerado'];
+      return reply.code(status).send({ error });
+    }
+    if (result.queued) financeWorker.kick();
+    return reply.code(202).send({ queued: result.queued, checkoutSessionId: result.id });
+  });
+
   app.post('/projects/:id/reopen', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const result = await withActor(req.userId!, (client) => client.query(
-      'update public.projects set finalized_at = null where id = $1 returning id', [id],
+      `update public.projects p set finalized_at = null
+        where p.id = $1
+          and not exists (
+            select 1 from public.project_subscriptions ps
+             where ps.project_id = p.id
+               and ps.hosting_status in ('checkout_pending','authorized','active')
+          )
+          and not exists (
+            select 1 from public.asaas_checkout_sessions cs
+             where cs.project_id = p.id and cs.status in ('queued','active','paid')
+          )
+        returning id`, [id],
     ));
-    if (!result.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
+    if (!result.rows[0]) {
+      const exists = await getPool().query('select 1 from public.projects where id = $1', [id]);
+      return exists.rows[0]
+        ? reply.code(409).send({ error: 'checkout-de-hospedagem-impede-reabertura' })
+        : reply.code(404).send({ error: 'projeto-inexistente' });
+    }
     return reply.send({ ok: true });
   });
 

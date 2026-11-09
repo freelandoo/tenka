@@ -24,6 +24,7 @@ export type ChangeType =
   | 'costs'
   | 'subscription_payments'
   | 'project_subscriptions'
+  | 'asaas_checkout_sessions'
   | 'project_payments';
 
 /**

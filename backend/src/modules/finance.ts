@@ -9,7 +9,11 @@ import { sendDbError } from './dbError';
 import { followingMonthlyDueDate, nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
 import { integratedPlanUpdates, planDiff } from '../finance/planDiff';
-import { validateInstallmentGroups } from '../finance/installments';
+import {
+  MAX_ASAAS_INSTALLMENTS,
+  validateInstallmentGroups,
+  validateNativeInstallmentSchedule,
+} from '../finance/installments';
 import { asaas, AsaasError } from '../finance/asaas';
 import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
 import { runReconciliation } from '../finance/reconciliationRun';
@@ -49,8 +53,8 @@ const planSchema = z.object({
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
     kind: z.enum(['stage', 'installment']).default('stage'),
     installmentGroupId: z.string().uuid().nullable().default(null),
-    installmentNumber: z.number().int().min(1).max(60).nullable().default(null),
-    installmentCount: z.number().int().min(1).max(60).nullable().default(null),
+    installmentNumber: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
+    installmentCount: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     groupLabel: z.string().trim().max(120).default(''),
   })).max(60),
 });
@@ -66,8 +70,8 @@ const paymentPlanDraftSchema = z.object({
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
     kind: z.enum(['stage', 'installment']).default('stage'),
     installmentGroupId: z.string().uuid().nullable().default(null),
-    installmentNumber: z.number().int().min(1).max(60).nullable().default(null),
-    installmentCount: z.number().int().min(1).max(60).nullable().default(null),
+    installmentNumber: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
+    installmentCount: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     groupLabel: z.string().max(120).default(''),
   })).max(60),
 });
@@ -316,6 +320,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       asaasEnvironment: env.asaasEnvironment,
       webhookTokenConfigured: env.asaasWebhookToken.length > 0,
       publicApiUrl: env.publicApiUrl,
+      panelUrl: env.panelUrl,
       timeoutMs: env.asaasTimeoutMs,
     }),
   ));
@@ -439,7 +444,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/projects/:id/finance', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const [project, subscription, payments, monthly, planDraft] = await Promise.all([
+    const [project, subscription, payments, monthly, planDraft, hostingCheckout] = await Promise.all([
       getPool().query(
         `select p.*, c.cpf_cnpj, c.asaas_customer_id
            from public.projects p left join public.clients c on c.id = p.client_id
@@ -459,6 +464,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       getPool().query<{ payments: unknown[]; updated_at: string }>(
         `select payments, updated_at from public.project_payment_plan_drafts
           where project_id = $1`, [id]),
+      getPool().query(
+        `select * from public.asaas_checkout_sessions
+          where project_id = $1 and purpose = 'hosting'
+          order by created_at desc limit 1`, [id]),
     ]);
     if (!project.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
     return reply.send({
@@ -468,6 +477,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       subscription: subscription.rows[0] ?? null,
       projectPayments: payments.rows,
       subscriptionPayments: monthly.rows,
+      hostingCheckout: hostingCheckout.rows[0] ?? null,
       paymentPlanDraft: planDraft.rows[0]
         ? { payments: planDraft.rows[0].payments, updatedAt: planDraft.rows[0].updated_at }
         : null,
@@ -584,6 +594,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const result = await withActor(req.userId!, async (client) => {
       const { rows } = await client.query<{
         id: string; project_payment_id: string | null; subscription_id: string | null;
+        checkout_session_id: string | null;
       }>(
         `update public.asaas_operations
             set status = 'pending', attempts = 0, run_after = now(), last_error = null,
@@ -591,7 +602,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           where id = $1 and (status = 'uncertain' or status = 'failed' or status = 'discarded')
             and not (kind = 'create_client_billing_batch' and status = 'uncertain'
                      and last_error is null and updated_at > now() - interval '5 minutes')
-          returning id, project_payment_id, subscription_id`,
+            and not (kind = 'create_hosting_checkout' and status in ('uncertain','discarded'))
+          returning id, project_payment_id, subscription_id, checkout_session_id`,
         [id, req.userId],
       );
       const row = rows[0];
@@ -609,6 +621,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           `update public.project_subscriptions set sync_error = null where id = $1`,
           [row.subscription_id],
         );
+      } else if (row.checkout_session_id) {
+        await client.query(
+          `update public.asaas_checkout_sessions
+              set status = 'queued', sync_error = null where id = $1 and status = 'failed'`,
+          [row.checkout_session_id],
+        );
+        await client.query(
+          `update public.project_subscriptions ps
+              set hosting_status = 'pending_delivery', sync_error = null
+             from public.asaas_checkout_sessions cs
+            where cs.id = $1 and ps.id = cs.subscription_id`,
+          [row.checkout_session_id],
+        );
       }
       return row;
     });
@@ -621,15 +646,34 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = discardSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
-    const result = await withActor(req.userId!, (client) => client.query(
-      `update public.asaas_operations
+    const result = await withActor(req.userId!, async (client) => {
+      const discarded = await client.query<{ id: string; checkout_session_id: string | null }>(
+        `update public.asaas_operations
           set status = 'discarded', reviewed_by = $2, reviewed_at = now(), review_notes = $3
         where id = $1 and (status = 'uncertain' or status = 'failed')
           and not (kind = 'create_client_billing_batch' and status = 'uncertain'
                    and last_error is null and updated_at > now() - interval '5 minutes')
-        returning id`,
-      [id, req.userId, parsed.data.notes],
-    ));
+        returning id, checkout_session_id`,
+        [id, req.userId, parsed.data.notes],
+      );
+      const row = discarded.rows[0];
+      if (row?.checkout_session_id) {
+        await client.query(
+          `update public.asaas_checkout_sessions
+              set status = 'failed', sync_error = 'Operação encerrada para revisão manual.'
+            where id = $1 and status = 'queued'`,
+          [row.checkout_session_id],
+        );
+        await client.query(
+          `update public.project_subscriptions ps
+              set hosting_status = 'error', sync_error = 'Checkout requer regeneração manual.'
+             from public.asaas_checkout_sessions cs
+            where cs.id = $1 and ps.id = cs.subscription_id`,
+          [row.checkout_session_id],
+        );
+      }
+      return discarded;
+    });
     if (!result.rows[0]) return reply.code(404).send({ error: 'operacao-inexistente' });
     return reply.send({ discarded: true });
   });
@@ -699,11 +743,39 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           return 'document-required' as const;
         }
         const previousResult = await client.query<{
+          id: string;
           amount_cents: number; due_day: number; next_due_date: string;
           billing_type: string; status: string; asaas_subscription_id: string | null;
-          app_managed: boolean;
+          app_managed: boolean; hosting_status: string; delivery_triggered_at: string | null;
         }>('select * from public.project_subscriptions where project_id = $1 for update', [id]);
         const previous = previousResult.rows[0] ?? null;
+        if (previous && previous.hosting_status !== 'legacy') {
+          if (previous.delivery_triggered_at) return 'hosting-delivery-locked' as const;
+          if (parsed.data.activate) return 'hosting-activates-on-delivery' as const;
+          await client.query(
+            `update public.project_subscriptions
+                set amount_cents = $2, due_day = $3, status = 'inactive',
+                    hosting_status = 'pending_delivery', cancelled_at = null, sync_error = null
+              where project_id = $1`,
+            [id, parsed.data.amountCents, parsed.data.dueDay],
+          );
+          await client.query(
+            `update public.projects
+                set monthly_fee_cents = $2, due_day = $3, subscription_active = false
+              where id = $1`,
+            [id, parsed.data.amountCents, parsed.data.dueDay],
+          );
+          await client.query(
+            `insert into public.project_activity (project_id, actor_id, action, metadata)
+             values ($1,$2,'hospedagem_contratada',$3::jsonb)`,
+            [id, req.userId, JSON.stringify({
+              event: 'updated_before_delivery',
+              previousAmountCents: previous.amount_cents,
+              amountCents: parsed.data.amountCents,
+            })],
+          );
+          return { id: previous.id };
+        }
         const currentPayment = await currentMonthlyPayment(client, id);
         const preview = subscriptionChangePreview(parsed.data, currentPayment ? {
           id: currentPayment.id,
@@ -828,6 +900,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       }
       if (result === 'provider-activation-in-progress') {
         return reply.code(409).send({ error: 'ativacao-asaas-em-andamento' });
+      }
+      if (result === 'hosting-delivery-locked') {
+        return reply.code(409).send({ error: 'hospedagem-ja-entregue' });
+      }
+      if (result === 'hosting-activates-on-delivery') {
+        return reply.code(409).send({ error: 'hospedagem-ativa-na-entrega' });
       }
       if (parsed.data.activate) financeWorker.kick();
       return reply.send({ subscriptionId: result.id, queued: parsed.data.activate });
@@ -959,12 +1037,30 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       await client.query('select id from public.projects where id = $1 for update', [id]);
       const subscription = await client.query<{
         id: string; status: string; asaas_subscription_id: string | null;
-      }>('select id, status, asaas_subscription_id from public.project_subscriptions where project_id = $1 for update', [id]);
+        hosting_status: string; delivery_triggered_at: string | null;
+      }>(`select id, status, asaas_subscription_id, hosting_status, delivery_triggered_at
+            from public.project_subscriptions where project_id = $1 for update`, [id]);
       const row = subscription.rows[0];
       if (!row) {
         const updated = await client.query(
           'update public.projects set monthly_fee_cents = 0, subscription_active = false where id = $1', [id]);
         return updated.rowCount ? 'cleared' as const : 'missing' as const;
+      }
+      if (row.hosting_status !== 'legacy' && !row.delivery_triggered_at) {
+        await client.query(
+          `update public.project_subscriptions
+              set status = 'cancelled', hosting_status = 'cancelled', cancelled_at = now()
+            where id = $1`,
+          [row.id],
+        );
+        await client.query(
+          'update public.projects set monthly_fee_cents = 0, subscription_active = false where id = $1',
+          [id],
+        );
+        return 'cleared' as const;
+      }
+      if (row.hosting_status !== 'legacy' && row.delivery_triggered_at) {
+        return 'hosting-delivery-locked' as const;
       }
       const needsProviderPause = Boolean(row.asaas_subscription_id && !['inactive', 'cancelled'].includes(row.status));
       if (needsProviderPause && !hasAsaas) return 'asaas' as const;
@@ -985,6 +1081,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     });
     if (result === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
     if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    if (result === 'hosting-delivery-locked') {
+      return reply.code(409).send({ error: 'hospedagem-ja-entregue' });
+    }
     if (result === 'queued') financeWorker.kick();
     return reply.send({ cleared: true, queued: result === 'queued' });
   });
@@ -995,6 +1094,22 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const groupError = validateInstallmentGroups(parsed.data.payments);
     if (groupError) return reply.code(400).send({ error: groupError });
+    const installmentGroups = new Map<string, typeof parsed.data.payments>();
+    for (const row of parsed.data.payments) {
+      if (row.kind !== 'installment' || !row.installmentGroupId) continue;
+      const group = installmentGroups.get(row.installmentGroupId) ?? [];
+      group.push(row);
+      installmentGroups.set(row.installmentGroupId, group);
+    }
+    for (const group of installmentGroups.values()) {
+      const nativeError = validateNativeInstallmentSchedule(group.map((row) => ({
+        installmentNumber: row.installmentNumber!,
+        installmentCount: row.installmentCount!,
+        amountCents: row.amountCents,
+        dueDate: row.dueDate!,
+      })));
+      if (nativeError) return reply.code(400).send({ error: nativeError });
+    }
     try {
       const result = await withActor(req.userId!, async (client) => {
         const { rows } = await client.query<{
@@ -1145,8 +1260,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           }
         }
         if (parsed.data.status === 'active' && hasAsaas) {
-          const eligible = await client.query<{ id: string }>(
-            `select pp.id
+          const eligible = await client.query<{
+            id: string; kind: 'stage' | 'installment'; installment_group_id: string | null;
+            installment_number: number | null;
+          }>(
+            `select pp.id, pp.kind, pp.installment_group_id, pp.installment_number
                from public.project_payments pp
                join public.projects p on p.id = pp.project_id
                join public.clients c on c.id = p.client_id and c.archived_at is null
@@ -1157,12 +1275,30 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             [id],
           );
           for (const payment of eligible.rows) {
-            if (await queueProjectPaymentOperation(client, id, payment.id, 'create_project_charge')) {
+            if (payment.kind === 'installment' && payment.installment_number !== 1) continue;
+            if (await queueProjectPaymentOperation(
+              client,
+              id,
+              payment.id,
+              'create_project_charge',
+              payment.kind === 'installment'
+                ? { nativeInstallment: true, installmentGroupId: payment.installment_group_id }
+                : {},
+            )) {
               queuedCount += 1;
-              await client.query(
-                "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
-                [payment.id],
-              );
+              if (payment.kind === 'installment') {
+                await client.query(
+                  `update public.project_payments
+                      set sync_status = 'queued', sync_error = null
+                    where project_id = $1 and installment_group_id = $2`,
+                  [id, payment.installment_group_id],
+                );
+              } else {
+                await client.query(
+                  "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
+                  [payment.id],
+                );
+              }
             }
           }
         }
@@ -1315,8 +1451,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         project_id: string; due_date: string | null; status: string; sync_status: string;
         financial_plan_status: string; client_id: string | null; cpf_cnpj: string | null;
         archive_requested_at: string | null;
+        kind: 'stage' | 'installment'; installment_group_id: string | null;
       }>(
         `select pp.project_id, pp.due_date, pp.status, pp.sync_status,
+                pp.kind, pp.installment_group_id,
                 p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
            join public.projects p on p.id = pp.project_id
@@ -1331,6 +1469,18 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
       if (row.financial_plan_status !== 'active' || row.status !== 'pending') return 'not-pending' as const;
       if (!['local', 'failed'].includes(row.sync_status)) return 'already-synced' as const;
+      let operationPaymentId = id;
+      if (row.kind === 'installment') {
+        if (!row.installment_group_id || !row.due_date) return 'installment-plan' as const;
+        const root = await client.query<{ id: string }>(
+          `select id from public.project_payments
+            where project_id = $1 and installment_group_id = $2 and installment_number = 1
+            for update`,
+          [row.project_id, row.installment_group_id],
+        );
+        if (!root.rows[0]) return 'installment-plan' as const;
+        operationPaymentId = root.rows[0].id;
+      }
       const dueDate = row.due_date ?? (await client.query<{ due_date: string }>(
         `update public.project_payments
             set due_date = timezone('America/Sao_Paulo', current_timestamp)::date
@@ -1338,9 +1488,27 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         [id],
       )).rows[0]?.due_date;
       if (!dueDate) throw new Error('Falha ao definir o vencimento da cobrança.');
-      const queued = await queueProjectPaymentOperation(client, row.project_id, id, 'create_project_charge');
-      if (queued) await client.query(
-        "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
+      const queued = await queueProjectPaymentOperation(
+        client,
+        row.project_id,
+        operationPaymentId,
+        'create_project_charge',
+        row.kind === 'installment'
+          ? { nativeInstallment: true, installmentGroupId: row.installment_group_id }
+          : {},
+      );
+      if (queued && row.kind === 'installment') {
+        await client.query(
+          `update public.project_payments set sync_status = 'queued', sync_error = null
+            where project_id = $1 and installment_group_id = $2`,
+          [row.project_id, row.installment_group_id],
+        );
+      } else if (queued) {
+        await client.query(
+          "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
+          [id],
+        );
+      }
       return queued ? { queued: true as const, dueDate } : 'already-synced' as const;
     });
     const errors: Record<string, [number, string]> = {
@@ -1348,6 +1516,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       document: [409, 'cpf-cnpj-obrigatorio'],
       'not-pending': [409, 'pagamento-nao-esta-pendente'],
       archiving: [409, 'projeto-em-arquivamento'],
+      'installment-plan': [409, 'parcelamento-asaas-incompleto'],
       'already-synced': [409, 'cobranca-ja-sincronizada-ou-em-processamento'],
     };
     if (typeof result === 'string') {

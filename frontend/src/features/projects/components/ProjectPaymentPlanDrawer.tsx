@@ -6,6 +6,7 @@ import { formatCurrencyFromCents, parseCurrencyToCents } from '../../panel/forma
 import * as finance from '../../finance/financeService';
 import {
   MAX_INSTALLMENTS,
+  MAX_ASAAS_INSTALLMENTS,
   splitInstallments,
   type InstallmentInterval,
 } from '../../finance/installments';
@@ -310,7 +311,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
       } else toast('success', hasIntegrated
         ? 'Plano salvo. Alterações financeiras aguardam confirmação do Asaas.'
         : result.queuedCount > 0
-          ? `Plano ativado. ${result.queuedCount} cobrança(s) enviada(s) para criação.`
+          ? `Plano ativado. ${result.queuedCount} operação(ões) enviada(s) ao Asaas.`
         : 'Plano de pagamentos ativado.');
       onSaved();
       onBack();
@@ -328,6 +329,10 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           ? 'O plano mudou em outra tela. Feche e abra de novo para continuar.'
         : code.startsWith('metadados-') || code === 'grupo-incompleto'
           ? 'O grupo de parcelas está incompleto. Refaça o parcelamento.'
+        : code === 'parcelamento-asaas-quantidade-invalida'
+          ? `O parcelamento nativo aceita de 2 a ${MAX_ASAAS_INSTALLMENTS} parcelas.`
+        : code === 'parcelamento-asaas-exige-ciclo-mensal'
+          ? 'O parcelamento do Asaas precisa ter vencimentos mensais.'
           : code || 'Falha ao salvar o plano.');
     } finally {
       setBusy(false);
@@ -385,9 +390,9 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           <button type="button" className="panel-iconbtn" aria-label="Fechar parcelamento" onClick={() => setInstallmentOpen(false)}><X size={16} /></button>
         </div>
         <div className="finance-installments__fields">
-          <label className="panel-field"><span>Quantidade de parcelas</span><input className="panel-input" type="number" min="1" max={Math.min(MAX_INSTALLMENTS - rows.length, MAX_INSTALLMENTS)} value={installmentForm.count} onChange={(event) => setInstallmentForm((form) => ({ ...form, count: event.target.value }))} /></label>
+          <label className="panel-field"><span>Quantidade de parcelas</span><input className="panel-input" type="number" min="2" max={Math.min(MAX_INSTALLMENTS - rows.length, MAX_ASAAS_INSTALLMENTS)} value={installmentForm.count} onChange={(event) => setInstallmentForm((form) => ({ ...form, count: event.target.value }))} /></label>
           <label className="panel-field"><span>Primeiro vencimento</span><input className="panel-input" type="date" value={installmentForm.firstDueDate} onChange={(event) => setInstallmentForm((form) => ({ ...form, firstDueDate: event.target.value }))} /></label>
-          <label className="panel-field"><span>Intervalo</span><select className="panel-select" value={installmentForm.interval} onChange={(event) => setInstallmentForm((form) => ({ ...form, interval: event.target.value as InstallmentInterval }))}><option value="monthly">Mensal</option><option value="biweekly">Quinzenal</option><option value="weekly">Semanal</option></select></label>
+          <label className="panel-field"><span>Intervalo</span><input className="panel-input" value="Mensal — parcelamento nativo do Asaas" readOnly /></label>
           <label className="panel-field"><span>Descrição do grupo</span><input className="panel-input" maxLength={120} value={installmentForm.groupLabel} onChange={(event) => setInstallmentForm((form) => ({ ...form, groupLabel: event.target.value }))} /></label>
         </div>
         {installmentPreview.error ? <p className="finance-installments__empty">Informe uma quantidade válida e o primeiro vencimento para ver a prévia.</p> : <>

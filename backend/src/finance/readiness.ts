@@ -7,6 +7,7 @@ export interface FinanceReadinessInput {
   asaasEnvironment: 'sandbox' | 'production';
   webhookTokenConfigured: boolean;
   publicApiUrl: string;
+  panelUrl: string;
   timeoutMs: number;
 }
 
@@ -17,6 +18,7 @@ export function financeReadiness(input: FinanceReadinessInput) {
   else if (!input.databaseReachable) warnings.push('database-indisponivel');
   if (!input.asaasConfigured) warnings.push('asaas-api-key-ausente');
   if (!input.webhookTokenConfigured) warnings.push('asaas-webhook-token-ausente');
+  if (!input.panelUrl.startsWith('https://')) warnings.push('panel-url-https-nao-confirmado');
   if (input.timeoutMs < 60_000) warnings.push('asaas-timeout-abaixo-de-60s');
   if (input.nodeEnv === 'production') {
     if (!input.publicApiUrl.startsWith('https://')) warnings.push('public-api-https-nao-confirmado');
@@ -38,6 +40,10 @@ export function financeReadiness(input: FinanceReadinessInput) {
     publicApi: {
       configured: input.publicApiUrl.length > 0,
       https: input.publicApiUrl.startsWith('https://'),
+    },
+    panel: {
+      configured: input.panelUrl.length > 0,
+      https: input.panelUrl.startsWith('https://'),
     },
     warnings,
   };

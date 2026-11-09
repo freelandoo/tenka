@@ -1,6 +1,6 @@
 import { getPool, withActor } from '../db/pool';
 import type { PoolClient } from 'pg';
-import { hasAsaas } from '../env';
+import { env, hasAsaas } from '../env';
 import { asaas, AsaasError } from './asaas';
 import { isOpenSubscriptionPayment } from './subscriptionCancel';
 import { projectPaymentStatusFromProvider } from './reconciliation';
@@ -16,11 +16,13 @@ export interface Operation {
   project_payment_id: string | null;
   subscription_payment_id?: string | null;
   billing_batch_id?: string | null;
+  checkout_session_id?: string | null;
   kind: 'activate_subscription' | 'pause_subscription' | 'reactivate_subscription' | 'sync_subscription' | 'update_subscription'
     | 'cancel_subscription'
     | 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge'
     | 'receive_project_payment_in_cash' | 'receive_subscription_payment_in_cash'
-    | 'cancel_subscription_payment' | 'create_client_billing_batch';
+    | 'cancel_subscription_payment' | 'create_client_billing_batch'
+    | 'create_hosting_checkout';
   attempts: number;
   request_payload: Record<string, unknown>;
   requested_by?: string | null;
@@ -66,6 +68,12 @@ interface ProjectPaymentContext {
   client_phone: string;
   cpf_cnpj: string | null;
   asaas_customer_id: string | null;
+  kind: 'stage' | 'installment';
+  installment_group_id: string | null;
+  installment_number: number | null;
+  installment_count: number | null;
+  asaas_installment_id: string | null;
+  group_label: string;
 }
 
 interface ReceiptContext {
@@ -102,6 +110,17 @@ interface BillingBatchContext {
   cpf_cnpj: string | null;
   asaas_customer_id: string | null;
   description: string;
+}
+
+interface HostingCheckoutContext extends SubscriptionContext {
+  checkout_session_id: string;
+  checkout_status: string;
+  amount_cents: number;
+  first_due_date: string;
+  checkout_external_reference: string;
+  asaas_checkout_id: string | null;
+  checkout_url: string;
+  project_name: string;
 }
 
 function isProviderSettled(status: string): boolean {
@@ -240,7 +259,8 @@ async function claimOperation(): Promise<Operation | null> {
     await client.query('begin');
     const { rows } = await client.query<Operation>(
       `select id, project_id, subscription_id, project_payment_id,
-              subscription_payment_id, billing_batch_id, kind, attempts, request_payload,
+              subscription_payment_id, billing_batch_id, checkout_session_id,
+              kind, attempts, request_payload,
               requested_by, request_reason
          from public.asaas_operations
         where (status in ('pending', 'failed') or
@@ -357,7 +377,9 @@ async function projectPaymentContext(operation: Operation): Promise<ProjectPayme
   const { rows } = await getPool().query<ProjectPaymentContext>(
     `select pp.id, pp.project_id, p.name as project_name, pp.name, pp.description,
             pp.amount_cents, pp.due_date, pp.status, pp.billing_type, pp.sync_status,
-            pp.external_reference, pp.asaas_payment_id, p.financial_plan_status,
+            pp.external_reference, pp.asaas_payment_id, pp.kind,
+            pp.installment_group_id, pp.installment_number, pp.installment_count,
+            pp.asaas_installment_id, pp.group_label, p.financial_plan_status,
             p.archived_at, p.archive_requested_at,
             p.client_id, coalesce(c.name, p.client_name) as client_name,
             coalesce(c.email, p.client_email) as client_email,
@@ -371,6 +393,80 @@ async function projectPaymentContext(operation: Operation): Promise<ProjectPayme
   );
   if (!rows[0]) throw new Error('Pagamento de projeto não encontrado.');
   return rows[0];
+}
+
+async function executeNativeInstallment(
+  operation: Operation,
+  ctx: ProjectPaymentContext,
+  customerId: string,
+): Promise<string> {
+  if (!ctx.installment_group_id || ctx.installment_number !== 1 || !ctx.installment_count) {
+    throw new Error('A operação do parcelamento precisa apontar para a primeira parcela.');
+  }
+  const group = await getPool().query<{
+    id: string; amount_cents: number; due_date: string | null; installment_number: number;
+  }>(
+    `select id, amount_cents, due_date, installment_number
+       from public.project_payments
+      where project_id = $1 and installment_group_id = $2
+      order by installment_number`,
+    [ctx.project_id, ctx.installment_group_id],
+  );
+  if (group.rows.length !== ctx.installment_count || group.rows.some((row) => !row.due_date)) {
+    throw new Error('O grupo de parcelas está incompleto.');
+  }
+  const totalValueCents = group.rows.reduce((sum, row) => sum + Number(row.amount_cents), 0);
+  const externalReference = `project-installment:${ctx.installment_group_id}`;
+  const existing = ctx.asaas_payment_id
+    ? await asaas.getPayment(ctx.asaas_payment_id)
+    : await asaas.findPayment(externalReference);
+  let firstPayment = existing;
+  if (!firstPayment) {
+    await markBillingCreationAttempt(operation);
+    try {
+      firstPayment = await asaas.createPayment({
+        customer: customerId,
+        billingType: 'CREDIT_CARD',
+        totalValue: totalValueCents / 100,
+        installmentCount: ctx.installment_count,
+        dueDate: providerDueDate(group.rows[0]!.due_date!),
+        externalReference,
+        description: `${ctx.project_name} — ${ctx.group_label || 'Parcelamento'}`.slice(0, 500),
+      });
+    } catch (error) {
+      if (explicitProviderRejection(error)) operation.billingCreationStarted = false;
+      throw error;
+    }
+  }
+  if (!firstPayment.installment) {
+    throw new Error('O Asaas não retornou o identificador do parcelamento.');
+  }
+  const providerRows = await asaas.listInstallmentPayments(firstPayment.installment);
+  if (providerRows.data.length !== ctx.installment_count) {
+    throw new Error('O Asaas ainda não retornou todas as parcelas criadas.');
+  }
+  const byNumber = new Map(providerRows.data.map((payment) => [payment.installmentNumber, payment]));
+  await withActor(operation.requested_by ?? null, async (client) => {
+    for (const local of group.rows) {
+      const payment = byNumber.get(local.installment_number);
+      if (!payment) throw new Error(`Parcela ${local.installment_number} ausente no Asaas.`);
+      await client.query(
+        `update public.project_payments
+            set asaas_installment_id = $2, asaas_payment_id = $3,
+                external_reference = coalesce(external_reference, 'project-payment:' || id::text),
+                amount_cents = round(($4::numeric) * 100)::bigint,
+                due_date = $5::date, payment_url = $6, bank_slip_url = $7,
+                billing_type = $8, provider_status = $9,
+                status = $10, sync_status = 'synced', sync_error = null
+          where id = $1`,
+        [local.id, firstPayment.installment, payment.id, payment.value, payment.dueDate,
+          payment.invoiceUrl ?? '', payment.bankSlipUrl ?? '',
+          payment.billingType || ctx.billing_type, payment.status,
+          projectPaymentStatusFromProvider(payment.status)],
+      );
+    }
+  });
+  return firstPayment.installment;
 }
 
 async function executeProjectPaymentOperation(operation: Operation): Promise<string | null> {
@@ -454,6 +550,7 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   }
   if (!ctx.due_date) throw new Error('Defina o vencimento antes de gerar a cobrança.');
   const customerId = await ensureCustomer(ctx);
+  if (ctx.kind === 'installment') return executeNativeInstallment(operation, ctx, customerId);
   const externalReference = ctx.external_reference ?? `project-payment:${ctx.id}`;
   const dueDate = providerDueDate(ctx.due_date);
   const input = {
@@ -596,7 +693,105 @@ async function executeBillingBatchOperation(operation: Operation, db: PoolClient
   return payment.id;
 }
 
+async function hostingCheckoutContext(operation: Operation): Promise<HostingCheckoutContext> {
+  const { rows } = await getPool().query<HostingCheckoutContext>(
+    `select ps.id, ps.project_id, ps.amount_cents, ps.billing_type,
+            ps.next_due_date, ps.external_reference, ps.asaas_subscription_id,
+            p.client_id, p.name as project_name,
+            coalesce(c.name, p.client_name) as client_name,
+            coalesce(c.email, p.client_email) as client_email,
+            coalesce(c.phone, p.client_phone) as client_phone,
+            c.cpf_cnpj, c.asaas_customer_id,
+            cs.id as checkout_session_id, cs.status as checkout_status,
+            cs.first_due_date, cs.external_reference as checkout_external_reference,
+            cs.asaas_checkout_id, cs.checkout_url
+       from public.asaas_checkout_sessions cs
+       join public.project_subscriptions ps on ps.id = cs.subscription_id
+       join public.projects p on p.id = cs.project_id
+       left join public.clients c on c.id = p.client_id
+      where cs.id = $1 and cs.project_id = $2`,
+    [operation.checkout_session_id, operation.project_id],
+  );
+  if (!rows[0]) throw new Error('Sessão de Checkout da hospedagem não encontrada.');
+  return rows[0];
+}
+
+async function executeHostingCheckout(operation: Operation): Promise<string> {
+  const ctx = await hostingCheckoutContext(operation);
+  if (ctx.asaas_checkout_id) return ctx.asaas_checkout_id;
+  if (ctx.checkout_status !== 'queued') {
+    throw new Error(`Checkout não pode ser criado no estado ${ctx.checkout_status}.`);
+  }
+  const callbackBase = env.panelUrl.replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(callbackBase)) {
+    throw new Error('PANEL_URL precisa estar configurada para criar o Checkout da hospedagem.');
+  }
+  const customerId = await ensureCustomer(ctx);
+  await markBillingCreationAttempt(operation);
+  let checkout: { id: string };
+  try {
+    checkout = await asaas.createCheckout({
+      billingTypes: ['CREDIT_CARD'],
+      chargeTypes: ['RECURRENT'],
+      minutesToExpire: 1440,
+      externalReference: ctx.checkout_external_reference,
+      customer: customerId,
+      callback: {
+        successUrl: `${callbackBase}/painel/projetos?hosting=success`,
+        cancelUrl: `${callbackBase}/painel/projetos?hosting=cancelled`,
+        expiredUrl: `${callbackBase}/painel/projetos?hosting=expired`,
+      },
+      items: [{
+        name: `Hospedagem — ${ctx.project_name}`.slice(0, 100),
+        description: 'Hospedagem mensal do site',
+        quantity: 1,
+        value: Number(ctx.amount_cents) / 100,
+      }],
+      subscription: {
+        cycle: 'MONTHLY',
+        nextDueDate: `${ctx.first_due_date} 12:00:00`,
+      },
+    });
+  } catch (error) {
+    if (explicitProviderRejection(error)) operation.billingCreationStarted = false;
+    throw error;
+  }
+  const checkoutUrl = `https://asaas.com/checkoutSession/show?id=${encodeURIComponent(checkout.id)}`;
+  await withActor(operation.requested_by ?? null, async (client) => {
+    await client.query(
+      `update public.asaas_checkout_sessions
+          set status = case when status = 'queued' then 'active' else status end,
+              asaas_checkout_id = $2, checkout_url = $3,
+              expires_at = now() + interval '24 hours', sync_error = null
+        where id = $1`,
+      [ctx.checkout_session_id, checkout.id, checkoutUrl],
+    );
+    await client.query(
+      `update public.project_subscriptions
+          set hosting_status = case
+                when hosting_status in ('authorized','active') then hosting_status
+                else 'checkout_pending' end,
+              sync_error = null
+        where id = $1`,
+      [ctx.id],
+    );
+    await client.query(
+      `insert into public.project_activity (project_id, actor_id, action, metadata)
+       values ($1,$2,'checkout_hospedagem_criado',$3::jsonb)
+       on conflict do nothing`,
+      [ctx.project_id, operation.requested_by, JSON.stringify({
+        financeOperationId: operation.id,
+        checkoutSessionId: ctx.checkout_session_id,
+        asaasCheckoutId: checkout.id,
+        firstDueDate: ctx.first_due_date,
+      })],
+    );
+  });
+  return checkout.id;
+}
+
 export async function executeOperation(operation: Operation): Promise<string | null> {
+  if (operation.checkout_session_id) return executeHostingCheckout(operation);
   if (operation.billing_batch_id) {
     const scheduledId = operation.request_payload?.scheduledSubscriptionId;
     if (typeof scheduledId !== 'string') return executeBillingBatchOperation(operation);
@@ -868,7 +1063,12 @@ async function finishOperation(operation: Operation): Promise<void> {
         }
       } else if (operation.project_payment_id) {
         await client.query(
-          `update public.project_payments set sync_status = 'failed', sync_error = $2 where id = $1`,
+          `update public.project_payments
+              set sync_status = 'failed', sync_error = $2
+            where id = $1
+               or (kind = 'installment' and installment_group_id = (
+                 select root.installment_group_id from public.project_payments root where root.id = $1
+               ))`,
           [operation.project_payment_id, message],
         );
       } else if (operation.billing_batch_id) {
@@ -877,6 +1077,23 @@ async function finishOperation(operation: Operation): Promise<void> {
               set status = 'failed', sync_error = $2 where id = $1`,
           [operation.billing_batch_id, message],
         );
+      } else if (operation.checkout_session_id) {
+        await client.query(
+          `update public.asaas_checkout_sessions
+              set status = case when $3 >= 5 then 'failed' else status end,
+                  sync_error = $2
+            where id = $1`,
+          [operation.checkout_session_id, message, operation.attempts],
+        );
+        if (operation.attempts >= 5) {
+          await client.query(
+            `update public.project_subscriptions ps
+                set hosting_status = 'error', sync_error = $2
+               from public.asaas_checkout_sessions cs
+              where cs.id = $1 and ps.id = cs.subscription_id`,
+            [operation.checkout_session_id, message],
+          );
+        }
       } else if (operation.subscription_id) {
         await client.query(
           `update public.project_subscriptions set status = 'error', sync_error = $2 where id = $1`,
@@ -884,7 +1101,8 @@ async function finishOperation(operation: Operation): Promise<void> {
         );
       }
     });
-    if (nextStatus === 'uncertain' || operation.attempts >= 5) {
+    if (!operation.checkout_session_id
+        && (nextStatus === 'uncertain' || operation.attempts >= 5)) {
       await markArchiveCleanupAttention(operation.project_id, message);
     }
   }
@@ -901,6 +1119,7 @@ interface WebhookEvent {
 class WebhookNeedsReviewError extends Error {}
 
 const PROJECT_PAYMENT_REFERENCE = /^project-payment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const PROJECT_INSTALLMENT_REFERENCE = /^project-installment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const BILLING_BATCH_REFERENCE = /^client-billing:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const PROJECT_SUBSCRIPTION_REFERENCE = /^project-subscription:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
@@ -1018,6 +1237,50 @@ async function processProjectPaymentWebhook(
   if (event.event_type === 'PAYMENT_DELETED') {
     await tryFinalizePendingArchive(existing.rows[0].project_id);
   }
+}
+
+async function processProjectInstallmentWebhook(
+  event: WebhookEvent,
+  payment: Record<string, unknown>,
+  installmentGroupId: string | null,
+  providerStatus: string,
+): Promise<void> {
+  const installmentNumber = Number(payment.installmentNumber);
+  const providerInstallmentId = typeof payment.installment === 'string'
+    ? payment.installment : null;
+  if (!Number.isInteger(installmentNumber) || installmentNumber < 1) {
+    throw new WebhookNeedsReviewError('Cobrança parcelada sem número da parcela.');
+  }
+  const target = await getPool().query<{ id: string }>(
+    `select id
+       from public.project_payments
+      where kind = 'installment'
+        and installment_number = $2
+        and (($1::uuid is not null and installment_group_id = $1::uuid)
+             or ($3::text is not null and asaas_installment_id = $3))
+      order by ($1::uuid is not null and installment_group_id = $1::uuid) desc
+      limit 1`,
+    [installmentGroupId, installmentNumber, providerInstallmentId],
+  );
+  const local = target.rows[0];
+  if (!local) {
+    throw new WebhookNeedsReviewError(
+      `Parcela ${installmentNumber} sem grupo local reconhecido.`,
+    );
+  }
+  if (providerInstallmentId) {
+    await getPool().query(
+      'update public.project_payments set asaas_installment_id = $2 where id = $1',
+      [local.id, providerInstallmentId],
+    );
+  }
+  await processProjectPaymentWebhook(
+    event,
+    payment,
+    local.id,
+    `project-payment:${local.id}`,
+    providerStatus,
+  );
 }
 
 async function processBillingBatchWebhook(
@@ -1387,6 +1650,10 @@ async function processSubscriptionWebhook(
               billing_type = coalesce($5, billing_type),
               next_due_date = coalesce($6::date, next_due_date),
               app_managed = false,
+              hosting_status = case
+                when $3 = 'active' then 'active'
+                when $3 = 'cancelled' then 'cancelled'
+                else hosting_status end,
               started_at = case when $3 = 'active' then coalesce(started_at, $7::timestamptz)
                                 else started_at end,
               paused_at = case when $3 = 'inactive' then coalesce(paused_at, $7::timestamptz)
@@ -1419,6 +1686,88 @@ async function processSubscriptionWebhook(
     return true;
   });
   if (!applied) return;
+}
+
+function checkoutStatusForEvent(eventType: string): {
+  session: 'active' | 'paid' | 'cancelled' | 'expired';
+  hosting: 'checkout_pending' | 'authorized' | 'checkout_cancelled' | 'checkout_expired';
+} {
+  if (eventType === 'CHECKOUT_PAID') return { session: 'paid', hosting: 'authorized' };
+  if (eventType === 'CHECKOUT_CANCELED' || eventType === 'CHECKOUT_CANCELLED') {
+    return { session: 'cancelled', hosting: 'checkout_cancelled' };
+  }
+  if (eventType === 'CHECKOUT_EXPIRED') {
+    return { session: 'expired', hosting: 'checkout_expired' };
+  }
+  if (eventType === 'CHECKOUT_CREATED') {
+    return { session: 'active', hosting: 'checkout_pending' };
+  }
+  throw new WebhookNeedsReviewError(`Evento de Checkout não suportado: ${eventType}.`);
+}
+
+async function processCheckoutWebhook(
+  event: WebhookEvent,
+  checkout: Record<string, unknown>,
+): Promise<void> {
+  const providerId = typeof checkout.id === 'string' ? checkout.id : '';
+  const externalReference = typeof checkout.externalReference === 'string'
+    ? checkout.externalReference : '';
+  if (!providerId) throw new WebhookNeedsReviewError('Evento de Checkout sem identificador.');
+  const next = checkoutStatusForEvent(event.event_type);
+  const session = await getPool().query<{
+    id: string; project_id: string; subscription_id: string;
+  }>(
+    `select id, project_id, subscription_id
+       from public.asaas_checkout_sessions
+      where asaas_checkout_id = $1
+         or ($2 <> '' and external_reference = $2 and status in ('queued','active'))
+      order by (asaas_checkout_id = $1) desc, created_at desc
+      limit 1`,
+    [providerId, externalReference],
+  );
+  const local = session.rows[0];
+  if (!local) {
+    throw new WebhookNeedsReviewError(`Checkout sem sessão local reconhecida: ${providerId}.`);
+  }
+  await withActor(null, async (client) => {
+    const updated = await client.query(
+      `update public.asaas_checkout_sessions
+          set status = $2, asaas_checkout_id = coalesce(asaas_checkout_id, $4),
+              checkout_url = case when checkout_url = ''
+                then 'https://asaas.com/checkoutSession/show?id=' || $4 else checkout_url end,
+              provider_event_at = $3::timestamptz, sync_error = null
+        where id = $1
+          and (provider_event_at is null or $3::timestamptz >= provider_event_at)`,
+      [local.id, next.session, event.event_at, providerId],
+    );
+    if ((updated.rowCount ?? 0) === 0) return;
+    await client.query(
+      `update public.project_subscriptions
+          set hosting_status = case when hosting_status = 'active' then hosting_status else $2 end,
+              sync_error = null
+        where id = $1`,
+      [local.subscription_id, next.hosting],
+    );
+    await client.query(
+      `update public.asaas_operations
+          set status = 'succeeded', response_external_id = $2, last_error = null
+        where checkout_session_id = $1
+          and kind = 'create_hosting_checkout'
+          and status in ('processing','failed','uncertain')`,
+      [local.id, providerId],
+    );
+    await client.query(
+      `insert into public.project_activity (project_id, actor_id, action, metadata)
+       values ($1,null,'checkout_hospedagem_evento',$2::jsonb)
+       on conflict do nothing`,
+      [local.project_id, JSON.stringify({
+        providerEventId: event.id,
+        eventType: event.event_type,
+        asaasCheckoutId: providerId,
+        status: next.session,
+      })],
+    );
+  });
 }
 
 async function claimWebhook(): Promise<WebhookEvent | null> {
@@ -1462,8 +1811,13 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
         ? payment.externalReference
         : '';
       const projectMatch = PROJECT_PAYMENT_REFERENCE.exec(externalReference);
+      const installmentMatch = PROJECT_INSTALLMENT_REFERENCE.exec(externalReference);
       const batchMatch = BILLING_BATCH_REFERENCE.exec(externalReference);
-      if (batchMatch?.[1]) {
+      if (installmentMatch?.[1]) {
+        await processProjectInstallmentWebhook(
+          event, payment, installmentMatch[1], providerStatus,
+        );
+      } else if (batchMatch?.[1]) {
         await processBillingBatchWebhook(event, payment, batchMatch[1], providerStatus);
       } else if (projectMatch?.[1]) {
         await processProjectPaymentWebhook(
@@ -1503,12 +1857,11 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
       }
     } else {
       const subscription = event.payload.subscription as Record<string, unknown> | undefined;
+      const checkout = event.payload.checkout as Record<string, unknown> | undefined;
       if (event.event_type.startsWith('SUBSCRIPTION_') && subscription?.id) {
         await processSubscriptionWebhook(event, subscription);
-      } else if (event.event_type.startsWith('CHECKOUT_')) {
-        throw new WebhookNeedsReviewError(
-          `Evento ${event.event_type} recebido antes da implementação das sessões de Checkout.`,
-        );
+      } else if (event.event_type.startsWith('CHECKOUT_') && checkout?.id) {
+        await processCheckoutWebhook(event, checkout);
       } else {
         throw new WebhookNeedsReviewError(`Evento Asaas não suportado: ${event.event_type}.`);
       }

@@ -65,7 +65,20 @@ export interface ProjectFinance {
   subscription: ProjectSubscriptionRow | null;
   projectPayments: ProjectPaymentRow[];
   subscriptionPayments: SubscriptionPaymentRow[];
+  hostingCheckout?: HostingCheckoutSession | null;
   paymentPlanDraft: PaymentPlanDraft | null;
+}
+
+export interface HostingCheckoutSession {
+  id: string;
+  project_id: string;
+  subscription_id: string;
+  status: 'queued' | 'active' | 'paid' | 'cancelled' | 'expired' | 'failed';
+  amount_cents: number;
+  first_due_date: string;
+  checkout_url: string;
+  expires_at: string | null;
+  sync_error: string | null;
 }
 
 export interface ReconciliationRow {
@@ -133,6 +146,11 @@ export const classifyHistoricalReview = (
 
 export const fetchProjectFinance = (projectId: string) =>
   apiRequest<ProjectFinance>(`/projects/${projectId}/finance`);
+
+export const regenerateHostingCheckout = (projectId: string) =>
+  apiRequest<{ queued: boolean; checkoutSessionId: string }>(
+    `/projects/${projectId}/hosting-checkout`, { method: 'POST' },
+  );
 
 export interface SubscriptionInput {
   amountCents: number;

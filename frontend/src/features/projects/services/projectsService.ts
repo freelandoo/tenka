@@ -109,8 +109,13 @@ export async function archiveProject(
 export async function finalizeProject(
   projectId: string,
   subscriptionAction?: ProjectSubscriptionLifecycleAction,
-): Promise<void> {
-  await apiRequest(`/projects/${projectId}/finalize`, {
+): Promise<{
+  queued: boolean;
+  alreadyFinalized: boolean;
+  checkoutIssue: string | null;
+  checkoutSessionId?: string | null;
+}> {
+  return apiRequest(`/projects/${projectId}/finalize`, {
     method: 'POST', body: subscriptionAction ? { subscriptionAction } : {},
   });
 }

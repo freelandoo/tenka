@@ -13,6 +13,8 @@
 
 /** Alinhado ao `.max(60)` do plano de pagamentos em `modules/finance.ts`. */
 export const MAX_INSTALLMENTS = 60;
+/** Limite máximo documentado pelo Asaas para cartões Visa/Mastercard. */
+export const MAX_ASAAS_INSTALLMENTS = 21;
 
 export type InstallmentInterval = 'monthly' | 'biweekly' | 'weekly';
 
@@ -41,6 +43,18 @@ export type InstallmentGroupsError =
   | 'metadados-de-etapa-invalidos'
   | 'metadados-de-parcela-invalidos'
   | 'grupo-incompleto';
+
+export interface NativeInstallmentRow {
+  installmentNumber: number;
+  installmentCount: number;
+  amountCents: number;
+  dueDate: string;
+}
+
+export type NativeInstallmentError =
+  | 'parcelamento-asaas-quantidade-invalida'
+  | 'parcelamento-asaas-exige-ciclo-mensal'
+  | 'parcelamento-asaas-valores-invalidos';
 
 export type InstallmentPlan =
   | { error: InstallmentError }
@@ -162,6 +176,33 @@ export function validateInstallmentGroups(
     for (let number = 1; number <= group.count; number += 1) {
       if (!group.numbers.has(number)) return 'grupo-incompleto';
     }
+  }
+  return null;
+}
+
+/** Garante que a prévia local representa o parcelamento mensal criado no Asaas. */
+export function validateNativeInstallmentSchedule(
+  rows: NativeInstallmentRow[],
+): NativeInstallmentError | null {
+  if (rows.length < 2 || rows.length > MAX_ASAAS_INSTALLMENTS) {
+    return 'parcelamento-asaas-quantidade-invalida';
+  }
+  const ordered = [...rows].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  const count = ordered[0]?.installmentCount ?? 0;
+  if (count !== ordered.length || ordered.some((row, index) =>
+    row.installmentCount !== count || row.installmentNumber !== index + 1)) {
+    return 'parcelamento-asaas-quantidade-invalida';
+  }
+  const total = ordered.reduce((sum, row) => sum + row.amountCents, 0);
+  const preview = splitInstallments(total, count, ordered[0]!.dueDate, 'monthly');
+  if (preview.error) return 'parcelamento-asaas-valores-invalidos';
+  if (preview.installments.some((expected, index) =>
+    expected.dueDate !== ordered[index]!.dueDate)) {
+    return 'parcelamento-asaas-exige-ciclo-mensal';
+  }
+  if (preview.installments.some((expected, index) =>
+    expected.amountCents !== ordered[index]!.amountCents)) {
+    return 'parcelamento-asaas-valores-invalidos';
   }
   return null;
 }

@@ -56,6 +56,23 @@ describe('cliente Asaas', () => {
     }));
   });
 
+  it('cria Checkout recorrente e lista cobranças de um parcelamento', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'chk_1' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+
+    await asaas.createCheckout({
+      billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'],
+      externalReference: 'project-subscription:77777777-7777-4777-8777-777777777777',
+    });
+    await asaas.listInstallmentPayments('ins_1');
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api-sandbox.asaas.com/v3/checkouts');
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[1]?.[0])
+      .toBe('https://api-sandbox.asaas.com/v3/installments/ins_1/payments');
+  });
+
   it('consulta e padroniza notificações do cliente em lote', async () => {
     const notification = {
       id: 'not_1', customer: 'cus_1', enabled: false,

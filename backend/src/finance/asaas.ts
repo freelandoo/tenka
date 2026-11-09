@@ -83,10 +83,17 @@ export interface AsaasPayment {
   bankSlipUrl?: string;
   externalReference?: string;
   subscription?: string;
+  installment?: string;
+  installmentNumber?: number;
+  checkoutSession?: string;
   deleted?: boolean;
   netValue?: number;
   creditDate?: string;
   refunds?: Array<Record<string, unknown>>;
+}
+
+export interface AsaasCheckout {
+  id: string;
 }
 
 export interface AsaasPixQrCode {
@@ -180,6 +187,11 @@ export const asaas = {
       `/subscriptions/${encodeURIComponent(id)}/payments?${params.toString()}`,
     );
   },
+  listInstallmentPayments(id: string) {
+    return request<AsaasPage<AsaasPayment>>(
+      `/installments/${encodeURIComponent(id)}/payments`,
+    );
+  },
   async findPayment(externalReference: string): Promise<AsaasPayment | null> {
     const page = await request<AsaasPage<AsaasPayment>>(
       `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=10`,
@@ -204,6 +216,9 @@ export const asaas = {
   },
   createPayment(input: Record<string, unknown>) {
     return request<AsaasPayment>('/payments', { method: 'POST', body: JSON.stringify(input) });
+  },
+  createCheckout(input: Record<string, unknown>) {
+    return request<AsaasCheckout>('/checkouts', { method: 'POST', body: JSON.stringify(input) });
   },
   updatePayment(id: string, input: Record<string, unknown>) {
     return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`, {

@@ -474,6 +474,54 @@ export function SubscriptionList({
             ) : manageFinance?.subscription ? (
               (() => {
                 const subscription = manageFinance.subscription;
+                if (subscription.hosting_status && subscription.hosting_status !== 'legacy') {
+                  const checkout = manageFinance.hostingCheckout;
+                  const labels: Record<string, string> = {
+                    pending_delivery: 'Contratada e aguardando a entrega',
+                    checkout_pending: 'Aguardando autorização do cliente',
+                    authorized: 'Autorizada e aguardando o primeiro ciclo',
+                    active: 'Recorrência ativa',
+                    checkout_expired: 'Checkout expirado',
+                    checkout_cancelled: 'Checkout cancelado',
+                    cancelled: 'Hospedagem cancelada',
+                    error: 'Atenção necessária',
+                  };
+                  const canRegenerate = Boolean(manageProject.finalized_at
+                    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'error']
+                      .includes(subscription.hosting_status)
+                    && (!checkout || ['failed', 'expired', 'cancelled'].includes(checkout.status)));
+                  return <>
+                    <div>
+                      <p className="panel-eyebrow">Hospedagem · {manageProject.name}</p>
+                      <h2 id="subscription-status-title">{labels[subscription.hosting_status] ?? subscription.hosting_status}</h2>
+                    </div>
+                    <div className="subscription-confirm__impact">
+                      <strong>Novo fluxo de autorização</strong>
+                      <p>A hospedagem é contratada junto com o projeto, mas a recorrência só é autorizada pelo cliente no Checkout do Asaas depois da entrega.</p>
+                      <p>Primeiro vencimento: {subscription.delivery_triggered_at
+                        ? formatDateLabel(subscription.first_due_date ?? subscription.next_due_date)
+                        : 'um mês após a entrega real'}.</p>
+                    </div>
+                    {checkout?.checkout_url && ['active', 'paid'].includes(checkout.status) && <div className="subscription-confirm__actions">
+                      <a className="panel-btn panel-btn--primary" href={checkout.checkout_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir Checkout</a>
+                      <button type="button" className="panel-btn panel-btn--ghost" onClick={() => void copyLink(checkout.checkout_url)}><Copy size={14} /> Copiar link</button>
+                    </div>}
+                    {canRegenerate && <button type="button" className="panel-btn panel-btn--primary" disabled={manageBusy} onClick={() => {
+                      setManageBusy(true);
+                      void financeService.regenerateHostingCheckout(manageProject.id)
+                        .then(() => {
+                          toast('success', 'Novo Checkout enviado para criação.');
+                          setManageProject(null);
+                          onChanged();
+                        })
+                        .catch((error: unknown) => toast('error', error instanceof Error ? error.message : 'Falha ao gerar o Checkout.'))
+                        .finally(() => setManageBusy(false));
+                    }}>Gerar novo Checkout</button>}
+                    <div className="subscription-confirm__actions">
+                      <button type="button" className="panel-btn panel-btn--ghost" disabled={manageBusy} onClick={() => setManageProject(null)}>Fechar</button>
+                    </div>
+                  </>;
+                }
                 const isActivating = subscription.status !== 'active';
                 const selectedDueDate = activationDueDate || subscription.next_due_date;
                 const today = localIsoDate();

@@ -113,3 +113,21 @@ export async function queueClientBillingBatchOperation(
   );
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function queueHostingCheckoutOperation(
+  client: QueryClient,
+  projectId: string,
+  checkoutSessionId: string,
+  reason: string | null = null,
+): Promise<boolean> {
+  const result = await client.query(
+    `insert into public.asaas_operations
+       (operation_key, project_id, checkout_session_id, kind, request_payload,
+        requested_by, request_reason)
+     values ('create_hosting_checkout:' || $2::text, $1, $2,
+             'create_hosting_checkout', '{}'::jsonb, public.current_user_id(), $3)
+     on conflict (operation_key) do nothing`,
+    [projectId, checkoutSessionId, reason],
+  );
+  return (result.rowCount ?? 0) > 0;
+}

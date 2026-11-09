@@ -38,7 +38,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   // O formulário só configura valor e vencimento. O estado da recorrência é
   // preservado em edições e passa a ser administrado exclusivamente no Financeiro.
   const [subscriptionIsActive, setSubscriptionIsActive] = useState(project?.subscription_active ?? false);
-  const [subscriptionChoice, setSubscriptionChoice] = useState<'active' | 'inactive' | ''>('');
+  const [subscriptionHostingStatus, setSubscriptionHostingStatus] = useState<string | null>(null);
   const [subscriptionBaseline, setSubscriptionBaseline] =
     useState<{ amountCents: number; dueDay: number; exists: boolean } | null>(null);
 
@@ -109,6 +109,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
       setValue('dueDay', String(detail.subscription.due_day));
       setSubscriptionIsActive(detail.subscription.status === 'active');
+      setSubscriptionHostingStatus(detail.subscription.hosting_status ?? 'legacy');
       setSubscriptionBaseline({
         amountCents: detail.subscription.amount_cents,
         dueDay: detail.subscription.due_day,
@@ -141,10 +142,6 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   }, [selecionado, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!isEdit && hasMonthlyFee && !subscriptionChoice) {
-      toast('error', 'Escolha se deseja ativar a mensalidade agora.');
-      return;
-    }
     setSubmitting(true);
     const valueCents = values.value.trim() === '' ? 0 : parseCurrencyToCents(values.value) ?? 0;
     const monthlyFeeCents = values.monthlyFee.trim() === ''
@@ -190,8 +187,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           description: values.description,
           valueCents,
           monthlyFeeCents,
-          subscriptionActive: subscriptionChoice === 'active',
-          dueDay: values.dueDay ? Number(values.dueDay) : null,
+          subscriptionActive: false,
+          dueDay: null,
           clientName: values.clientName,
           clientPhone,
           clientEmail,
@@ -216,16 +213,21 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           due_date: values.dueDate,
           color_key: values.colorKey as PostItColorKey,
         });
-        if (monthlyFeeCents > 0) {
+        const dueDay = Number(values.dueDay);
+        const subscriptionChanged = !subscriptionBaseline
+          || monthlyFeeCents !== subscriptionBaseline.amountCents
+          || dueDay !== subscriptionBaseline.dueDay;
+        if (monthlyFeeCents > 0 && subscriptionChanged) {
           await finance.saveSubscription(project.id, {
             amountCents: monthlyFeeCents,
-            dueDay: Number(values.dueDay),
+            dueDay,
             // Editar valor/dia não muda o estado. Se já estava ativa, apenas
             // sincroniza a nova configuração para as cobranças futuras.
             activate: subscriptionIsActive,
             applyToCurrentPayment: false,
           });
-        } else if (subscriptionBaseline?.exists || project.monthly_fee_cents > 0) {
+        } else if (monthlyFeeCents === 0
+          && (subscriptionBaseline?.exists || project.monthly_fee_cents > 0)) {
           // Zerar o valor é como o admin remove a mensalidade. Antes isso não
           // fazia nada e a recorrência seguia cobrando no Asaas; agora o backend
           // desliga a assinatura e zera o valor do projeto.
@@ -252,6 +254,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         'cpf-cnpj-obrigatorio-para-ativacao': 'Falta cadastrar o CPF/CNPJ para funcionar no Asaas.',
         'cobranca-atual-nao-sincronizada': 'A cobrança deste mês não está no Asaas e não pode ser alterada por aqui.',
         'competencia-ja-liquidada': 'A competência do próximo vencimento já consta como paga.',
+        'hospedagem-ja-entregue': 'A hospedagem já entrou no fluxo de autorização e não pode mais ser alterada aqui.',
       };
       toast(
         'error',
@@ -465,7 +468,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         <section className="project-form__finance" aria-labelledby="project-subscription-title">
           <div className="project-form__finance-heading">
             <span id="project-subscription-title" className="panel-eyebrow">Mensalidade do projeto</span>
-            <small>{isEdit ? 'Informe o valor e o dia. Ativação e pausa ficam no Financeiro.' : 'Informe o valor, o dia e escolha se deseja ativar a cobrança.'}</small>
+            <small>{isEdit ? 'Ajuste o contrato antes da entrega.' : 'A hospedagem fica contratada agora e só pede autorização na entrega.'}</small>
           </div>
           <div className="project-form__finance-grid">
             <div className="panel-field">
@@ -474,24 +477,23 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
                 placeholder="0,00" aria-invalid={Boolean(errors.monthlyFee)} {...register('monthlyFee')} />
               {errors.monthlyFee && <p className="panel-field__error">{errors.monthlyFee.message}</p>}
             </div>
-            <div className="panel-field">
+            {isEdit && <div className="panel-field">
               <label htmlFor="project-due-day">Dia do vencimento</label>
               <input id="project-due-day" className="panel-input" type="number" min={1} max={31}
                 placeholder="10" aria-invalid={Boolean(errors.dueDay)} {...register('dueDay')} />
               {errors.dueDay && <p className="panel-field__error">{errors.dueDay.message}</p>}
-            </div>
+            </div>}
           </div>
           {hasMonthlyFee && !isEdit && (
-            <fieldset className="project-form__finance-notice">
-              <legend>Ativar agenda mensal de cobranças?</legend>
-              <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'active'} onChange={() => setSubscriptionChoice('active')} /> Sim, ativar agora</label>{' '}
-              <label><input type="radio" name="subscriptionChoice" checked={subscriptionChoice === 'inactive'} onChange={() => setSubscriptionChoice('inactive')} /> Não, manter inativa</label>
-              <p>A Tenka agenda uma cobrança avulsa por mês no Asaas. Esta opção ainda não faz débito automático no cartão. Os avisos seguem a configuração existente no Asaas.</p>
-            </fieldset>
+            <p className="project-form__finance-notice" role="status">
+              A hospedagem não será cobrada agora. Ao marcar o projeto como entregue, o painel gera um Checkout do Asaas para o cliente autorizar a recorrência. O primeiro vencimento fica para um mês depois da entrega real.
+            </p>
           )}
           {hasMonthlyFee && isEdit && (
             <p className="project-form__finance-notice" role="status">
-              {subscriptionIsActive
+              {subscriptionHostingStatus && subscriptionHostingStatus !== 'legacy'
+                ? 'A hospedagem está contratada. O valor pode ser ajustado até a entrega; depois disso, o Checkout e a recorrência preservam o valor autorizado.'
+                : subscriptionIsActive
                 ? 'Esta mensalidade já está ativa. Para desativar ou reativar, use a área Financeiro.'
                 : 'A mensalidade será salva como inativa. Para começar a cobrar, acesse Financeiro e clique em Ativar.'}
             </p>

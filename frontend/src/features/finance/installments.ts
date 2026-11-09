@@ -1,6 +1,7 @@
 export const MAX_INSTALLMENTS = 60;
+export const MAX_ASAAS_INSTALLMENTS = 21;
 
-export type InstallmentInterval = 'monthly' | 'biweekly' | 'weekly';
+export type InstallmentInterval = 'monthly';
 
 export interface InstallmentPreview {
   number: number;
@@ -39,26 +40,15 @@ function addMonths(iso: string, months: number): string {
   return `${targetYear}-${pad(targetMonth)}-${pad(Math.min(day, daysInMonth(targetYear, targetMonth)))}`;
 }
 
-function addDays(iso: string, days: number): string {
-  const { year, month, day } = parseDueDate(iso);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
-}
-
-function dueDateFor(first: string, index: number, interval: InstallmentInterval): string {
-  if (interval === 'monthly') return addMonths(first, index);
-  return addDays(first, index * (interval === 'biweekly' ? 14 : 7));
-}
-
 /** Mantem a previa do navegador identica ao calculo puro validado no backend. */
 export function splitInstallments(
   balanceCents: number,
   count: number,
   firstDueDate: string,
-  interval: InstallmentInterval = 'monthly',
+  _interval: InstallmentInterval = 'monthly',
 ): InstallmentPlan {
   if (!Number.isInteger(balanceCents) || balanceCents <= 0) return { error: 'saldo-invalido' };
-  if (!Number.isInteger(count) || count < 1 || count > MAX_INSTALLMENTS) {
+  if (!Number.isInteger(count) || count < 2 || count > MAX_ASAAS_INSTALLMENTS) {
     return { error: 'quantidade-invalida' };
   }
   if (balanceCents < count) return { error: 'saldo-insuficiente' };
@@ -75,7 +65,7 @@ export function splitInstallments(
         count,
         name: `Parcela ${number}/${count}`,
         amountCents: base + (number === count ? remainder : 0),
-        dueDate: dueDateFor(firstDueDate, index, interval),
+        dueDate: addMonths(firstDueDate, index),
       };
     }),
   };

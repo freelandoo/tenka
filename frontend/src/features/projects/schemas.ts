@@ -78,10 +78,6 @@ export const projectFormSchema = z
   .refine((v) => v.clientPhone.trim() !== '' || v.clientEmail.trim() !== '', {
     message: 'Informe pelo menos telefone ou e-mail do cliente.',
     path: ['clientPhone'],
-  })
-  .refine((v) => (parseCurrencyToCents(v.monthlyFee) ?? 0) === 0 || v.dueDay !== '', {
-    message: 'Informe o dia de vencimento da mensalidade.',
-    path: ['dueDay'],
   });
 
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;

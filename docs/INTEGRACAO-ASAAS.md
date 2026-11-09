@@ -4,12 +4,14 @@
 
 - Toda configuração é administrativa, em **Administração → Financeiro**.
 - O projeto é criado primeiro e o plano financeiro é configurado depois.
-- Cada projeto pode ter uma única configuração mensal. Configurações novas são
-  gerenciadas pela Tenka e geram uma cobrança avulsa por mês; **ainda não são
-  débito automático no cartão nem assinatura nativa do Asaas**.
-- Etapas do projeto geram uma cobrança no Asaas por linha. As linhas chamadas
-  de parcelas são um cronograma local e **não equivalem ao parcelamento nativo
-  no cartão**; essa substituição pertence à fase de parcelamentos.
+- Cada projeto pode contratar uma hospedagem mensal. Na criação ela fica em
+  `pending_delivery`, sem cobrança. Ao marcar a entrega, a Tenka abre um
+  Checkout recorrente no Asaas; o primeiro vencimento é um mês civil depois da
+  data real da entrega.
+- Etapas avulsas continuam gerando uma cobrança por linha. Um grupo de parcelas
+  gera um único parcelamento nativo do Asaas (`totalValue` +
+  `installmentCount`), mensal, entre 2 e 21 vezes. Cada parcela retornada pelo
+  provedor é vinculada à linha correspondente no plano local.
 - Webhooks atualizam mensalidades e cobranças de projeto, e são idempotentes
   pelo ID do evento. `provider_event_at` descarta eventos fora de ordem.
 - Operações externas usam fila persistente (`asaas_operations`) com retentativa
@@ -26,6 +28,7 @@ ASAAS_API_KEY=<chave da API>
 ASAAS_WEBHOOK_TOKEN=<token forte e exclusivo>
 ASAAS_TIMEOUT_MS=60000
 FINANCE_RECONCILIATION_HOURS=6
+PANEL_URL=https://<dominio-do-painel>
 ```
 
 No Asaas, configure o webhook para:
@@ -46,9 +49,9 @@ configuração — nunca devolve chaves ou tokens. `GET /ready` é o readiness d
 serviço e responde 503 quando o banco não está acessível; `/health` continua
 sendo apenas liveness.
 
-## Dados necessários para ativar
+## Dados necessários para cobrar
 
-Antes de ativar uma assinatura ou emitir uma cobrança de etapa, o projeto
+Antes de gerar o Checkout da hospedagem ou emitir uma cobrança de etapa, o projeto
 precisa estar ligado a um cliente e o cadastro do cliente precisa ter CPF/CNPJ.
 Nome, e-mail e telefone são sincronizados quando a operação é processada.
 As preferências de e-mail/SMS/WhatsApp do cliente não são sobrescritas: a régua
@@ -88,8 +91,10 @@ a baixa ao Asaas e espera o `PAYMENT_RECEIVED` voltar.
 - **Arquivar o projeto** encerra o financeiro junto — pede uma decisão sobre a
   mensalidade e cancela as cobranças de etapa em aberto. Sem isso o cliente
   continuaria recebendo boleto de um projeto invisível no painel.
-- **Finalizar** não mexe nas cobranças: um projeto entregue ainda tem o que
-  receber.
+- **Marcar como entregue** preserva as cobranças do desenvolvimento e dispara o
+  Checkout da hospedagem contratada. O cliente recebe um link do Asaas para
+  autorizar o cartão; o callback de navegador não confirma pagamento — essa
+  confirmação vem dos webhooks `CHECKOUT_*` e `SUBSCRIPTION_*`.
 - **Estorno e chargeback** têm estado próprio (`refunded`, `chargeback`) e
   preservam a data do recebimento. Estornos parciais também preservam valor,
   lista devolvida pelo provedor, valor líquido e data de crédito.
@@ -107,7 +112,8 @@ alerta aparece no topo da página enquanto houver algo parado.
 Ficam no histórico do projeto: configuração e cancelamento de mensalidade,
 alteração do plano de pagamentos, mudança de estado de um pagamento, baixa
 manual (com valor, data e quem registrou) e o encerramento de cobranças por
-arquivamento. A baixa manual depende disso: a chave de API é única, e o Asaas
+arquivamento. Contratação da hospedagem, entrega, criação e mudanças do Checkout
+também são registradas. A baixa manual depende disso: a chave de API é única, e o Asaas
 não sabe qual pessoa da equipe apertou o botão.
 
 ## Fora deste incremento

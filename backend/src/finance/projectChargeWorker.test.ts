@@ -6,6 +6,7 @@ const hoisted = vi.hoisted(() => ({
   clientEmail: 'cliente@example.com',
   clientPhone: '11999999999',
   dueDate: '2026-10-10',
+  nativeInstallment: false,
   asaas: {
     updateCustomer: vi.fn(),
     listCustomerNotifications: vi.fn(),
@@ -17,6 +18,7 @@ const hoisted = vi.hoisted(() => ({
     getPixQrCode: vi.fn(),
     deletePayment: vi.fn(),
     receivePaymentInCash: vi.fn(),
+    listInstallmentPayments: vi.fn(),
   },
 }));
 
@@ -35,6 +37,10 @@ vi.mock('../db/pool', () => ({
       payment_date: '2026-09-10', amount_cents: 200_000, notify_customer: true,
       intent_status: 'pending', target_status: 'pending',
     }] };
+    if (sql.includes('from public.project_payments') && !sql.includes(' pp')) return { rows: [
+      { id: '77777777-7777-4777-8777-777777777777', amount_cents: 100_000, due_date: '2026-10-10', installment_number: 1 },
+      { id: '88888888-8888-4888-8888-888888888888', amount_cents: 100_000, due_date: '2026-11-10', installment_number: 2 },
+    ] };
     if (sql.includes('from public.project_payments pp')) return { rows: [{
       id: '77777777-7777-4777-8777-777777777777',
       project_id: 'project-1', project_name: 'Site', name: 'Entrada', description: '',
@@ -43,6 +49,13 @@ vi.mock('../db/pool', () => ({
       asaas_payment_id: hoisted.asaasPaymentId, financial_plan_status: 'active', client_id: 'client-1',
       client_name: 'Cliente', client_email: hoisted.clientEmail, client_phone: hoisted.clientPhone,
       cpf_cnpj: '12345678909', asaas_customer_id: 'cus_1',
+      kind: hoisted.nativeInstallment ? 'installment' : 'stage',
+      installment_group_id: hoisted.nativeInstallment
+        ? '66666666-6666-4666-8666-666666666666' : null,
+      installment_number: hoisted.nativeInstallment ? 1 : null,
+      installment_count: hoisted.nativeInstallment ? 2 : null,
+      asaas_installment_id: null,
+      group_label: hoisted.nativeInstallment ? 'Saldo' : '',
     }] };
     return { rows: [], rowCount: 1 };
   } }),
@@ -71,6 +84,7 @@ describe('worker de cobranças de projeto', () => {
     hoisted.clientEmail = 'cliente@example.com';
     hoisted.clientPhone = '11999999999';
     hoisted.dueDate = '2026-10-10';
+    hoisted.nativeInstallment = false;
     vi.clearAllMocks();
     hoisted.asaas.updateCustomer.mockResolvedValue({ id: 'cus_1' });
     hoisted.asaas.listCustomerNotifications.mockResolvedValue({ data: [{
@@ -110,6 +124,31 @@ describe('worker de cobranças de projeto', () => {
     expect(hoisted.queries.some((query) =>
       query.sql.startsWith('update public.project_payments') && query.values.includes('pay_1'),
     )).toBe(true);
+  });
+
+  it('cria um único parcelamento nativo e vincula todas as parcelas locais', async () => {
+    hoisted.nativeInstallment = true;
+    hoisted.asaas.createPayment.mockResolvedValueOnce({
+      id: 'pay_1', installment: 'ins_1', status: 'PENDING', billingType: 'CREDIT_CARD',
+      value: 1000, dueDate: '2026-10-10',
+    });
+    hoisted.asaas.listInstallmentPayments.mockResolvedValueOnce({ data: [
+      { id: 'pay_1', installment: 'ins_1', installmentNumber: 1, status: 'PENDING', billingType: 'CREDIT_CARD', value: 1000, dueDate: '2026-10-10' },
+      { id: 'pay_2', installment: 'ins_1', installmentNumber: 2, status: 'PENDING', billingType: 'CREDIT_CARD', value: 1000, dueDate: '2026-11-10' },
+    ] });
+
+    await expect(executeOperation(operation('create_project_charge'))).resolves.toBe('ins_1');
+
+    expect(hoisted.asaas.createPayment).toHaveBeenCalledWith(expect.objectContaining({
+      totalValue: 2000,
+      installmentCount: 2,
+      billingType: 'CREDIT_CARD',
+      externalReference: 'project-installment:66666666-6666-4666-8666-666666666666',
+    }));
+    expect(hoisted.asaas.listInstallmentPayments).toHaveBeenCalledWith('ins_1');
+    expect(hoisted.queries.filter((query) =>
+      query.sql.startsWith('update public.project_payments') && query.values.includes('ins_1'),
+    )).toHaveLength(2);
   });
 
   it('preserva os canais configurados no Asaas ao emitir a cobrança', async () => {

@@ -79,6 +79,16 @@ function describe(activity: ProjectActivityRow, actorName: string, profiles: Pro
       const after = `${formatCurrencyFromCents(Number(current.amountCents))}, dia ${current.dueDay}, próximo vencimento ${formatDate(String(current.nextDueDate))}`;
       return `${actorName} alterou a mensalidade de ${before} para ${after}.`;
     }
+    case 'hospedagem_contratada':
+      return meta.event === 'updated_before_delivery'
+        ? `${actorName} atualizou o valor da hospedagem antes da entrega.`
+        : `${actorName} contratou a hospedagem para autorização somente após a entrega.`;
+    case 'projeto_entregue':
+      return `${actorName} marcou o projeto como entregue. Primeiro vencimento da hospedagem: ${formatDate(String(meta.firstHostingDueDate))}.`;
+    case 'checkout_hospedagem_criado':
+      return `Asaas criou o Checkout recorrente da hospedagem.`;
+    case 'checkout_hospedagem_evento':
+      return `Asaas atualizou o Checkout da hospedagem para ${String(meta.status ?? 'novo estado')}.`;
     case 'plano_pagamentos_atualizado':
       return `${actorName} ${meta.status === 'active' ? 'ativou' : 'salvou'} o plano de pagamentos com ${Array.isArray(meta.current) ? meta.current.length : 0} etapa(s), total de ${formatCurrencyFromCents(Number(meta.totalCents))}.`;
     case 'pagamento_projeto_atualizado':

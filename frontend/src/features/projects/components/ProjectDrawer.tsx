@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Archive, CalendarDays, CheckCircle2, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
+import { Archive, CalendarDays, CheckCircle2, Copy, ExternalLink, Pencil, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
 import type { PostItColorKey, ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 import * as service from '../services/projectsService';
@@ -54,7 +54,7 @@ export function ProjectDrawer({
   }, [isAdmin, project.id]);
   useEffect(() => { void loadFinance(); }, [loadFinance]);
   useEffect(() => subscribeRealtime(
-    ['project_subscriptions', 'project_payments', 'subscription_payments'],
+    ['project_subscriptions', 'project_payments', 'subscription_payments', 'asaas_checkout_sessions'],
     () => { void loadFinance(); setActivityRevision((value) => value + 1); },
   ), [loadFinance]);
 
@@ -91,12 +91,21 @@ export function ProjectDrawer({
   ) => {
     setBusy(true);
     try {
+      const finalizeResult = action === 'finalize'
+        ? await service.finalizeProject(project.id, subscriptionAction)
+        : null;
       const archiveResult = action === 'finalize'
         ? null
         : await service.archiveProject(project.id, subscriptionAction);
-      if (action === 'finalize') await service.finalizeProject(project.id, subscriptionAction);
-      toast('success', action === 'finalize'
-        ? `Projeto "${project.name}" finalizado e movido para o histórico.`
+      const checkoutIssue: Record<string, string> = {
+        'asaas-nao-configurado': 'o Asaas não está configurado',
+        'cliente-obrigatorio': 'o projeto não tem cliente vinculado',
+        'cpf-cnpj-obrigatorio': 'o cliente está sem CPF/CNPJ',
+      };
+      toast(finalizeResult?.checkoutIssue ? 'error' : 'success', action === 'finalize'
+        ? finalizeResult?.checkoutIssue
+          ? `Projeto entregue, mas o Checkout da hospedagem não foi gerado: ${checkoutIssue[finalizeResult.checkoutIssue] ?? finalizeResult.checkoutIssue}.`
+          : `Projeto "${project.name}" entregue. O Checkout da hospedagem está sendo preparado.`
         : archiveResult?.cleanupPending
           ? `Arquivamento de "${project.name}" iniciado. O projeto continua visível até o Asaas confirmar os cancelamentos.`
           : `Projeto "${project.name}" arquivado.`);
@@ -109,6 +118,48 @@ export function ProjectDrawer({
       setBusy(false);
     }
   };
+
+  const regenerateHostingCheckout = async () => {
+    setBusy(true);
+    try {
+      await financeService.regenerateHostingCheckout(project.id);
+      toast('success', 'Novo Checkout da hospedagem enviado para criação.');
+      await loadFinance();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao gerar o Checkout.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyCheckoutLink = async () => {
+    const url = finance?.hostingCheckout?.checkout_url;
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('success', 'Link do Checkout copiado.');
+    } catch {
+      toast('error', 'Não foi possível copiar o link. Abra o Checkout e copie pela barra do navegador.');
+    }
+  };
+
+  const hostingStatus = finance?.subscription?.hosting_status;
+  const hostingLabels: Record<string, string> = {
+    legacy: 'Fluxo anterior',
+    pending_delivery: 'Contratada · aguardando entrega',
+    checkout_pending: 'Aguardando autorização do cliente',
+    authorized: 'Autorizada · aguardando início',
+    active: 'Recorrência ativa',
+    checkout_expired: 'Checkout expirado',
+    checkout_cancelled: 'Checkout cancelado',
+    cancelled: 'Hospedagem cancelada',
+    error: 'Atenção necessária',
+  };
+  const canRegenerateCheckout = Boolean(project.finalized_at && hostingStatus
+    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'error']
+      .includes(hostingStatus)
+    && (!finance?.hostingCheckout
+      || ['failed', 'cancelled', 'expired'].includes(finance.hostingCheckout.status)));
 
   const requestLifecycle = (action: 'finalize' | 'archive') => {
     if (hasLiveSubscription) setLifecycleAction(action);
@@ -234,7 +285,7 @@ export function ProjectDrawer({
               onClick={() => requestLifecycle('finalize')}
             >
               <CheckCircle2 size={14} aria-hidden="true" />
-              Finalizar
+              Marcar como entregue
             </button>
           ) : (
             <button
@@ -293,18 +344,20 @@ export function ProjectDrawer({
           )}
           {isAdmin && (
             <div>
-              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Mensalidade</dt>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Hospedagem mensal</dt>
               <dd><strong>{finance?.subscription ? formatCurrencyFromCents(finance.subscription.amount_cents) : 'Não configurada'}</strong></dd>
             </div>
           )}
           {isAdmin && finance?.subscription && (
             <div>
-              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Vencimento mensal</dt>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Primeiro vencimento</dt>
               <dd>
-                Dia {finance.subscription.due_day}
-                {(finance.subscription.status === 'active' || finance.subscription.status === 'pending_activation')
-                  ? ` · próximo ${formatDate(finance.subscription.next_due_date)}`
-                  : ''}
+                {hostingStatus && hostingStatus !== 'legacy'
+                  ? finance.subscription.delivery_triggered_at
+                    ? formatDate(finance.subscription.first_due_date ?? finance.subscription.next_due_date)
+                    : 'Um mês após a entrega real'
+                  : `Dia ${finance.subscription.due_day}${(finance.subscription.status === 'active' || finance.subscription.status === 'pending_activation')
+                    ? ` · próximo ${formatDate(finance.subscription.next_due_date)}` : ''}`}
               </dd>
             </div>
           )}
@@ -361,8 +414,24 @@ export function ProjectDrawer({
           </div>
         </dl>
         {isAdmin && finance?.subscription && <div className="project-drawer__subscription">
-          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>{finance.subscription.status === 'active' ? 'Ativa' : finance.subscription.status === 'draft' ? 'Inativa' : finance.subscription.status === 'inactive' ? 'Inativa' : finance.subscription.status === 'pending_activation' ? 'Ativação pendente' : finance.subscription.status === 'cancelled' ? 'Cancelada' : finance.subscription.status}</span>
-          <small>Ative, desative ou reative esta mensalidade na área Financeiro.</small>
+          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>
+            {hostingStatus && hostingStatus !== 'legacy'
+              ? hostingLabels[hostingStatus] ?? hostingStatus
+              : finance.subscription.status === 'active' ? 'Ativa'
+                : finance.subscription.status === 'pending_activation' ? 'Ativação pendente'
+                  : finance.subscription.status === 'cancelled' ? 'Cancelada' : 'Inativa'}
+          </span>
+          <small>{hostingStatus && hostingStatus !== 'legacy'
+            ? 'A autorização recorrente acontece no Checkout do Asaas depois da entrega.'
+            : 'Ative, desative ou reative esta mensalidade na área Financeiro.'}</small>
+          {finance.hostingCheckout?.checkout_url && ['active', 'paid'].includes(finance.hostingCheckout.status) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <a className="panel-btn panel-btn--sm" href={finance.hostingCheckout.checkout_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir Checkout</a>
+            <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" onClick={() => void copyCheckoutLink()}><Copy size={14} /> Copiar link</button>
+          </div>}
+          {canRegenerateCheckout && <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void regenerateHostingCheckout()}>
+            <RotateCcw size={14} /> Gerar novo Checkout
+          </button>}
+          {finance.hostingCheckout?.sync_error && <small className="panel-field__error">{finance.hostingCheckout.sync_error}</small>}
         </div>}
       </section>
 

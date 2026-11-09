@@ -10,6 +10,7 @@ const complete = {
   asaasEnvironment: 'production' as const,
   webhookTokenConfigured: true,
   publicApiUrl: 'https://api.example.com',
+  panelUrl: 'https://painel.example.com',
   timeoutMs: 60_000,
 };
 
@@ -28,6 +29,7 @@ describe('financeReadiness', () => {
       asaasConfigured: false,
       webhookTokenConfigured: false,
       publicApiUrl: 'http://api.example.com',
+      panelUrl: '',
       databaseTlsVerified: false,
       timeoutMs: 15_000,
     });
@@ -37,6 +39,7 @@ describe('financeReadiness', () => {
       'asaas-webhook-token-ausente',
       'asaas-timeout-abaixo-de-60s',
       'public-api-https-nao-confirmado',
+      'panel-url-https-nao-confirmado',
       'database-tls-sem-validacao-de-certificado',
     ]));
     expect(JSON.stringify(result)).not.toContain('secret');

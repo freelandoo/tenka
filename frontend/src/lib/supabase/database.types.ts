@@ -230,6 +230,10 @@ export type ProjectActivityAction =
   | 'projeto_reaberto'
   | 'projeto_arquivado'
   | 'assinatura_configurada'
+  | 'hospedagem_contratada'
+  | 'projeto_entregue'
+  | 'checkout_hospedagem_criado'
+  | 'checkout_hospedagem_evento'
   | 'plano_pagamentos_atualizado'
   | 'pagamento_projeto_atualizado'
   | 'pagamento_baixa_manual'
@@ -274,6 +278,10 @@ export interface ClientRow {
 export type ProjectSubscriptionStatus =
   | 'draft' | 'pending_activation' | 'active' | 'inactive' | 'cancelled' | 'error';
 
+export type HostingStatus =
+  | 'legacy' | 'pending_delivery' | 'checkout_pending' | 'authorized' | 'active'
+  | 'checkout_expired' | 'checkout_cancelled' | 'cancelled' | 'error';
+
 export interface ProjectSubscriptionRow {
   id: string;
   project_id: string;
@@ -284,6 +292,10 @@ export interface ProjectSubscriptionRow {
   status: ProjectSubscriptionStatus;
   asaas_subscription_id: string | null;
   app_managed?: boolean;
+  hosting_status?: HostingStatus;
+  contracted_at?: string | null;
+  delivery_triggered_at?: string | null;
+  first_due_date?: string | null;
   external_reference: string;
   sync_error: string | null;
   operation_status?: string | null;
@@ -317,6 +329,7 @@ export interface ProjectPaymentRow {
   installment_count: number | null;
   group_label: string;
   asaas_payment_id: string | null;
+  asaas_installment_id?: string | null;
   external_reference: string | null;
   payment_url: string;
   bank_slip_url: string;

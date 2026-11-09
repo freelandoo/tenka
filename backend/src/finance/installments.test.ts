@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_INSTALLMENTS, splitInstallments, validateInstallmentGroups } from './installments';
+import {
+  MAX_INSTALLMENTS,
+  splitInstallments,
+  validateInstallmentGroups,
+  validateNativeInstallmentSchedule,
+} from './installments';
 
 /** Desempacota o caso feliz — os testes de erro checam `error` diretamente. */
 function parcels(...args: Parameters<typeof splitInstallments>) {
@@ -141,5 +146,39 @@ describe('forma dos grupos no plano', () => {
     expect(validateInstallmentGroups([{
       kind: 'stage', installmentGroupId: 'grupo', installmentNumber: null, installmentCount: null,
     }])).toBe('metadados-de-etapa-invalidos');
+  });
+});
+
+describe('parcelamento nativo do Asaas', () => {
+  const rows = (dates: string[], amounts = [10_000, 10_000, 10_000]) => dates.map((dueDate, index) => ({
+    installmentNumber: index + 1,
+    installmentCount: dates.length,
+    amountCents: amounts[index]!,
+    dueDate,
+  }));
+
+  it('aceita parcelas mensais, completas e com a soma exata', () => {
+    expect(validateNativeInstallmentSchedule(rows([
+      '2026-11-20', '2026-12-20', '2027-01-20',
+    ]))).toBeNull();
+  });
+
+  it('recusa intervalos semanais ou quinzenais', () => {
+    expect(validateNativeInstallmentSchedule(rows([
+      '2026-11-20', '2026-12-04', '2026-12-18',
+    ]))).toBe('parcelamento-asaas-exige-ciclo-mensal');
+  });
+
+  it('recusa parcela única e mais de 21 parcelas', () => {
+    expect(validateNativeInstallmentSchedule(rows(['2026-11-20'], [30_000])))
+      .toBe('parcelamento-asaas-quantidade-invalida');
+    const tooMany = Array.from({ length: 22 }, (_, index) => ({
+      installmentNumber: index + 1,
+      installmentCount: 22,
+      amountCents: 100,
+      dueDate: `2026-${String(index + 1).padStart(2, '0')}-01`,
+    }));
+    expect(validateNativeInstallmentSchedule(tooMany))
+      .toBe('parcelamento-asaas-quantidade-invalida');
   });
 });

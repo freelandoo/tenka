@@ -57,8 +57,8 @@ describe('projectFormSchema', () => {
     }).success).toBe(true);
   });
 
-  it('exige vencimento quando existe mensalidade', () => {
-    expect(projectFormSchema.safeParse({ ...valid, dueDay: '' }).success).toBe(false);
+  it('aceita hospedagem sem dia na contratação e rejeita dia inválido', () => {
+    expect(projectFormSchema.safeParse({ ...valid, dueDay: '' }).success).toBe(true);
     expect(projectFormSchema.safeParse({ ...valid, dueDay: '32' }).success).toBe(false);
   });
 

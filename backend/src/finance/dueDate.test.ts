@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { followingMonthlyDueDate, nextMonthlyDueDate } from './dueDate';
+import { firstHostingDueDate, followingMonthlyDueDate, nextMonthlyDueDate } from './dueDate';
 
 describe('nextMonthlyDueDate', () => {
   it('usa o vencimento do mês atual quando ainda não passou', () => {
@@ -27,5 +27,19 @@ describe('followingMonthlyDueDate', () => {
   it('ajusta o dia no mês curto e atravessa o ano', () => {
     expect(followingMonthlyDueDate('2027-01-31', 31)).toBe('2027-02-28');
     expect(followingMonthlyDueDate('2026-12-15', 15)).toBe('2027-01-15');
+  });
+});
+
+describe('firstHostingDueDate', () => {
+  it('vence um mês depois da entrega no mesmo dia civil', () => {
+    expect(firstHostingDueDate('2026-11-20')).toBe('2026-12-20');
+  });
+
+  it('ajusta o fim do mês sem inventar uma data', () => {
+    expect(firstHostingDueDate('2028-01-31')).toBe('2028-02-29');
+  });
+
+  it('recusa uma entrega inexistente', () => {
+    expect(() => firstHostingDueDate('2026-02-30')).toThrow('Data de entrega inválida');
   });
 });

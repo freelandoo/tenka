@@ -44,3 +44,17 @@ export function followingMonthlyDueDate(dueDate: string, dueDay: number): string
   const targetDay = Math.min(dueDay, new Date(Date.UTC(year, month, 0)).getUTCDate());
   return `${year}-${String(month).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
 }
+
+/** Primeiro vencimento da hospedagem: um mês civil após a entrega efetiva. */
+export function firstHostingDueDate(deliveryDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(deliveryDate);
+  if (!match) throw new Error('Data de entrega inválida.');
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > lastDay) {
+    throw new Error('Data de entrega inválida.');
+  }
+  return followingMonthlyDueDate(deliveryDate, day);
+}

@@ -25,6 +25,7 @@ export interface ChangeEvent {
     | 'clients'
     | 'costs'
     | 'project_subscriptions'
+    | 'asaas_checkout_sessions'
     | 'project_payments'
     | 'subscription_payments';
   /** Dono da notificação (só em eventos de `notifications`). */

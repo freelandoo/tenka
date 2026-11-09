@@ -139,10 +139,6 @@ describe('ProjectFormModal — contato do cliente', () => {
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com contato');
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-10-15');
     await user.type(screen.getByLabelText('Valor mensal (R$)'), '299,90');
-    await user.type(screen.getByLabelText('Dia do vencimento'), '10');
-    await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
-    expect(projectsService.createProject).not.toHaveBeenCalled();
-    await user.click(screen.getByLabelText('Não, manter inativa'));
     await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
 
     await waitFor(() =>
@@ -160,7 +156,7 @@ describe('ProjectFormModal — contato do cliente', () => {
     expect(clientsService.updateClient).not.toHaveBeenCalled();
   });
 
-  it('envia ativação somente quando escolhida explicitamente', async () => {
+  it('contrata a hospedagem sem ativar cobrança na criação', async () => {
     const user = userEvent.setup();
     render(<ProjectFormModal project={null} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
     await user.selectOptions(await screen.findByLabelText('Cadastro'), existingClient.id);
@@ -170,11 +166,10 @@ describe('ProjectFormModal — contato do cliente', () => {
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto ativo');
     await user.type(screen.getByLabelText('Data de entrega *'), '2026-11-15');
     await user.type(screen.getByLabelText('Valor mensal (R$)'), '59,90');
-    await user.type(screen.getByLabelText('Dia do vencimento'), '10');
-    await user.click(screen.getByLabelText('Sim, ativar agora'));
+    expect(screen.getByText(/não será cobrada agora/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
     await waitFor(() => expect(projectsService.createProject).toHaveBeenCalledWith(
-      expect.objectContaining({ subscriptionActive: true, monthlyFeeCents: 5990 }),
+      expect.objectContaining({ subscriptionActive: false, monthlyFeeCents: 5990, dueDay: null }),
     ));
   });
 });
@@ -224,8 +219,8 @@ describe('ProjectFormModal — mensalidade simplificada', () => {
     expect(screen.getByText(/Para começar a cobrar, acesse Financeiro/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
-    await waitFor(() => expect(finance.saveSubscription).toHaveBeenCalledWith('project-1',
-      expect.objectContaining({ activate: false, applyToCurrentPayment: false })));
+    await waitFor(() => expect(projectsService.updateProject).toHaveBeenCalled());
+    expect(finance.saveSubscription).not.toHaveBeenCalled();
   });
 
   it('aceita valor zero e remove a mensalidade em vez de deixar a recorrência cobrando', async () => {
