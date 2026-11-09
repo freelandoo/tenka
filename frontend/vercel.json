@@ -184,6 +184,10 @@
       "destination": "/innovation-week/casa-views.html"
     },
     {
+      "source": "/innovation-week/casa-views",
+      "destination": "/innovation-week/casa-views.html"
+    },
+    {
       "source": "/innovation-week/admin",
       "destination": "/innovation-week/admin.html"
     },

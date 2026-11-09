@@ -32,6 +32,9 @@ const PINK = { red: '#ff2e93', hot: '#ff5aa8', deep: '#8e0047' };
 
 async function gate(): Promise<boolean> {
   if (import.meta.env.DEV && params.has('preview')) return true;
+  // Link público para compartilhar (/innovation-week/casa-views): qualquer um assiste.
+  // Só /admin/casa-views pede o login (e mostra os números completos do painel).
+  if (!location.pathname.includes('/admin/')) return true;
   if (readAdmin() && (await checkAdmin())) return true;
   location.replace(withBase('/admin?next=casa-views'));
   return false;
@@ -493,6 +496,7 @@ async function main() {
   }
   go(start);
   const hint = $('#pz-hint');
+  if (!location.pathname.includes('/admin/')) hint.textContent = 'TOQUE OU → PARA AVANÇAR // ← VOLTA // F TELA CHEIA';
   gsap.fromTo(hint, { opacity: 0 }, { opacity: 1, duration: 0.6, delay: 0.8 });
   gsap.to(hint, { opacity: 0, duration: 0.8, delay: 6 });
 }

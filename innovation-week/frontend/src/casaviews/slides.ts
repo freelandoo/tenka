@@ -9,6 +9,7 @@ import type { Ctx, SceneState } from '../story/Director.ts';
 import { fetchStats, fmtInt, funnelRows } from '../admin/stats.ts';
 import { readAdmin } from '../admin/session.ts';
 import type { Cast } from './cast.ts';
+import { config } from '../config.ts';
 
 export interface HoloTarget {
   x: number;
@@ -125,9 +126,22 @@ function liveFeed(el: HTMLElement) {
 /** Painel com os números REAIS da Innovation Week (mesma API do admin). */
 async function pollProof(el: HTMLElement, d: CvCtx) {
   const st = el.querySelector<HTMLElement>('[data-trk-status]')!;
-  const s = await fetchStats();
+  const s = readAdmin() ? await fetchStats() : null;
   if (!s) {
-    st.textContent = readAdmin() ? 'RÓTULO DA INNOVATION WEEK // SEM CONEXÃO' : 'RÓTULO DA INNOVATION WEEK // ENTRE NO ADMIN';
+    // Link público (sem login): os números abertos do telão (/api/live).
+    const live = await fetchLive();
+    if (!live) {
+      st.textContent = 'RÓTULO DA INNOVATION WEEK // SEM CONEXÃO';
+      return;
+    }
+    st.textContent = `RÓTULO DA INNOVATION WEEK // DADOS REAIS ${new Date().toLocaleTimeString('pt-BR')}`;
+    const first = el.querySelector<HTMLElement>('[data-trk="scans"]');
+    if (first) {
+      first.dataset.trk = 'returns';
+      first.previousElementSibling!.textContent = 'EMBALAGENS DEVOLVIDAS';
+    }
+    const vals: Record<string, number> = { returns: live.returns, verified: live.units, signups: live.crew, ar: live.ar };
+    for (const b of $$(el, '[data-trk]')) countTo(b, vals[b.dataset.trk!] ?? 0, d.reduced, 1.4);
     return;
   }
   st.textContent = `RÓTULO DA INNOVATION WEEK // DADOS REAIS ${new Date().toLocaleTimeString('pt-BR')}`;
@@ -139,6 +153,21 @@ async function pollProof(el: HTMLElement, d: CvCtx) {
     ar: rows.find((r) => r.event === 'ar_experience_started')?.value ?? 0,
   };
   for (const b of $$(el, '[data-trk]')) countTo(b, vals[b.dataset.trk!] ?? 0, d.reduced, 1.4);
+}
+
+interface Live {
+  crew: number;
+  units: number;
+  ar: number;
+  returns: number;
+}
+async function fetchLive(): Promise<Live | null> {
+  try {
+    const r = await fetch(`${config.api.baseUrl}/api/live`);
+    return r.ok ? ((await r.json()) as Live) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Contadores do slide: `data-count` (alvo), `data-from` (início) e `data-suf` ("mil", "mi"). */
