@@ -47,8 +47,8 @@ function showLogin() {
     form.reset();
     // Veio da apresentação sem sessão: volta para ela.
     const next = new URLSearchParams(location.search).get('next');
-    if (next === 'apresentacao') {
-      location.href = withBase('/admin/apresentacao');
+    if (next === 'apresentacao' || next === 'casa-views') {
+      location.href = withBase(`/admin/${next}`);
       return;
     }
     showPanel();

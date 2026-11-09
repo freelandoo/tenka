@@ -180,6 +180,10 @@
       "destination": "/innovation-week/apresentacao.html"
     },
     {
+      "source": "/innovation-week/admin/casa-views",
+      "destination": "/innovation-week/casa-views.html"
+    },
+    {
       "source": "/innovation-week/admin",
       "destination": "/innovation-week/admin.html"
     },

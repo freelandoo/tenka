@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => ({
         privacidade: 'privacidade.html',
         admin: 'admin.html',
         apresentacao: 'apresentacao.html',
+        casaviews: 'casa-views.html',
         jogo: 'jogo.html',
         ranking: 'ranking.html',
       },

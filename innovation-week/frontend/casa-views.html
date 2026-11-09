@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="pt-BR" class="pz-booting">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>CASA VIEWS × INDEMETAL · Apresentação</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preload" href="/innovation-week/deck/planet.webp" as="image" type="image/webp" fetchpriority="high" />
+  </head>
+  <body class="pz cv">
+    <div class="pz-bg" aria-hidden="true"><div class="pz-bg-img"></div><i class="pz-bg-shade"></i></div>
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <div class="pz-paper" aria-hidden="true"></div>
+    <div class="pz-fx tb-noise" aria-hidden="true"></div>
+
+    <div class="pz-boot" id="pz-boot" role="status" aria-live="polite">
+      <p class="tb-type">CARREGANDO PROPOSTA <b id="pz-boot-pct">000</b>%</p>
+      <div class="pz-boot-bar"><i id="pz-boot-bar"></i></div>
+      <p class="tb-type pz-boot-sub">RÓTULO // HOLOGRAMA // CASA VIEWS</p>
+    </div>
+
+    <main class="deck" id="deck" aria-live="polite">
+      <!-- 01 ABERTURA -->
+      <section class="slide" data-id="abertura" data-title="Abertura" data-section="PROPOSTA CONFIDENCIAL">
+        <div class="back par" style="--d: -1.2"><span class="tb-wide tb-grunge" data-a="back">CASA VIEWS</span></div>
+        <div class="cv-open">
+          <div class="cv-open-logos par" style="--d: 0.6">
+            <p class="cv-word tb-wide tb-grunge" data-a="mask">CASA<br />VIEWS</p>
+            <span class="open-x tb-wide" data-a="scale" data-d="0.35">×</span>
+            <img class="logo-ind" src="/innovation-week/deck/logo-indemetal.webp" alt="Indemetal" data-a="mask" data-d="0.5" />
+          </div>
+          <p class="tb-type tb-arrowbar" data-a="left" data-d="0.8">O reality que faz o cliente final saber o seu nome</p>
+        </div>
+      </section>
+
+      <!-- 02 PERGUNTA -->
+      <section class="slide" data-id="pergunta" data-title="A pergunta" data-section="O PROBLEMA" data-steps="2">
+        <div class="cv-q">
+          <h1 class="mega tb-wide" data-a="mask">Seu rótulo passa por<br /><em>milhões de mãos.</em></h1>
+          <p class="cv-q-2 tb-wide tb-grunge" data-step="1" data-a="mask">Quantas sabem o seu nome?</p>
+          <p class="cv-q-3 tb-type tb-arrowbar" data-step="2" data-a="left">Quem não é lembrado, é trocado pelo mais barato.</p>
+        </div>
+      </section>
+
+      <!-- 03 CASOS -->
+      <section class="slide" data-id="casos" data-title="Quem já fez" data-section="QUEM TOMOU O MERCADO" data-steps="3">
+        <p class="kicker tb-type cv-top" data-a="up"><b>//</b> EMPRESAS B2B QUE FALARAM COM O CLIENTE FINAL</p>
+        <div class="cv-cases">
+          <article class="cv-case" data-a="up">
+            <p class="cv-case-n tb-type">01 · CHIP</p>
+            <h3 class="tb-wide">INTEL</h3>
+            <p class="cv-case-t">O chip escondido <b>virou motivo de compra.</b></p>
+            <p class="cv-case-k tb-type">“INTEL INSIDE” · 1991</p>
+          </article>
+          <article class="cv-case" data-step="1" data-a="up">
+            <p class="cv-case-n tb-type">02 · EMBALAGEM</p>
+            <h3 class="tb-wide">TETRA PAK</h3>
+            <p class="cv-case-t">A caixinha <b>virou mídia</b>: QR e realidade aumentada.</p>
+            <p class="cv-case-k tb-type">DIRETO AO CONSUMIDOR</p>
+          </article>
+          <article class="cv-case" data-step="2" data-a="up">
+            <p class="cv-case-n tb-type">03 · TUBOS</p>
+            <h3 class="tb-wide">TIGRE</h3>
+            <p class="cv-case-t">Fica dentro da parede. <b>E ninguém esquece.</b></p>
+            <p class="cv-case-k tb-type">TV ABERTA · TOP OF MIND</p>
+          </article>
+          <article class="cv-case cv-case-hot" data-step="3" data-a="up">
+            <p class="cv-case-n tb-type">04 · RÓTULO</p>
+            <h3 class="tb-wide">MACK COLOR</h3>
+            <p class="cv-case-t">Uma fábrica de rótulos que <b>o Brasil aprendeu a cantar.</b></p>
+            <p class="cv-case-k tb-type">JINGLE · RÁDIO</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- 04 PADRÃO -->
+      <section class="slide" data-id="padrao" data-title="O padrão" data-section="O QUE ELES FIZERAM" data-steps="1">
+        <div class="cv-rule">
+          <h2 class="head tb-wide" data-a="mask">Eles não venderam ao consumidor.</h2>
+          <h2 class="head tb-wide tb-grunge" data-a="mask" data-d="0.3">Fizeram o consumidor <em>saber o nome.</em></h2>
+          <ol class="cv-three tb-wide">
+            <li data-step="1" data-a="up"><span class="tb-type">01</span>VISÍVEL</li>
+            <li data-step="1" data-a="up" data-d="0.15"><span class="tb-type">02</span>SIMPLES</li>
+            <li data-step="1" data-a="up" data-d="0.3"><span class="tb-type">03</span>CONSTANTE</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- 05 CASA VIEWS EM NÚMEROS -->
+      <section class="slide" data-id="numeros" data-title="Casa Views" data-section="A CASA VIEWS">
+        <div class="back par" style="--d: -1.4"><span class="tb-wide tb-grunge" data-a="back">REALITY</span></div>
+        <p class="kicker tb-type cv-top" data-a="up"><b>//</b> UM REALITY DE 12 SEMANAS, NO INSTAGRAM E NA FREELANDOO</p>
+        <div class="cv-nums">
+          <div data-a="up"><b class="tb-wide" data-count="30">0</b><span class="tb-type">criadores</span></div>
+          <div data-a="up" data-d="0.1"><b class="tb-wide" data-count="5">0</b><span class="tb-type">públicos diferentes</span></div>
+          <div data-a="up" data-d="0.2"><b class="tb-wide" data-count="84">0</b><span class="tb-type">dias seguidos de conteúdo</span></div>
+          <div data-a="up" data-d="0.3"><b class="tb-wide" data-count="30">0</b><span class="tb-type">posts em collab por dia</span></div>
+        </div>
+        <p class="cv-nums-foot tb-type" data-a="up" data-d="0.5">FINANÇAS · ESPORTES · GAMERS · BLOGUEIROS · BELEZA &nbsp;//&nbsp; <b>NOITE DAS LUTAS 22/05/2027</b></p>
+      </section>
+
+      <!-- 06 O ELENCO NO MEU MUNDO (renderizado ao vivo com os modelos do jogo) -->
+      <section class="slide" data-id="elenco" data-title="O elenco no Meu Mundo" data-section="MEU MUNDO // AO VIVO" data-steps="1">
+        <div class="back par" style="--d: -1.4"><span class="tb-wide tb-grunge" data-a="back">MEU MUNDO</span></div>
+        <div class="cv-cast-head">
+          <p class="kicker tb-type" data-a="up"><b>//</b> O JOGO DA FREELANDOO, RENDERIZADO AGORA</p>
+          <h2 class="head tb-wide" data-a="mask">Cada participante vira<br /><em>personagem do jogo.</em></h2>
+        </div>
+        <canvas class="cv-cast" id="cv-cast-lineup" data-a="fade" data-d="0.2"></canvas>
+        <p class="cv-cast-foot tb-type" data-step="1" data-a="up">E o público joga com eles. <b>No mundo onde a Indemetal é outdoor.</b></p>
+      </section>
+
+      <!-- 07 ONDE A INDEMETAL APARECE -->
+      <section class="slide" data-id="onde" data-title="Onde a Indemetal aparece" data-section="SUA MARCA NO REALITY" data-steps="3">
+        <div class="cv-where">
+          <div class="cv-phone" data-a="scale">
+            <div class="cv-phone-bar tb-type"><i></i><b>casaviews</b> e <b>@participante</b><span>Collab</span></div>
+            <div class="cv-phone-media">
+              <div class="cv-phone-glow"></div>
+              <img src="/innovation-week/deck/astronaut.webp" alt="" />
+              <img class="cv-phone-logo" src="/innovation-week/deck/logo-indemetal.webp" alt="" />
+              <span class="cv-phone-tag tb-type">#publi</span>
+            </div>
+            <div class="cv-phone-act tb-type"><span class="cv-heart">♥</span> <b data-live="likes">0</b> curtidas · <b data-live="views">0</b> views</div>
+          </div>
+          <ul class="cv-where-list">
+            <li data-a="left"><b class="tb-wide">FEED</b><span class="tb-type">Vídeos dos participantes em collab, todo dia</span></li>
+            <li data-step="1" data-a="left"><b class="tb-wide">MEU MUNDO</b><span class="tb-type">Outdoor dentro do jogo da Freelandoo</span></li>
+            <li data-step="2" data-a="left"><b class="tb-wide">RÓTULO + RA</b><span class="tb-type">Logo na loja de RA e o personagem do rótulo</span></li>
+            <li data-step="3" data-a="left"><b class="tb-wide">GRAVAÇÕES</b><span class="tb-type">Banners, citações e a Noite das Lutas</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 07 RÓTULO VIRA PERSONAGEM -->
+      <section class="slide" data-id="personagem" data-title="O rótulo vira personagem" data-section="RÓTULO // COLEÇÃO" data-steps="1">
+        <div class="cv-char">
+          <p class="kicker tb-type" data-a="up"><b>//</b> MECÂNICA QUE A INDEMETAL JÁ VIU FUNCIONAR</p>
+          <h2 class="head tb-wide" data-a="mask">Cada rótulo<br />libera <em>o mesmo</em><br />personagem.</h2>
+          <p class="lead-t" data-step="1" data-a="up">Comprar o produto vira <b>colecionar</b>. O público do reality procura o rótulo da Indemetal para completar a coleção.</p>
+        </div>
+      </section>
+
+      <!-- 08 SEMANA 5 -->
+      <section class="slide" data-id="semana5" data-title="A semana da Indemetal" data-section="SEMANA 5 // INDEMETAL">
+        <div class="cv-w5">
+          <div>
+            <p class="kicker tb-type" data-a="up"><b>//</b> UMA SEMANA INTEIRA COM O SEU NOME</p>
+            <h2 class="head tb-wide" data-a="mask">A semana 5 é <em>da Indemetal.</em></h2>
+            <p class="lead-t" data-a="up" data-d="0.3">Os 30 participantes desenham a arte da placa e gravam um vídeo. <b>A Indemetal escolhe a melhor</b>, e ela vira uma placa especial.</p>
+          </div>
+          <div class="cv-plates" id="cv-plates" data-a="fade" data-d="0.2"></div>
+        </div>
+      </section>
+
+      <!-- 09 E-COMMERCE -->
+      <section class="slide" data-id="loja" data-title="Loja para o cliente final" data-section="E-COMMERCE // CLIENTE FINAL" data-steps="2">
+        <div class="cv-shop">
+          <div class="cv-shop-copy">
+            <p class="kicker tb-type" data-a="up"><b>//</b> VENDER DIRETO PARA QUEM USA</p>
+            <h2 class="head tb-wide" data-a="mask">Sua loja.<br /><em>Seu cliente final.</em></h2>
+            <p class="lead-t" data-step="2" data-a="up">Sem montar e-commerce do zero: <b>a loja roda na Freelandoo</b>, com pagamento, entrega e o tráfego dos 30 criadores.</p>
+          </div>
+          <div class="cv-store" data-a="scale" data-d="0.2">
+            <div class="cv-store-top">
+              <img src="/innovation-week/deck/logo-freelandoo.png" alt="" />
+              <span class="tb-type">freelandoo.com.br/<b>indemetal</b></span>
+              <span class="cv-cart tb-type">CARRINHO <b id="cv-cart">0</b></span>
+            </div>
+            <div class="cv-store-hero">
+              <img src="/innovation-week/deck/logo-indemetal.webp" alt="Indemetal" />
+              <span class="tb-type">LOJA OFICIAL · EDIÇÃO CASA VIEWS</span>
+            </div>
+            <div class="cv-store-grid">
+              <article><div class="cv-prod cv-prod-a"><img src="/innovation-week/label/base/label-1024.webp" alt="" /></div><p>Rótulo colecionável</p><b class="tb-type">com personagem em RA</b></article>
+              <article><div class="cv-prod cv-prod-b"><span class="tb-wide">05</span></div><p>Placa especial</p><b class="tb-type">a arte vencedora</b></article>
+              <article><div class="cv-prod cv-prod-c"><img src="/innovation-week/deck/astronaut.webp" alt="" /></div><p>Coleção completa</p><b class="tb-type">todos os personagens</b></article>
+            </div>
+            <div class="cv-toast tb-type" id="cv-toast" data-step="1" data-a="up">✓ NOVO PEDIDO · VEIO DO LINK DE UM PARTICIPANTE</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 FUNIL -->
+      <section class="slide" data-id="funil" data-title="Como o reality vende" data-section="E-COMMERCE // O CAMINHO">
+        <p class="kicker tb-type cv-top" data-a="up"><b>//</b> COMO O REALITY LEVA O CLIENTE ATÉ A LOJA</p>
+        <div class="cv-flow" id="cv-flow">
+          <div data-a="up"><span class="tb-type">01</span><b class="tb-wide">POST</b><i class="tb-type">em collab</i></div>
+          <div data-a="up" data-d="0.1"><span class="tb-type">02</span><b class="tb-wide">LINK</b><i class="tb-type">do participante</i></div>
+          <div data-a="up" data-d="0.2"><span class="tb-type">03</span><b class="tb-wide">LOJA</b><i class="tb-type">Indemetal</i></div>
+          <div data-a="up" data-d="0.3"><span class="tb-type">04</span><b class="tb-wide">COMPRA</b><i class="tb-type">cliente final</i></div>
+          <div data-a="up" data-d="0.4"><span class="tb-type">05</span><b class="tb-wide">RÓTULO</b><i class="tb-type">libera o personagem</i></div>
+          <div data-a="up" data-d="0.5"><span class="tb-type">06</span><b class="tb-wide">POSTA</b><i class="tb-type">e traz o próximo</i></div>
+          <span class="cv-flow-dot" aria-hidden="true"></span>
+        </div>
+        <p class="cv-flow-foot tb-type" data-a="up" data-d="0.7">Cada venda vem com nome: <b>de qual participante, de qual post, de qual público.</b></p>
+      </section>
+
+      <!-- 11 MESMO SEM LOJA -->
+      <section class="slide" data-id="semloja" data-title="Mesmo sem loja" data-section="MESMO SEM E-COMMERCE" data-steps="1">
+        <div class="cv-q">
+          <p class="kicker tb-type" data-a="up"><b>//</b> O NOME SOZINHO JÁ VENDE</p>
+          <h2 class="mega tb-wide" data-a="mask">A Tigre não vende tubo na TV.</h2>
+          <p class="cv-q-2 tb-wide tb-grunge" data-a="mask" data-d="0.3">Vende na loja do bairro,<br />porque o cliente <em>pede.</em></p>
+          <p class="cv-q-3 tb-type tb-arrowbar" data-step="1" data-a="left">Quando o cliente final pede a sua marca, o seu cliente não troca de fornecedor.</p>
+        </div>
+      </section>
+
+      <!-- NOITE DAS LUTAS (renderizada ao vivo) -->
+      <section class="slide" data-id="luta" data-title="Noite das Lutas" data-section="NOITE DAS LUTAS // 22.05.2027">
+        <div class="cv-ring-banner" data-a="fade" data-d="0.3"><img src="/innovation-week/deck/logo-indemetal.webp" alt="" /><img src="/innovation-week/deck/logo-indemetal.webp" alt="" /><img src="/innovation-week/deck/logo-indemetal.webp" alt="" /></div>
+        <canvas class="cv-cast cv-cast-fight" id="cv-cast-fight" data-a="fade" data-d="0.1"></canvas>
+        <div class="cv-fight-copy">
+          <p class="kicker tb-type" data-a="up"><b>//</b> O ÚLTIMO EPISÓDIO</p>
+          <h2 class="head tb-wide" data-a="mask">Termina num ringue.<br /><em>Com o seu nome.</em></h2>
+          <p class="lead-t" data-a="up" data-d="0.4">Os 10 que sobram lutam na Coliseu, com público. <b>O campeão leva os R$ 10.000 da Indemetal.</b></p>
+        </div>
+      </section>
+
+      <!-- 12 PAINEL -->
+      <section class="slide" data-id="painel" data-title="Tudo medido" data-section="PROVA // DADOS REAIS">
+        <div class="cv-dash">
+          <div class="cv-dash-head">
+            <p class="kicker tb-type" data-a="up"><b>//</b> <span data-trk-status>RÓTULO DA INNOVATION WEEK // AO VIVO</span></p>
+            <h2 class="head tb-wide" data-a="mask">O público já escaneia<br /><em>o seu rótulo.</em></h2>
+          </div>
+          <div class="cv-dash-grid">
+            <div data-a="up"><span class="tb-type">LEITURAS DO QR</span><b class="tb-wide" data-trk="scans">—</b><i class="cv-spark"></i></div>
+            <div data-a="up" data-d="0.1"><span class="tb-type">RÓTULOS VERIFICADOS</span><b class="tb-wide" data-trk="verified">—</b><i class="cv-spark"></i></div>
+            <div data-a="up" data-d="0.2"><span class="tb-type">CADASTROS</span><b class="tb-wide" data-trk="signups">—</b><i class="cv-spark"></i></div>
+            <div data-a="up" data-d="0.3"><span class="tb-type">EXPERIÊNCIAS EM RA</span><b class="tb-wide" data-trk="ar">—</b><i class="cv-spark"></i></div>
+          </div>
+          <p class="cv-dash-foot tb-type" data-a="up" data-d="0.5">Na Casa Views, o mesmo painel mede <b>alcance, cliques, leads e vendas por participante.</b></p>
+        </div>
+      </section>
+
+      <!-- 13 PROPOSTA -->
+      <section class="slide" data-id="proposta" data-title="A proposta" data-section="A PROPOSTA" data-steps="1">
+        <div class="cv-deal">
+          <div class="cv-deal-col" data-a="left">
+            <p class="kicker tb-type"><b>//</b> A INDEMETAL ENTRA COM</p>
+            <ul class="tb-wide">
+              <li>Parte do tráfego pago</li>
+              <li>Alimentação e transporte do elenco</li>
+              <li><em>R$ 10.000</em> ao grande campeão</li>
+            </ul>
+          </div>
+          <div class="cv-deal-col cv-deal-get" data-step="1" data-a="right">
+            <p class="kicker tb-type"><b>//</b> E RECEBE</p>
+            <ul class="tb-wide">
+              <li>Uma semana com o seu nome</li>
+              <li>30 criadores falando da marca</li>
+              <li>Rótulo com personagem em RA</li>
+              <li>Outdoor no Meu Mundo</li>
+              <li>Presença na Noite das Lutas</li>
+              <li>Painel com cada resultado</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 14 CTA -->
+      <section class="slide" data-id="cta" data-title="Vamos?" data-section="PRÓXIMO PASSO">
+        <div class="back par" style="--d: -1.2"><span class="tb-wide tb-grunge" data-a="back">01.03.2027</span></div>
+        <div class="cv-cta">
+          <p class="tb-type cv-cta-k" data-a="up">ESTREIA EM <b id="cv-days">000</b> DIAS · <b>1</b> PATROCINADORA PRINCIPAL</p>
+          <h2 class="mega tb-wide tb-grunge" data-a="mask">O seu nome na<br /><em>boca do Brasil.</em></h2>
+          <div class="cv-cta-btn tb-wide" data-a="scale" data-d="0.6"><span>FECHAR A PARCERIA</span><i>›</i></div>
+          <p class="tb-type cv-cta-s" data-a="up" data-d="0.9">Próximo passo: carta de intenção. A semana 5 já tem nome.</p>
+        </div>
+      </section>
+
+      <!-- 15 OBRIGADO -->
+      <section class="slide" data-id="obrigado" data-title="Obrigado" data-section="CASA VIEWS">
+        <div class="back par" style="--d: -1.2"><span class="tb-wide tb-grunge" data-a="back">OBRIGADO</span></div>
+        <div class="cv-open">
+          <div class="cv-open-logos par" style="--d: 0.6">
+            <p class="cv-word tb-wide tb-grunge" data-a="mask">CASA<br />VIEWS</p>
+            <span class="open-x tb-wide" data-a="scale" data-d="0.35">×</span>
+            <img class="logo-ind" src="/innovation-week/deck/logo-indemetal.webp" alt="Indemetal" data-a="mask" data-d="0.5" />
+          </div>
+          <p class="thanks tb-wide" data-a="up" data-d="0.8">Muito <em>obrigado!</em></p>
+        </div>
+      </section>
+    </main>
+
+    <div class="chrome" aria-hidden="true">
+      <p class="ch-cv tb-wide">CASA<br />VIEWS</p>
+      <img class="ch-ind" src="/innovation-week/deck/logo-indemetal.webp" alt="" />
+      <div class="ch-foot tb-type">
+        <span class="ch-section" id="ch-section"></span>
+        <span class="ch-bar"><i id="ch-bar"></i></span>
+        <span class="ch-count"><b id="ch-n">01</b> / <span id="ch-total">15</span></span>
+      </div>
+      <span class="ch-barcode tb-barcode"></span>
+    </div>
+    <img class="pz-astro" src="/innovation-week/deck/astronaut.webp" alt="" aria-hidden="true" />
+    <div class="pz-sweep" aria-hidden="true"></div>
+    <div class="pz-black" aria-hidden="true"></div>
+    <p class="pz-hint tb-type" id="pz-hint" aria-hidden="true">PASSADOR / → AVANÇA // F TELA CHEIA // B TELA PRETA</p>
+    <p class="pz-goto tb-wide" id="pz-goto" aria-hidden="true"></p>
+
+    <script type="module" src="/src/casaviews/main.ts"></script>
+  </body>
+</html>
