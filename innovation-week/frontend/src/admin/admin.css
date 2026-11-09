@@ -238,6 +238,18 @@ html[data-state='ready'] .ad-main {
   padding: 20px 26px;
   font-size: 14px;
 }
+/* botão da apresentação Casa Views: no rosa do reality */
+.ad-present-cv {
+  background: #ff2e93;
+  border-color: #ff2e93;
+  color: #fff;
+  box-shadow: 4px 4px 0 0 var(--tb-white), 0 0 22px rgba(255, 46, 147, 0.45);
+}
+.ad-present-cv:hover,
+.ad-present-cv:focus-visible {
+  background: #ff5aa8;
+  border-color: #ff5aa8;
+}
 .ad-keys {
   display: grid;
   gap: 10px;
