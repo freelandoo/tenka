@@ -98,6 +98,7 @@ async function main(): Promise<void> {
   }
 
   await app.listen({ host: '0.0.0.0', port: env.port });
+  app.log.info({ node: process.version }, 'versão do Node');
 
   // Realtime (SSE): conexão dedicada em LISTEN. Independe das migrations —
   // reconecta sozinha se o banco ainda não estiver pronto.

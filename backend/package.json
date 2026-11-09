@@ -4,7 +4,7 @@
   "private": true,
   "description": "API do TENKA — Node + Fastify + Postgres (Railway). Substitui o backend Supabase.",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.23.4"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # --- build: compila TypeScript -> dist/ -----------------------------------
-FROM node:22-alpine AS build
+# Versão EXATA do Node (segurança): etiqueta solta pegava o patch em cache do Railway. 22.23.4 = release de segurança de 2026-10-20.
+FROM node:22.23.4-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -10,7 +11,7 @@ COPY src ./src
 RUN npm run build
 
 # --- prod: só dependências de runtime + dist + migrations -----------------
-FROM node:22-alpine AS prod
+FROM node:22.23.4-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
