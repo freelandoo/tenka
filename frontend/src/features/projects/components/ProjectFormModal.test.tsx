@@ -105,6 +105,28 @@ beforeEach(() => {
 });
 
 describe('ProjectFormModal — contato do cliente', () => {
+  it('envia cliente novo junto do projeto para criação transacional no backend', async () => {
+    const user = userEvent.setup();
+    render(<ProjectFormModal project={null} profiles={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('Nome do cliente *'), 'Cliente novo');
+    await user.type(screen.getByLabelText('Telefone'), '5511999998888');
+    await user.type(screen.getByLabelText('E-mail'), 'novo@exemplo.com');
+    await user.type(screen.getByLabelText('CPF/CNPJ (opcional)'), '12345678909');
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto transacional');
+    await user.type(screen.getByLabelText('Data de entrega *'), '2026-12-15');
+    await user.click(screen.getByRole('button', { name: 'Criar projeto' }));
+
+    await waitFor(() => expect(projectsService.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: null,
+        clientName: 'Cliente novo',
+        clientEmail: 'novo@exemplo.com',
+      }),
+    ));
+    expect(clientsService.createClient).not.toHaveBeenCalled();
+  });
+
   it('permite preencher telefone e e-mail de cliente existente e os envia com o projeto', async () => {
     const user = userEvent.setup();
     render(
@@ -220,6 +242,32 @@ describe('ProjectFormModal — mensalidade simplificada', () => {
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(projectsService.updateProject).toHaveBeenCalled());
+    expect(finance.saveSubscription).not.toHaveBeenCalled();
+  });
+
+  it('salva projeto e hospedagem pré-entrega na mesma chamada', async () => {
+    const user = userEvent.setup();
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue(financeDetail({
+      subscription: {
+        amount_cents: 30_000, due_day: 10, status: 'inactive',
+        asaas_subscription_id: null, hosting_status: 'pending_delivery',
+        delivery_triggered_at: null,
+      },
+    }));
+    render(
+      <ProjectFormModal project={makeProject({ subscription_active: false })} profiles={[]}
+        onClose={vi.fn()} onSaved={vi.fn()} />,
+    );
+
+    const fee = await screen.findByLabelText('Valor mensal (R$)');
+    await waitFor(() => expect(fee).toHaveValue(formatCurrencyFromCents(30_000)));
+    await user.clear(fee);
+    await user.type(fee, '350,00');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(projectsService.updateProject).toHaveBeenCalledWith(
+      'project-1', expect.objectContaining({ monthly_fee_cents: 35_000, due_day: 10 }),
+    ));
     expect(finance.saveSubscription).not.toHaveBeenCalled();
   });
 

@@ -73,6 +73,19 @@ describe('cliente Asaas', () => {
       .toBe('https://api-sandbox.asaas.com/v3/installments/ins_1/payments');
   });
 
+  it('cancela um Checkout pelo endpoint oficial', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'chk_1', status: 'CANCELED',
+    }), { status: 200 }));
+
+    await asaas.cancelCheckout('chk_1');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api-sandbox.asaas.com/v3/checkouts/chk_1/cancel',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('consulta e padroniza notificações do cliente em lote', async () => {
     const notification = {
       id: 'not_1', customer: 'cus_1', enabled: false,

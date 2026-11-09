@@ -220,6 +220,11 @@ export const asaas = {
   createCheckout(input: Record<string, unknown>) {
     return request<AsaasCheckout>('/checkouts', { method: 'POST', body: JSON.stringify(input) });
   },
+  cancelCheckout(id: string) {
+    return request<{ id: string; status?: string }>(`/checkouts/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+    });
+  },
   updatePayment(id: string, input: Record<string, unknown>) {
     return request<AsaasPayment>(`/payments/${encodeURIComponent(id)}`, {
       method: 'PUT', body: JSON.stringify(input),

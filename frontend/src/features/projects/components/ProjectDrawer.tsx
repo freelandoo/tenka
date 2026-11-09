@@ -105,7 +105,9 @@ export function ProjectDrawer({
       toast(finalizeResult?.checkoutIssue ? 'error' : 'success', action === 'finalize'
         ? finalizeResult?.checkoutIssue
           ? `Projeto entregue, mas o Checkout da hospedagem não foi gerado: ${checkoutIssue[finalizeResult.checkoutIssue] ?? finalizeResult.checkoutIssue}.`
-          : `Projeto "${project.name}" entregue. O Checkout da hospedagem está sendo preparado.`
+          : finalizeResult?.checkoutSessionId
+            ? `Projeto "${project.name}" entregue. O Checkout da hospedagem está sendo preparado.`
+            : `Projeto "${project.name}" entregue.`
         : archiveResult?.cleanupPending
           ? `Arquivamento de "${project.name}" iniciado. O projeto continua visível até o Asaas confirmar os cancelamentos.`
           : `Projeto "${project.name}" arquivado.`);
@@ -132,6 +134,21 @@ export function ProjectDrawer({
     }
   };
 
+  const cancelHostingCheckout = async () => {
+    const reason = (window.prompt('Por que este Checkout será cancelado?') ?? '').trim();
+    if (reason.length < 3) return;
+    setBusy(true);
+    try {
+      await financeService.cancelHostingCheckout(project.id, reason);
+      toast('success', 'Checkout da hospedagem cancelado.');
+      await loadFinance();
+    } catch (error) {
+      toast('error', error instanceof Error ? error.message : 'Falha ao cancelar o Checkout.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyCheckoutLink = async () => {
     const url = finance?.hostingCheckout?.checkout_url;
     if (!url) return;
@@ -148,6 +165,7 @@ export function ProjectDrawer({
     legacy: 'Fluxo anterior',
     pending_delivery: 'Contratada · aguardando entrega',
     checkout_pending: 'Aguardando autorização do cliente',
+    checkout_uncertain: 'Criação incerta · não gere outro Checkout',
     authorized: 'Autorizada · aguardando início',
     active: 'Recorrência ativa',
     checkout_expired: 'Checkout expirado',
@@ -156,7 +174,7 @@ export function ProjectDrawer({
     error: 'Atenção necessária',
   };
   const canRegenerateCheckout = Boolean(project.finalized_at && hostingStatus
-    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'error']
+    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'cancelled', 'error']
       .includes(hostingStatus)
     && (!finance?.hostingCheckout
       || ['failed', 'cancelled', 'expired'].includes(finance.hostingCheckout.status)));
@@ -427,6 +445,7 @@ export function ProjectDrawer({
           {finance.hostingCheckout?.checkout_url && ['active', 'paid'].includes(finance.hostingCheckout.status) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <a className="panel-btn panel-btn--sm" href={finance.hostingCheckout.checkout_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir Checkout</a>
             <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" onClick={() => void copyCheckoutLink()}><Copy size={14} /> Copiar link</button>
+            {finance.hostingCheckout.status === 'active' && <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void cancelHostingCheckout()}><X size={14} /> Cancelar Checkout</button>}
           </div>}
           {canRegenerateCheckout && <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" disabled={busy} onClick={() => void regenerateHostingCheckout()}>
             <RotateCcw size={14} /> Gerar novo Checkout

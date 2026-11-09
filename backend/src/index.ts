@@ -85,20 +85,19 @@ async function main(): Promise<void> {
     });
   };
 
-  // Sobe primeiro (health verde), depois aplica migrations em segundo plano.
-  await app.listen({ host: '0.0.0.0', port: env.port });
-
   if (hasDatabase && env.runMigrationsOnBoot) {
-    runMigrations()
-      .then(() => startFinanceJobs())
-      .catch((err) => {
-        app.log.error({ err }, 'Falha ao aplicar migrations no boot');
-      });
+    // O processo só aceita tráfego depois que o schema necessário por esta
+    // versão existe. Uma migration inválida derruba o deploy em vez de deixar
+    // `/ready` verde com rotas financeiras quebradas.
+    await runMigrations();
+    startFinanceJobs();
   } else if (!hasDatabase) {
     app.log.warn('DATABASE_URL ausente — servidor no ar, mas sem banco.');
   } else {
     startFinanceJobs();
   }
+
+  await app.listen({ host: '0.0.0.0', port: env.port });
 
   // Realtime (SSE): conexão dedicada em LISTEN. Independe das migrations —
   // reconecta sozinha se o banco ainda não estiver pronto.

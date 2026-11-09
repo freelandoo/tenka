@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { getPool, withActor } from '../db/pool';
 import { staffOnly, adminOnly } from '../auth/middleware';
@@ -15,6 +16,7 @@ import { contactStatusForProject } from '../whatsapp/repo';
 import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { firstHostingDueDate } from '../finance/dueDate';
+import { hostingCheckoutReference } from '../finance/hostingCheckout';
 import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
 import { projectValueChangeError } from '../finance/projectValueChange';
 import {
@@ -49,6 +51,8 @@ const PROJECT_PATCH_COLS = [
   'due_date',
   'color_key',
   'client_id',
+  'monthly_fee_cents',
+  'due_day',
 ] as const;
 
 const createSchema = z.object({
@@ -101,21 +105,22 @@ async function createHostingCheckoutSession(
   firstDueDate: string,
   actorId: string,
 ): Promise<{ id: string; queued: boolean }> {
+  const sessionId = randomUUID();
   const inserted = await client.query<{ id: string }>(
     `insert into public.asaas_checkout_sessions
-       (project_id, subscription_id, amount_cents, first_due_date,
+       (id, project_id, subscription_id, amount_cents, first_due_date,
         external_reference, created_by)
-     values ($1,$2,$3,$4::date,$5,$6)
+     values ($1,$2,$3,$4,$5::date,$6,$7)
      on conflict (project_id, purpose)
-       where status in ('queued','active','paid') do nothing
+       where status in ('queued','active','uncertain') do nothing
      returning id`,
-    [projectId, subscriptionId, amountCents, firstDueDate,
-      `project-subscription:${projectId}`, actorId],
+    [sessionId, projectId, subscriptionId, amountCents, firstDueDate,
+      hostingCheckoutReference(projectId, sessionId), actorId],
   );
   const checkoutId = inserted.rows[0]?.id ?? (await client.query<{ id: string }>(
     `select id from public.asaas_checkout_sessions
       where project_id = $1 and purpose = 'hosting'
-        and status in ('queued','active','paid')
+        and status in ('queued','active','uncertain')
       order by created_at desc limit 1`,
     [projectId],
   )).rows[0]?.id;
@@ -573,6 +578,19 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     }
     try {
       const id = await withActor(req.userId!, async (client) => {
+        let clientId = i.clientId;
+        if (!clientId) {
+          const createdClient = await client.query<{ id: string }>(
+            `insert into public.clients
+               (name, phone, email, cpf_cnpj, created_by)
+             values ($1,$2,$3,$4,$5)
+             returning id`,
+            [i.clientName.trim(), i.clientPhone.trim(), i.clientEmail.trim(),
+              clientCpfCnpj ?? '', req.userId],
+          );
+          clientId = createdClient.rows[0]?.id ?? null;
+          if (!clientId) throw new Error('Falha ao criar o cliente do projeto.');
+        }
         // Se um cliente existente foi selecionado, telefone/e-mail editados no
         // formulário são atualizados na mesma transação da criação. Assim o
         // projeto não nasce com um contato diferente do cadastro central.
@@ -604,7 +622,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             i.clientPhone,
             i.clientEmail,
             i.company,
-            i.clientId,
+            clientId,
             i.dueDay ?? Number(i.dueDate.slice(8, 10)),
           ],
         );
@@ -673,6 +691,38 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     if (!patch) return reply.code(400).send({ error: 'nada-a-atualizar' });
     try {
       const blocked = await withActor(req.userId!, async (client) => {
+        if (body.monthly_fee_cents !== undefined || body.due_day !== undefined) {
+          const monthlyFeeCents = Number(body.monthly_fee_cents);
+          const dueDay = Number(body.due_day);
+          if (!Number.isInteger(monthlyFeeCents) || monthlyFeeCents < 0
+              || (monthlyFeeCents > 0 && (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31))) {
+            return 'invalid-subscription' as const;
+          }
+          const subscription = await client.query<{
+            id: string; hosting_status: string; delivery_triggered_at: string | null;
+          }>(
+            `select id, hosting_status, delivery_triggered_at
+               from public.project_subscriptions where project_id = $1 for update`,
+            [id],
+          );
+          const current = subscription.rows[0];
+          if (!current || current.hosting_status === 'legacy') {
+            return 'subscription-separate-update-required' as const;
+          }
+          if (current.delivery_triggered_at) return 'hosting-delivery-locked' as const;
+          if (monthlyFeeCents === 0) {
+            await client.query('delete from public.project_subscriptions where id = $1', [current.id]);
+          } else {
+            await client.query(
+              `update public.project_subscriptions
+                  set amount_cents = $2, due_day = $3, status = 'inactive',
+                      hosting_status = 'pending_delivery', cancelled_at = null,
+                      sync_error = null
+                where id = $1`,
+              [current.id, monthlyFeeCents, dueDay],
+            );
+          }
+        }
         if (body.value_cents !== undefined) {
           const nextTotal = Number(body.value_cents);
           if (!Number.isInteger(nextTotal) || nextTotal < 0) return 'invalid-value' as const;
@@ -738,8 +788,12 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
                   where project_id = $1 and asaas_payment_id is not null and status = 'pending'`,
                 [id]),
               client.query(
-                `select 1 from public.asaas_checkout_sessions
-                  where project_id = $1 and status in ('queued','active','paid') limit 1`,
+                `select 1 from public.asaas_checkout_sessions cs
+                  join public.project_subscriptions ps on ps.id = cs.subscription_id
+                 where cs.project_id = $1
+                   and (cs.status in ('queued','active','uncertain')
+                     or (cs.status = 'paid' and ps.asaas_subscription_id is null))
+                 limit 1`,
                 [id],
               ),
             ]);
@@ -759,6 +813,15 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       if (blocked) {
         if (blocked === 'invalid-value') {
           return reply.code(400).send({ error: 'valor-total-invalido' });
+        }
+        if (blocked === 'invalid-subscription') {
+          return reply.code(400).send({ error: 'mensalidade-invalida' });
+        }
+        if (blocked === 'hosting-delivery-locked') {
+          return reply.code(409).send({ error: 'hospedagem-ja-entregue' });
+        }
+        if (blocked === 'subscription-separate-update-required') {
+          return reply.code(409).send({ error: 'mensalidade-exige-fluxo-financeiro' });
         }
         if (blocked === 'missing') {
           return reply.code(404).send({ error: 'projeto-inexistente' });
@@ -819,7 +882,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
            from public.asaas_checkout_sessions cs
            join public.project_subscriptions ps on ps.id = cs.subscription_id
           where cs.project_id = $1
-            and (cs.status in ('queued','active')
+            and (cs.status in ('queued','active','uncertain')
               or (cs.status = 'paid' and ps.asaas_subscription_id is null))
           limit 1`,
         [id],
@@ -1000,7 +1063,9 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       if (row.finalized_at) {
         return { queued: false, alreadyFinalized: true, checkoutIssue: null as string | null };
       }
-      const deliveryFlow = Boolean(row.subscription_id && row.hosting_status === 'pending_delivery');
+      const deliveryFlow = Boolean(row.subscription_id
+        && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'error']
+          .includes(row.hosting_status ?? ''));
       const live = Boolean(!deliveryFlow && row.subscription_id
         && (row.asaas_subscription_id || row.app_managed)
         && !['inactive', 'cancelled'].includes(row.subscription_status ?? ''));
@@ -1085,9 +1150,11 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         subscription_id: string | null; amount_cents: number | null;
         first_due_date: string | null; hosting_status: string | null;
         finalized_at: string | null; client_id: string | null; cpf_cnpj: string | null;
+        today: string;
       }>(
         `select ps.id as subscription_id, ps.amount_cents, ps.first_due_date,
-                ps.hosting_status, p.finalized_at, p.client_id, c.cpf_cnpj
+                ps.hosting_status, p.finalized_at, p.client_id, c.cpf_cnpj,
+                timezone('America/Sao_Paulo', now())::date::text as today
            from public.projects p
            left join public.project_subscriptions ps on ps.project_id = p.id
            left join public.clients c on c.id = p.client_id and c.archived_at is null
@@ -1101,18 +1168,28 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           || row.hosting_status === 'legacy') return 'not-contracted' as const;
       if (!row.client_id) return 'client' as const;
       if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
-      if (['checkout_pending', 'authorized', 'active'].includes(row.hosting_status ?? '')) {
+      if (['checkout_pending', 'checkout_uncertain', 'authorized', 'active']
+        .includes(row.hosting_status ?? '')) {
         return 'already-open' as const;
       }
+      const firstDueDate = row.hosting_status === 'cancelled' || row.first_due_date < row.today
+        ? firstHostingDueDate(row.today)
+        : row.first_due_date;
       const checkout = await createHostingCheckoutSession(
         client, id, row.subscription_id, Number(row.amount_cents),
-        row.first_due_date, req.userId!,
+        firstDueDate, req.userId!,
       );
       await client.query(
         `update public.project_subscriptions
-            set hosting_status = 'pending_delivery', sync_error = null
+            set hosting_status = 'pending_delivery', status = 'inactive',
+                asaas_subscription_id = null, app_managed = false,
+                first_due_date = $2::date, next_due_date = $2::date,
+                due_day = extract(day from $2::date)::int,
+                cancelled_at = null, contracted_at = case
+                  when hosting_status = 'cancelled' then now() else contracted_at end,
+                sync_error = null
           where id = $1`,
-        [row.subscription_id],
+        [row.subscription_id, firstDueDate],
       );
       return checkout;
     });
@@ -1134,20 +1211,38 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/projects/:id/reopen', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const result = await withActor(req.userId!, (client) => client.query(
-      `update public.projects p set finalized_at = null
-        where p.id = $1
-          and not exists (
-            select 1 from public.project_subscriptions ps
-             where ps.project_id = p.id
-               and ps.hosting_status in ('checkout_pending','authorized','active')
-          )
-          and not exists (
-            select 1 from public.asaas_checkout_sessions cs
-             where cs.project_id = p.id and cs.status in ('queued','active','paid')
-          )
-        returning id`, [id],
-    ));
+    const result = await withActor(req.userId!, async (client) => {
+      const reopened = await client.query(
+        `update public.projects p set finalized_at = null
+          where p.id = $1
+            and not exists (
+              select 1 from public.project_subscriptions ps
+               where ps.project_id = p.id
+                 and ps.hosting_status in (
+                   'checkout_pending','checkout_uncertain','authorized','active'
+                 )
+            )
+            and not exists (
+              select 1
+                from public.asaas_checkout_sessions cs
+                join public.project_subscriptions ps on ps.id = cs.subscription_id
+               where cs.project_id = p.id
+                 and (cs.status in ('queued','active','uncertain')
+                   or (cs.status = 'paid' and ps.asaas_subscription_id is null))
+            )
+          returning id`, [id],
+      );
+      if (!reopened.rows[0]) return reopened;
+      await client.query(
+        `update public.project_subscriptions
+            set hosting_status = 'pending_delivery', delivery_triggered_at = null,
+                first_due_date = null, status = 'inactive', sync_error = null
+          where project_id = $1
+            and hosting_status in ('checkout_expired','checkout_cancelled','error')`,
+        [id],
+      );
+      return reopened;
+    });
     if (!result.rows[0]) {
       const exists = await getPool().query('select 1 from public.projects where id = $1', [id]);
       return exists.rows[0]

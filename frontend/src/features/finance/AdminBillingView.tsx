@@ -270,7 +270,8 @@ export function AdminBillingView() {
       {reconciliation && reconciliation.divergences > 0 && <div className="finance-table-wrap"><table className="finance-table">
         <thead><tr><th>Origem</th><th>Pagamento Asaas</th><th>Tenka</th><th>Asaas</th><th>Divergência</th></tr></thead>
         <tbody>{reconciliation.rows.filter((row) => row.divergence !== 'none').slice(0, 50).map((row, index) => <tr key={`${row.asaasPaymentId ?? 'missing'}-${index}`}>
-          <td>{row.kind === 'project_payment' ? 'Projeto' : 'Mensalidade'}</td>
+          <td>{row.kind === 'project_payment' ? 'Projeto'
+            : row.kind === 'billing_batch' ? 'Cobrança consolidada' : 'Mensalidade'}</td>
           <td>{row.asaasPaymentId ?? '—'}</td>
           <td>{row.localStatus ?? 'Ausente'}</td><td>{row.providerStatus ?? 'Ausente'}</td>
           <td><span className="finance-badge finance-badge--error">{DIVERGENCE[row.divergence]}</span></td>

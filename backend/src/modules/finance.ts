@@ -234,12 +234,13 @@ async function consolidatedChargeCandidates(paymentId: string, dueDate: string) 
     client_name: string; cpf_cnpj: string | null; amount_cents: number;
     due_date: string | null; status: string; sync_status: string;
     asaas_payment_id: string | null; payment_url: string; billing_type: string;
+    kind: 'stage' | 'installment';
     archive_requested_at: string | null; archived_at: string | null;
   }>(
     `select pp.id, pp.project_id, p.name as project_name, p.client_id,
             coalesce(c.name, p.client_name) as client_name, c.cpf_cnpj,
             pp.amount_cents, pp.due_date, pp.status, pp.sync_status,
-            pp.asaas_payment_id, pp.payment_url, pp.billing_type,
+            pp.asaas_payment_id, pp.payment_url, pp.billing_type, pp.kind,
             p.archive_requested_at, p.archived_at
        from public.project_payments pp
        join public.projects p on p.id = pp.project_id
@@ -251,6 +252,7 @@ async function consolidatedChargeCandidates(paymentId: string, dueDate: string) 
   if (!clicked) return 'missing' as const;
   if (clicked.archived_at || clicked.archive_requested_at) return 'archiving' as const;
   if (!clicked.client_id) return 'client' as const;
+  if (clicked.kind === 'installment') return 'installment' as const;
   const items = await getPool().query<ConsolidatedChargeItem>(
     `with target_client as (
        select $1::uuid as payment_id, $2::date as due_date, $3::uuid as client_id
@@ -296,6 +298,7 @@ async function consolidatedChargeCandidates(paymentId: string, dueDate: string) 
          join target_client tc on tc.client_id = c.id
         where p.archived_at is null
           and p.archive_requested_at is null
+           and pp.kind = 'stage'
           and pp.amount_cents > 0
           and pp.status = 'pending'
           and (pp.id = tc.payment_id or pp.due_date <= tc.due_date)
@@ -647,6 +650,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = discardSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const result = await withActor(req.userId!, async (client) => {
+      const current = await client.query<{ kind: string; status: string }>(
+        'select kind, status from public.asaas_operations where id = $1 for update',
+        [id],
+      );
+      if (current.rows[0]?.kind === 'create_hosting_checkout'
+          && current.rows[0].status === 'uncertain') {
+        return 'unsafe-checkout' as const;
+      }
       const discarded = await client.query<{ id: string; checkout_session_id: string | null }>(
         `update public.asaas_operations
           set status = 'discarded', reviewed_by = $2, reviewed_at = now(), review_notes = $3
@@ -674,8 +685,70 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       }
       return discarded;
     });
+    if (result === 'unsafe-checkout') return reply.code(409).send({
+      error: 'checkout-incerto-nao-pode-ser-descartado',
+      message: 'Aguarde o Webhook identificar o Checkout e cancele-o antes de gerar outra tentativa.',
+    });
     if (!result.rows[0]) return reply.code(404).send({ error: 'operacao-inexistente' });
     return reply.send({ discarded: true });
+  });
+
+  app.post('/projects/:id/hosting-checkout/cancel', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const parsed = cancelChargeSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'motivo-obrigatorio' });
+    const checkout = await getPool().query<{
+      id: string; subscription_id: string; asaas_checkout_id: string | null; status: string;
+    }>(
+      `select id, subscription_id, asaas_checkout_id, status
+         from public.asaas_checkout_sessions
+        where project_id = $1 and status in ('queued','active','uncertain')
+        order by created_at desc limit 1`,
+      [id],
+    );
+    const row = checkout.rows[0];
+    if (!row) return reply.code(404).send({ error: 'checkout-aberto-inexistente' });
+    if (!row.asaas_checkout_id) return reply.code(409).send({
+      error: 'checkout-incerto-sem-id',
+      message: 'O Asaas ainda não informou o ID desta tentativa. Aguarde o Webhook antes de cancelar.',
+    });
+
+    await asaas.cancelCheckout(row.asaas_checkout_id);
+    await withActor(req.userId!, async (client) => {
+      await client.query(
+        `update public.asaas_checkout_sessions
+            set status = 'cancelled', sync_error = null, provider_event_at = now()
+          where id = $1 and status in ('queued','active','uncertain')`,
+        [row.id],
+      );
+      await client.query(
+        `update public.project_subscriptions
+            set hosting_status = case when hosting_status = 'active'
+              then hosting_status else 'checkout_cancelled' end,
+                sync_error = null
+          where id = $1`,
+        [row.subscription_id],
+      );
+      await client.query(
+        `update public.asaas_operations
+            set status = 'discarded', reviewed_by = $2, reviewed_at = now(),
+                review_notes = $3, last_error = null
+          where checkout_session_id = $1 and kind = 'create_hosting_checkout'
+            and status in ('pending','processing','failed','uncertain')`,
+        [row.id, req.userId, parsed.data.reason],
+      );
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'checkout_hospedagem_evento',$3::jsonb)`,
+        [id, req.userId, JSON.stringify({
+          eventType: 'CHECKOUT_CANCEL_REQUESTED',
+          asaasCheckoutId: row.asaas_checkout_id,
+          reason: parsed.data.reason,
+        })],
+      );
+    });
+    return reply.send({ cancelled: true });
   });
 
   app.put('/projects/:id/payment-plan/draft', adminOnly, async (req, reply) => {
@@ -1331,7 +1404,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (result === 'linha-desconhecida' || result === 'linha-repetida') {
         return reply.code(409).send({ error: 'plano-desatualizado' });
       }
-      if (result === 'linha-paga-imutavel' || result === 'linha-sincronizada-imutavel') {
+      if (result === 'linha-paga-imutavel' || result === 'linha-sincronizada-imutavel'
+          || result === 'parcelamento-asaas-imutavel') {
         return reply.code(409).send({ error: result });
       }
       if (result === 'asaas-not-configured') return reply.code(503).send({ error: 'asaas-nao-configurado' });
@@ -1537,6 +1611,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (result === 'client') return reply.code(409).send({ error: 'cliente-obrigatorio' });
+    if (result === 'installment') return reply.code(409).send({
+      error: 'parcelamento-asaas-nao-pode-ser-consolidado',
+    });
     const selectable = result.items.filter((item) => !item.already_in_batch);
     return reply.send({
       client: {
@@ -1560,6 +1637,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (preview === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (preview === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (preview === 'client') return reply.code(409).send({ error: 'cliente-obrigatorio' });
+    if (preview === 'installment') return reply.code(409).send({
+      error: 'parcelamento-asaas-nao-pode-ser-consolidado',
+    });
     if (!(preview.target.cpf_cnpj ?? '').replace(/\D/g, '')) {
       return reply.code(409).send({ error: 'cpf-cnpj-obrigatorio' });
     }

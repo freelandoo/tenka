@@ -8,6 +8,10 @@ import { competenceFromDueDate, paymentStatus } from './status';
 import { markArchiveCleanupAttention, tryFinalizePendingArchive } from './archiveCleanup';
 import { scheduleMonthlyCharge } from './monthlyScheduler';
 import { providerPaymentFacts } from './paymentFacts';
+import {
+  linkSubscriptionFromCheckoutPayment,
+  parseProjectSubscriptionReference,
+} from './hostingCheckout';
 
 export interface Operation {
   id: string;
@@ -1080,12 +1084,24 @@ async function finishOperation(operation: Operation): Promise<void> {
       } else if (operation.checkout_session_id) {
         await client.query(
           `update public.asaas_checkout_sessions
-              set status = case when $3 >= 5 then 'failed' else status end,
+              set status = case
+                    when $4 = 'uncertain' then 'uncertain'
+                    when $3 >= 5 then 'failed'
+                    else status end,
                   sync_error = $2
             where id = $1`,
-          [operation.checkout_session_id, message, operation.attempts],
+          [operation.checkout_session_id, message, operation.attempts, nextStatus],
         );
-        if (operation.attempts >= 5) {
+        if (nextStatus === 'uncertain') {
+          await client.query(
+            `update public.project_subscriptions ps
+                set hosting_status = 'checkout_uncertain', sync_error = $2
+               from public.asaas_checkout_sessions cs
+              where cs.id = $1 and ps.id = cs.subscription_id
+                and ps.hosting_status <> 'active'`,
+            [operation.checkout_session_id, message],
+          );
+        } else if (operation.attempts >= 5) {
           await client.query(
             `update public.project_subscriptions ps
                 set hosting_status = 'error', sync_error = $2
@@ -1121,7 +1137,6 @@ class WebhookNeedsReviewError extends Error {}
 const PROJECT_PAYMENT_REFERENCE = /^project-payment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const PROJECT_INSTALLMENT_REFERENCE = /^project-installment:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const BILLING_BATCH_REFERENCE = /^client-billing:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
-const PROJECT_SUBSCRIPTION_REFERENCE = /^project-subscription:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 function providerStatusForEvent(eventType: string, payment: Record<string, unknown>): string {
   const byEvent: Record<string, string> = {
@@ -1616,17 +1631,27 @@ async function processSubscriptionWebhook(
   const externalReference = typeof subscription.externalReference === 'string'
     ? subscription.externalReference : '';
   if (!providerId) throw new WebhookNeedsReviewError('Evento de assinatura sem identificador.');
-  const referenceProjectId = PROJECT_SUBSCRIPTION_REFERENCE.exec(externalReference)?.[1] ?? null;
+  const reference = parseProjectSubscriptionReference(externalReference);
   const target = await getPool().query<{
     id: string; project_id: string; status: string; provider_event_at: string | null;
   }>(
-    `select id, project_id, status, provider_event_at
-       from public.project_subscriptions
-      where asaas_subscription_id = $1
-         or ($2::uuid is not null and project_id = $2::uuid)
-      order by (asaas_subscription_id = $1) desc
+    `select ps.id, ps.project_id, ps.status, ps.provider_event_at
+       from public.project_subscriptions ps
+       left join public.asaas_checkout_sessions cs
+         on cs.subscription_id = ps.id and cs.id = $3::uuid
+      where ps.asaas_subscription_id = $1
+         or ($3::uuid is not null and cs.id = $3::uuid)
+         or ($3::uuid is null and $2::uuid is not null
+             and ps.project_id = $2::uuid and ps.asaas_subscription_id is null
+             and not exists (
+               select 1 from public.asaas_checkout_sessions attempt
+                where attempt.subscription_id = ps.id
+                  and attempt.external_reference like 'project-subscription:%:checkout:%'
+             ))
+      order by (ps.asaas_subscription_id = $1) desc,
+               (cs.id = $3::uuid) desc
       limit 1`,
-    [providerId, referenceProjectId],
+    [providerId, reference.projectId, reference.checkoutSessionId],
   );
   const local = target.rows[0];
   if (!local) {
@@ -1714,18 +1739,34 @@ async function processCheckoutWebhook(
     ? checkout.externalReference : '';
   if (!providerId) throw new WebhookNeedsReviewError('Evento de Checkout sem identificador.');
   const next = checkoutStatusForEvent(event.event_type);
-  const session = await getPool().query<{
+  const exactSession = await getPool().query<{
     id: string; project_id: string; subscription_id: string;
   }>(
     `select id, project_id, subscription_id
        from public.asaas_checkout_sessions
       where asaas_checkout_id = $1
-         or ($2 <> '' and external_reference = $2 and status in ('queued','active'))
-      order by (asaas_checkout_id = $1) desc, created_at desc
       limit 1`,
-    [providerId, externalReference],
+    [providerId],
   );
-  const local = session.rows[0];
+  let local = exactSession.rows[0];
+  if (!local && externalReference) {
+    const byReference = await getPool().query<{
+      id: string; project_id: string; subscription_id: string;
+    }>(
+      `select id, project_id, subscription_id
+         from public.asaas_checkout_sessions
+        where external_reference = $1
+        order by created_at desc
+        limit 2`,
+      [externalReference],
+    );
+    if (byReference.rows.length > 1) {
+      throw new WebhookNeedsReviewError(
+        `Checkout ${providerId} usa referência antiga ambígua: ${externalReference}.`,
+      );
+    }
+    local = byReference.rows[0];
+  }
   if (!local) {
     throw new WebhookNeedsReviewError(`Checkout sem sessão local reconhecida: ${providerId}.`);
   }
@@ -1806,6 +1847,7 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
   try {
     const payment = event.payload.payment as Record<string, unknown> | undefined;
     if (payment?.id) {
+      await linkSubscriptionFromCheckoutPayment(payment, event.event_at, event.id);
       const providerStatus = providerStatusForEvent(event.event_type, payment);
       const externalReference = typeof payment.externalReference === 'string'
         ? payment.externalReference

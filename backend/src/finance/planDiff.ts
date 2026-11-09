@@ -45,7 +45,10 @@ export interface ProtectedPlanRow extends PlanRowCurrent {
   asaasPaymentId?: string | null;
 }
 
-export type ProtectedPlanChangeError = 'linha-paga-imutavel' | 'linha-sincronizada-imutavel';
+export type ProtectedPlanChangeError =
+  | 'linha-paga-imutavel'
+  | 'linha-sincronizada-imutavel'
+  | 'parcelamento-asaas-imutavel';
 
 export interface IntegratedPlanUpdate {
   id: string;
@@ -159,6 +162,9 @@ export function integratedPlanUpdates(
     if (row.status === 'cancelled') continue;
     if (row.syncStatus === 'local') continue;
     if (row.syncStatus === 'failed' && !row.asaasPaymentId) continue;
+    if (row.kind === 'installment') {
+      return { error: 'parcelamento-asaas-imutavel', updates: [] };
+    }
     if (row.syncStatus !== 'synced' || !incoming || !sameIntegratedStructure(row, incoming)) {
       return { error: 'linha-sincronizada-imutavel', updates: [] };
     }

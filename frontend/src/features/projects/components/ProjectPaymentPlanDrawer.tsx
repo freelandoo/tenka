@@ -325,6 +325,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           ? 'Um item já pago não pode ser alterado nem removido.'
         : code === 'linha-sincronizada-imutavel'
           ? 'Cobrança sincronizada: altere somente valor ou vencimento e aguarde a sincronização atual terminar.'
+        : code === 'parcelamento-asaas-imutavel'
+          ? 'Parcelamento nativo já enviado ao Asaas não pode ser alterado por parcela. Cancele e refaça o grupo completo.'
         : code === 'plano-desatualizado'
           ? 'O plano mudou em outra tela. Feche e abra de novo para continuar.'
         : code.startsWith('metadados-') || code === 'grupo-incompleto'
@@ -363,14 +365,17 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           const recoverableFailed = row.syncStatus === 'failed' && !row.asaasPaymentId;
           const locallyEditable = row.syncStatus === 'local' || recoverableFailed;
           const structuralImmutable = settled || (!cancelled && !locallyEditable);
-          const financialImmutable = settled || cancelled
+          const integratedInstallment = row.kind === 'installment' && !locallyEditable;
+          const financialImmutable = settled || cancelled || integratedInstallment
             || !(locallyEditable || row.syncStatus === 'synced');
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
           return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">
               {row.kind === 'installment' && <small>{row.groupLabel || 'Parcelamento'}</small>}
               <input className="panel-input" aria-label={`Nome da ${itemLabel} ${index + 1}`} placeholder="Ex.: Entrada" value={row.name} disabled={structuralImmutable} onChange={(event) => update(index, { name: event.target.value })} />
-              {row.syncStatus === 'synced' && <small>Valor e vencimento serão alterados no Asaas</small>}
+              {row.syncStatus === 'synced' && <small>{integratedInstallment
+                ? 'Parcelamento nativo imutável: cancele e refaça o grupo completo'
+                : 'Valor e vencimento serão alterados no Asaas'}</small>}
               {recoverableFailed && <small>Falha anterior: revise e salve para tentar novamente</small>}
             </span>
             <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} onChange={(event) => update(index, { amount: event.target.value })} />
@@ -395,6 +400,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           <label className="panel-field"><span>Intervalo</span><input className="panel-input" value="Mensal — parcelamento nativo do Asaas" readOnly /></label>
           <label className="panel-field"><span>Descrição do grupo</span><input className="panel-input" maxLength={120} value={installmentForm.groupLabel} onChange={(event) => setInstallmentForm((form) => ({ ...form, groupLabel: event.target.value }))} /></label>
         </div>
+        <p className="panel-field__hint">Até 21 parcelas para Visa e Mastercard; outras bandeiras podem aceitar no máximo 12.</p>
         {installmentPreview.error ? <p className="finance-installments__empty">Informe uma quantidade válida e o primeiro vencimento para ver a prévia.</p> : <>
           <ol className="finance-installments__preview">
             {installmentPreview.installments.map((item, index) => <li className={index === installmentPreview.installments.length - 1 && item.amountCents !== installmentPreview.installments[0]?.amountCents ? 'has-remainder' : ''} key={item.number}><span>{item.name}</span><strong>{formatCurrencyFromCents(item.amountCents)}</strong><time dateTime={item.dueDate}>{formattedDate(item.dueDate)}</time></li>)}

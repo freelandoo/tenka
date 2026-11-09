@@ -1,6 +1,7 @@
 import { getPool, withActor } from '../db/pool';
-import { asaas } from './asaas';
+import { asaas, AsaasError, type AsaasPayment } from './asaas';
 import { reconcileFinancialPayments, type LocalFinancialPayment } from './reconciliation';
+import { linkSubscriptionFromCheckoutPayment } from './hostingCheckout';
 
 /**
  * Uma passada de conciliação entre a Tenka e o Asaas.
@@ -16,6 +17,11 @@ export interface ReconciliationSummary {
   divergences: number;
   reconciled: number;
   rows: ReturnType<typeof reconcileFinancialPayments>;
+  hosting: {
+    linkedSubscriptions: number;
+    syncedSubscriptions: number;
+    staleCheckouts: number;
+  };
 }
 
 async function listProviderPayments(dueDateFrom: string, dueDateTo: string) {
@@ -27,6 +33,99 @@ async function listProviderPayments(dueDateFrom: string, dueDateTo: string) {
     if (!page.hasMore && page.data.length < limit) return payments;
   }
   throw new Error('Conciliação excedeu 10.000 cobranças; reduza o intervalo para evitar dados truncados.');
+}
+
+async function reconcileHostingResources(
+  providerPayments: AsaasPayment[],
+): Promise<ReconciliationSummary['hosting']> {
+  let linkedSubscriptions = 0;
+  for (const payment of providerPayments) {
+    const linked = await linkSubscriptionFromCheckoutPayment(
+      payment as unknown as Record<string, unknown>,
+      new Date().toISOString(),
+    );
+    if (linked?.newlyLinked) linkedSubscriptions += 1;
+  }
+
+  const localSubscriptions = await getPool().query<{
+    id: string; project_id: string; asaas_subscription_id: string;
+  }>(
+    `select id, project_id, asaas_subscription_id
+       from public.project_subscriptions
+      where hosting_status <> 'legacy' and asaas_subscription_id is not null`,
+  );
+  let syncedSubscriptions = 0;
+  for (const local of localSubscriptions.rows) {
+    try {
+      const provider = await asaas.getSubscription(local.asaas_subscription_id);
+      const normalized = provider.deleted ? 'DELETED' : provider.status.toUpperCase();
+      const status = normalized === 'ACTIVE' ? 'active'
+        : normalized === 'INACTIVE' ? 'inactive'
+          : ['DELETED', 'EXPIRED'].includes(normalized) ? 'cancelled' : null;
+      if (!status) continue;
+      await withActor(null, async (client) => {
+        await client.query(
+          `update public.project_subscriptions
+              set status = $2,
+                  hosting_status = case
+                    when $2 = 'active' then 'active'
+                    when $2 = 'cancelled' then 'cancelled'
+                    when hosting_status = 'active' then 'authorized'
+                    else hosting_status end,
+                  asaas_subscription_id = case when $2 = 'cancelled' then null else $3 end,
+                  amount_cents = round(($4::numeric) * 100)::bigint,
+                  next_due_date = $5::date,
+                  billing_type = $6,
+                  last_synced_at = now(), sync_error = null,
+                  cancelled_at = case when $2 = 'cancelled'
+                    then coalesce(cancelled_at, now()) else cancelled_at end
+            where id = $1`,
+          [local.id, status, local.asaas_subscription_id, provider.value,
+            provider.nextDueDate, provider.billingType],
+        );
+        await client.query(
+          'update public.projects set subscription_active = $2 where id = $1',
+          [local.project_id, status === 'active'],
+        );
+      });
+      syncedSubscriptions += 1;
+    } catch (error) {
+      if (!(error instanceof AsaasError) || error.status !== 404) throw error;
+      await withActor(null, async (client) => {
+        await client.query(
+          `update public.project_subscriptions
+              set status = 'cancelled', hosting_status = 'cancelled',
+                  asaas_subscription_id = null, cancelled_at = coalesce(cancelled_at, now()),
+                  last_synced_at = now(), sync_error = null
+            where id = $1`,
+          [local.id],
+        );
+        await client.query(
+          'update public.projects set subscription_active = false where id = $1',
+          [local.project_id],
+        );
+      });
+      syncedSubscriptions += 1;
+    }
+  }
+
+  // O Asaas não oferece consulta de status do Checkout. Não inferimos
+  // expiração como fato financeiro: apenas colocamos a ausência do Webhook na
+  // fila operacional para impedir uma segunda tentativa insegura.
+  const stale = await withActor(null, (client) => client.query(
+    `update public.asaas_checkout_sessions cs
+        set sync_error = 'Checkout passou da expiração local sem evento terminal do Asaas.'
+      where cs.status = 'active' and cs.expires_at < now()
+        and cs.sync_error is distinct from
+            'Checkout passou da expiração local sem evento terminal do Asaas.'
+      returning cs.id`,
+  ));
+
+  return {
+    linkedSubscriptions,
+    syncedSubscriptions,
+    staleCheckouts: stale.rowCount ?? 0,
+  };
 }
 
 export async function runReconciliation(
@@ -101,6 +200,7 @@ export async function runReconciliation(
     localPayments, providerPayments, subscriptionProjects,
     billingBatchProjects, projectPaymentProjects,
   );
+  const hosting = await reconcileHostingResources(providerPayments);
   const ranAt = new Date().toISOString();
   await withActor(actorId, async (client) => {
     for (const row of rows) {
@@ -116,7 +216,14 @@ export async function runReconciliation(
     }
   });
   const divergences = rows.filter((row) => row.divergence !== 'none').length;
-  return { ranAt, rows, total: rows.length, divergences, reconciled: rows.length - divergences };
+  return {
+    ranAt,
+    rows,
+    total: rows.length,
+    divergences,
+    reconciled: rows.length - divergences,
+    hosting,
+  };
 }
 
 /** Janela padrão do job: o que venceu há pouco e o que vence em breve. */

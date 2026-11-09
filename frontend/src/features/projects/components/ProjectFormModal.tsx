@@ -40,7 +40,13 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
   const [subscriptionIsActive, setSubscriptionIsActive] = useState(project?.subscription_active ?? false);
   const [subscriptionHostingStatus, setSubscriptionHostingStatus] = useState<string | null>(null);
   const [subscriptionBaseline, setSubscriptionBaseline] =
-    useState<{ amountCents: number; dueDay: number; exists: boolean } | null>(null);
+    useState<{
+      amountCents: number;
+      dueDay: number;
+      exists: boolean;
+      hostingStatus: string | null;
+      deliveryTriggered: boolean;
+    } | null>(null);
 
   const activeProfiles = useMemo(() => profiles.filter((p) => p.active), [profiles]);
 
@@ -103,7 +109,10 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       setValue('clientCpfCnpj', formatCpfCnpj(detail.project.cpf_cnpj ?? ''));
       if (!detail.subscription) {
         setSubscriptionIsActive(false);
-        setSubscriptionBaseline({ amountCents: 0, dueDay: 0, exists: false });
+        setSubscriptionBaseline({
+          amountCents: 0, dueDay: 0, exists: false,
+          hostingStatus: null, deliveryTriggered: false,
+        });
         return;
       }
       setValue('monthlyFee', formatCurrencyFromCents(detail.subscription.amount_cents));
@@ -114,6 +123,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         amountCents: detail.subscription.amount_cents,
         dueDay: detail.subscription.due_day,
         exists: true,
+        hostingStatus: detail.subscription.hosting_status ?? 'legacy',
+        deliveryTriggered: Boolean(detail.subscription.delivery_triggered_at),
       });
     }).catch(() => undefined);
     return () => { cancelled = true; };
@@ -153,18 +164,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
     const assigneeIds = collectAssigneeIds(values);
 
     try {
-      // "Novo cliente" cria o cadastro antes — o projeto nasce já ligado a ele,
-      // então nunca sobra projeto com contato solto.
       let resolvedClientId = values.clientId || null;
-      if (!resolvedClientId) {
-        const created = await clientsService.createClient({
-          name: values.clientName,
-          phone: clientPhone,
-          email: clientEmail,
-          cpfCnpj: clientCpfCnpj,
-        });
-        resolvedClientId = created.id;
-      } else if (isEdit) {
+      if (resolvedClientId && isEdit) {
         const clientChanged =
           !selecionado ||
           values.clientName.trim() !== selecionado.name ||
@@ -182,6 +183,8 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
       }
 
       if (!isEdit) {
+        // O backend cria o cliente novo e o projeto na mesma transação quando
+        // `clientId` é nulo, evitando contato órfão se a criação falhar.
         await service.createProject({
           name: values.name,
           description: values.description,
@@ -201,6 +204,10 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         });
         toast('success', `Projeto "${values.name}" criado na coluna Início.`);
       } else {
+        const dueDay = Number(values.dueDay);
+        const atomicHostingEdit = Boolean(subscriptionBaseline?.exists
+          && subscriptionBaseline.hostingStatus !== 'legacy'
+          && !subscriptionBaseline.deliveryTriggered);
         await service.updateProject(project.id, {
           name: values.name,
           description: values.description,
@@ -212,12 +219,15 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           company: values.company,
           due_date: values.dueDate,
           color_key: values.colorKey as PostItColorKey,
+          ...(atomicHostingEdit ? {
+            monthly_fee_cents: monthlyFeeCents,
+            due_day: dueDay,
+          } : {}),
         });
-        const dueDay = Number(values.dueDay);
         const subscriptionChanged = !subscriptionBaseline
           || monthlyFeeCents !== subscriptionBaseline.amountCents
           || dueDay !== subscriptionBaseline.dueDay;
-        if (monthlyFeeCents > 0 && subscriptionChanged) {
+        if (!atomicHostingEdit && monthlyFeeCents > 0 && subscriptionChanged) {
           await finance.saveSubscription(project.id, {
             amountCents: monthlyFeeCents,
             dueDay,
@@ -226,7 +236,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
             activate: subscriptionIsActive,
             applyToCurrentPayment: false,
           });
-        } else if (monthlyFeeCents === 0
+        } else if (!atomicHostingEdit && monthlyFeeCents === 0
           && (subscriptionBaseline?.exists || project.monthly_fee_cents > 0)) {
           // Zerar o valor é como o admin remove a mensalidade. Antes isso não
           // fazia nada e a recorrência seguia cobrando no Asaas; agora o backend

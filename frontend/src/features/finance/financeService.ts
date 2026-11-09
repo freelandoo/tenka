@@ -73,7 +73,7 @@ export interface HostingCheckoutSession {
   id: string;
   project_id: string;
   subscription_id: string;
-  status: 'queued' | 'active' | 'paid' | 'cancelled' | 'expired' | 'failed';
+  status: 'queued' | 'active' | 'uncertain' | 'paid' | 'cancelled' | 'expired' | 'failed';
   amount_cents: number;
   first_due_date: string;
   checkout_url: string;
@@ -82,7 +82,7 @@ export interface HostingCheckoutSession {
 }
 
 export interface ReconciliationRow {
-  kind: 'subscription' | 'project_payment';
+  kind: 'subscription' | 'project_payment' | 'billing_batch';
   projectId: string | null;
   asaasPaymentId: string | null;
   localStatus: string | null;
@@ -151,6 +151,11 @@ export const regenerateHostingCheckout = (projectId: string) =>
   apiRequest<{ queued: boolean; checkoutSessionId: string }>(
     `/projects/${projectId}/hosting-checkout`, { method: 'POST' },
   );
+
+export const cancelHostingCheckout = (projectId: string, reason: string) =>
+  apiRequest<{ cancelled: true }>(`/projects/${projectId}/hosting-checkout/cancel`, {
+    method: 'POST', body: { reason },
+  });
 
 export interface SubscriptionInput {
   amountCents: number;

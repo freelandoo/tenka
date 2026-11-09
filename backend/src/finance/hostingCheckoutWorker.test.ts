@@ -43,7 +43,7 @@ vi.mock('../db/pool', () => ({
         checkout_session_id: 'checkout-local',
         checkout_status: 'queued',
         first_due_date: '2026-12-20',
-        checkout_external_reference: 'project-subscription:project-1',
+        checkout_external_reference: 'project-subscription:project-1:checkout:checkout-local',
         asaas_checkout_id: null,
         checkout_url: '',
       }] };
@@ -86,7 +86,7 @@ describe('worker do Checkout da hospedagem', () => {
     expect(hoisted.asaas.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
       billingTypes: ['CREDIT_CARD'],
       chargeTypes: ['RECURRENT'],
-      externalReference: 'project-subscription:project-1',
+      externalReference: 'project-subscription:project-1:checkout:checkout-local',
       customer: 'cus_1',
       subscription: { cycle: 'MONTHLY', nextDueDate: '2026-12-20 12:00:00' },
     }));

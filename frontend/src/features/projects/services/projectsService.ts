@@ -47,6 +47,8 @@ export interface UpdateProjectInput {
   company?: CompanyKey;
   due_date?: string;
   color_key?: PostItColorKey;
+  monthly_fee_cents?: number;
+  due_day?: number;
 }
 
 /**

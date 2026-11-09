@@ -479,6 +479,7 @@ export function SubscriptionList({
                   const labels: Record<string, string> = {
                     pending_delivery: 'Contratada e aguardando a entrega',
                     checkout_pending: 'Aguardando autorização do cliente',
+                    checkout_uncertain: 'Criação incerta — não gere outro Checkout',
                     authorized: 'Autorizada e aguardando o primeiro ciclo',
                     active: 'Recorrência ativa',
                     checkout_expired: 'Checkout expirado',
@@ -487,7 +488,7 @@ export function SubscriptionList({
                     error: 'Atenção necessária',
                   };
                   const canRegenerate = Boolean(manageProject.finalized_at
-                    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'error']
+                    && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'cancelled', 'error']
                       .includes(subscription.hosting_status)
                     && (!checkout || ['failed', 'expired', 'cancelled'].includes(checkout.status)));
                   return <>
@@ -505,6 +506,19 @@ export function SubscriptionList({
                     {checkout?.checkout_url && ['active', 'paid'].includes(checkout.status) && <div className="subscription-confirm__actions">
                       <a className="panel-btn panel-btn--primary" href={checkout.checkout_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir Checkout</a>
                       <button type="button" className="panel-btn panel-btn--ghost" onClick={() => void copyLink(checkout.checkout_url)}><Copy size={14} /> Copiar link</button>
+                      {checkout.status === 'active' && <button type="button" className="panel-btn panel-btn--ghost" disabled={manageBusy} onClick={() => {
+                        const reason = (window.prompt('Por que este Checkout será cancelado?') ?? '').trim();
+                        if (reason.length < 3) return;
+                        setManageBusy(true);
+                        void financeService.cancelHostingCheckout(manageProject.id, reason)
+                          .then(() => {
+                            toast('success', 'Checkout cancelado.');
+                            setManageProject(null);
+                            onChanged();
+                          })
+                          .catch((error: unknown) => toast('error', error instanceof Error ? error.message : 'Falha ao cancelar o Checkout.'))
+                          .finally(() => setManageBusy(false));
+                      }}><Trash2 size={14} /> Cancelar Checkout</button>}
                     </div>}
                     {canRegenerate && <button type="button" className="panel-btn panel-btn--primary" disabled={manageBusy} onClick={() => {
                       setManageBusy(true);

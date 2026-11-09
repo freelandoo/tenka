@@ -153,6 +153,30 @@ describe('protecao de linhas financeiras', () => {
       row({ id: ENTRADA, name: 'Entrada', amountCents: 210_000, dueDate: '2026-10-21' }),
     ])).toBe('linha-sincronizada-imutavel');
   });
+
+  it('recusa editar ou remover uma parcela do parcelamento nativo já sincronizado', () => {
+    const installment = protectedRow({
+      kind: 'installment',
+      installmentGroupId: '33333333-3333-4333-8333-333333333333',
+      installmentNumber: 1,
+      installmentCount: 3,
+      groupLabel: 'Restante',
+      syncStatus: 'synced',
+      asaasPaymentId: 'pay_1',
+      dueDate: '2026-10-20',
+    });
+    expect(protectedPlanChangeError([installment], [row({
+      id: ENTRADA,
+      kind: 'installment',
+      installmentGroupId: installment.installmentGroupId,
+      installmentNumber: 1,
+      installmentCount: 3,
+      groupLabel: 'Restante',
+      amountCents: 210_000,
+      dueDate: '2026-10-21',
+    })])).toBe('parcelamento-asaas-imutavel');
+    expect(protectedPlanChangeError([installment], [])).toBe('parcelamento-asaas-imutavel');
+  });
 });
 
 

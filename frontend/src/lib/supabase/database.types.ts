@@ -279,7 +279,7 @@ export type ProjectSubscriptionStatus =
   | 'draft' | 'pending_activation' | 'active' | 'inactive' | 'cancelled' | 'error';
 
 export type HostingStatus =
-  | 'legacy' | 'pending_delivery' | 'checkout_pending' | 'authorized' | 'active'
+  | 'legacy' | 'pending_delivery' | 'checkout_pending' | 'checkout_uncertain' | 'authorized' | 'active'
   | 'checkout_expired' | 'checkout_cancelled' | 'cancelled' | 'error';
 
 export interface ProjectSubscriptionRow {
