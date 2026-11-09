@@ -603,6 +603,7 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
   }
   if (operation.kind === 'cancel_project_charge') {
     if (!ctx.asaas_payment_id) throw new Error('Cobrança do projeto ainda não existe no Asaas.');
+    const prepareCorrection = operation.request_payload.prepareCorrection === true;
     let deleted = false;
     try {
       const current = await asaas.getPayment(ctx.asaas_payment_id);
@@ -618,13 +619,31 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
       else throw error;
     }
     if (deleted) await withActor(operation.requested_by ?? null, async (client) => {
-      await client.query(
-        `update public.project_payments
-            set status = 'cancelled', sync_status = 'synced', provider_status = 'DELETED',
-                sync_error = null, external_receipt_pending_at = null
-          where id = $1`,
-        [ctx.id],
-      );
+      if (prepareCorrection) {
+        // A nova cobrança só pode nascer depois que a anterior deixou de
+        // existir no Asaas. A linha volta a ser local, sem vencimento, para o
+        // operador revisar valor e data no plano antes de emitir outro link.
+        await client.query(
+          `update public.project_payments
+              set status = 'pending', due_date = null,
+                  asaas_payment_id = null, asaas_installment_id = null,
+                  external_reference = null, payment_url = '', bank_slip_url = '',
+                  pix_payload = '', billing_type = 'UNDEFINED',
+                  provider_status = 'CORRECTION_REQUIRED', provider_event_at = now(),
+                  sync_status = 'local', sync_error = null,
+                  external_receipt_pending_at = null
+            where id = $1`,
+          [ctx.id],
+        );
+      } else {
+        await client.query(
+          `update public.project_payments
+              set status = 'cancelled', sync_status = 'synced', provider_status = 'DELETED',
+                  sync_error = null, external_receipt_pending_at = null
+            where id = $1`,
+          [ctx.id],
+        );
+      }
       await client.query(
         `insert into public.project_activity (project_id, actor_id, action, metadata)
          values ($1,$2,'cobranca_cancelada',$3::jsonb)
@@ -632,6 +651,7 @@ async function executeProjectPaymentOperation(operation: Operation): Promise<str
         [ctx.project_id, operation.requested_by, JSON.stringify({
           scope: 'projeto', paymentName: ctx.name, asaasPaymentId: ctx.asaas_payment_id,
           reason: operation.request_reason, financeOperationId: operation.id,
+          correctionPrepared: prepareCorrection,
         })],
       );
     });
@@ -1317,6 +1337,22 @@ async function processProjectPaymentWebhook(
   if (!existing.rows[0]) {
     throw new WebhookNeedsReviewError(`Pagamento de projeto não encontrado: ${externalReference}.`);
   }
+  const cancelledForCorrection = await getPool().query(
+    `select 1 from public.asaas_operations
+      where project_payment_id = $1 and kind = 'cancel_project_charge'
+        and status = 'succeeded' and response_external_id = $2
+        and request_payload ->> 'prepareCorrection' = 'true'
+      limit 1`,
+    [projectPaymentId, String(payment.id)],
+  );
+  if (cancelledForCorrection.rows[0]) {
+    await recordPaymentWebhookActivity(event, existing.rows[0].project_id, {
+      scope: 'projeto', paymentName: existing.rows[0].name,
+      asaasPaymentId: String(payment.id), providerStatus,
+      ignoredBecause: 'cancelled_for_correction',
+    });
+    return;
+  }
   if (event.event_type === 'PAYMENT_DELETED') {
     const replacement = await getPool().query(
       `select 1
@@ -1873,8 +1909,10 @@ async function processProjectCheckoutWebhook(
   externalReference: string,
   nextStatus: 'active' | 'paid' | 'cancelled' | 'expired',
 ): Promise<boolean> {
-  const exact = await getPool().query<{ id: string; project_payment_id: string; project_id: string }>(
-    `select cs.id, cs.project_payment_id, pp.project_id
+  const exact = await getPool().query<{
+    id: string; project_payment_id: string; project_id: string; external_reference: string;
+  }>(
+    `select cs.id, cs.project_payment_id, pp.project_id, cs.external_reference
        from public.project_payment_checkout_sessions cs
        join public.project_payments pp on pp.id = cs.project_payment_id
       where cs.asaas_checkout_id = $1 limit 1`,
@@ -1883,9 +1921,9 @@ async function processProjectCheckoutWebhook(
   let local = exact.rows[0];
   if (!local && externalReference) {
     const byReference = await getPool().query<{
-      id: string; project_payment_id: string; project_id: string;
+      id: string; project_payment_id: string; project_id: string; external_reference: string;
     }>(
-      `select cs.id, cs.project_payment_id, pp.project_id
+        `select cs.id, cs.project_payment_id, pp.project_id, cs.external_reference
          from public.project_payment_checkout_sessions cs
          join public.project_payments pp on pp.id = cs.project_payment_id
         where cs.external_reference = $1 limit 1`,
@@ -1919,9 +1957,9 @@ async function processProjectCheckoutWebhook(
               sync_error = case when $5
                 then 'Checkout cancelado ou expirado. Gere um novo link.' else null end,
               payment_url = case when $5 then '' else payment_url end
-        where id = $1`,
+        where id = $1 and external_reference = $6`,
       [local.project_payment_id, paid, event.event_at,
-        `CHECKOUT_${nextStatus.toUpperCase()}`, unavailable],
+        `CHECKOUT_${nextStatus.toUpperCase()}`, unavailable, local.external_reference],
     );
     await client.query(
       `update public.asaas_operations
@@ -1949,17 +1987,19 @@ async function processProjectCheckoutPaymentWebhook(
   payment: Record<string, unknown>,
   projectPaymentId: string,
   providerStatus: string,
+  checkoutExternalReference: string,
 ): Promise<void> {
-  await getPool().query(
+  const applied = await getPool().query(
     `update public.project_payments
         set asaas_payment_id = coalesce(asaas_payment_id, $2),
             asaas_installment_id = coalesce(asaas_installment_id, $3),
             billing_type = coalesce(nullif($4, ''), billing_type),
             provider_status = $5
-      where id = $1`,
+      where id = $1 and external_reference = $6`,
     [projectPaymentId, String(payment.id),
       typeof payment.installment === 'string' ? payment.installment : null,
-      typeof payment.billingType === 'string' ? payment.billingType : '', providerStatus],
+      typeof payment.billingType === 'string' ? payment.billingType : '', providerStatus,
+      checkoutExternalReference],
   );
   const project = await getPool().query<{ project_id: string; name: string }>(
     'select project_id, name from public.project_payments where id = $1',
@@ -1968,6 +2008,7 @@ async function processProjectCheckoutPaymentWebhook(
   if (project.rows[0]) await recordPaymentWebhookActivity(event, project.rows[0].project_id, {
     scope: 'checkout_projeto', paymentName: project.rows[0].name,
     asaasPaymentId: String(payment.id), providerStatus,
+    ...((applied.rowCount ?? 0) === 0 ? { ignoredBecause: 'checkout_replaced' } : {}),
   });
 }
 
@@ -2095,17 +2136,20 @@ async function processWebhook(event: WebhookEvent): Promise<void> {
       const providerStatus = providerStatusForEvent(event.event_type, payment);
       const checkoutSession = typeof payment.checkoutSession === 'string'
         ? payment.checkoutSession : '';
-      const projectCheckout = checkoutSession ? await getPool().query<{ project_payment_id: string }>(
-        `select project_payment_id from public.project_payment_checkout_sessions
+      const projectCheckout = checkoutSession ? await getPool().query<{
+        project_payment_id: string; external_reference: string;
+      }>(
+        `select project_payment_id, external_reference from public.project_payment_checkout_sessions
           where asaas_checkout_id = $1 limit 1`,
         [checkoutSession],
-      ) : { rows: [] as Array<{ project_payment_id: string }> };
+      ) : { rows: [] as Array<{ project_payment_id: string; external_reference: string }> };
       const externalReference = typeof payment.externalReference === 'string'
         ? payment.externalReference
         : '';
       if (projectCheckout.rows[0]) {
         await processProjectCheckoutPaymentWebhook(
           event, payment, projectCheckout.rows[0].project_payment_id, providerStatus,
+          projectCheckout.rows[0].external_reference,
         );
       } else {
       const projectMatch = PROJECT_PAYMENT_REFERENCE.exec(externalReference);

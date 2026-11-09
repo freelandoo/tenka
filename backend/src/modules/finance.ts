@@ -108,7 +108,10 @@ const consolidatedChargeSchema = z.object({
 
 const subscriptionCancelSchema = z.object({ confirmation: z.string().trim().min(1).max(200) });
 
-const cancelChargeSchema = z.object({ reason: z.string().trim().min(3).max(500) });
+const cancelChargeSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  prepareCorrection: z.boolean().default(false),
+});
 
 const reconciliationSchema = z.object({
   dueDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -1438,11 +1441,13 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       const previous = await client.query<{
         project_id: string; status: string; name: string; due_date: string | null;
         amount_cents: number; kind: 'stage' | 'installment';
-        sync_status: string; financial_plan_status: string; client_id: string | null;
+        sync_status: string; provider_status: string | null;
+        financial_plan_status: string; client_id: string | null;
         cpf_cnpj: string | null;
         archive_requested_at: string | null;
       }>(
-        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.amount_cents, pp.sync_status, pp.kind,
+        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.amount_cents, pp.sync_status,
+                pp.provider_status, pp.kind,
                 p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
            join public.projects p on p.id = pp.project_id
@@ -1450,6 +1455,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           where pp.id = $1 for update of pp`, [id]);
       if (!previous.rows[0]) return { rows: [], queued: false, billingIssue: null };
       if (previous.rows[0].archive_requested_at) return 'archiving' as const;
+      if (previous.rows[0].provider_status === 'CORRECTION_REQUIRED'
+          && parsed.data.dueDate !== undefined) {
+        return 'correction-required' as const;
+      }
       if (blocksDirectIntegratedPaymentChange({
         status: previous.rows[0].status,
         dueDate: previous.rows[0].due_date,
@@ -1523,6 +1532,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (result === 'integrated-payment') {
       return reply.code(409).send({ error: 'pagamento-sincronizado-deve-ser-registrado-no-asaas' });
     }
+    if (result === 'correction-required') {
+      return reply.code(409).send({ error: 'correcao-pendente-no-plano' });
+    }
     if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (!result.rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (result.queued) financeWorker.kick();
@@ -1537,11 +1549,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const result = await withActor(req.userId!, async (client) => {
       const payment = await client.query<{
         project_id: string; due_date: string | null; status: string; sync_status: string;
+        provider_status: string | null;
         financial_plan_status: string; client_id: string | null; cpf_cnpj: string | null;
         archive_requested_at: string | null;
         kind: 'stage' | 'installment'; installment_group_id: string | null;
       }>(
-        `select pp.project_id, pp.due_date, pp.status, pp.sync_status,
+        `select pp.project_id, pp.due_date, pp.status, pp.sync_status, pp.provider_status,
                 pp.kind, pp.installment_group_id,
                 p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
@@ -1556,6 +1569,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       if (!row.client_id) return 'client' as const;
       if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
       if (row.financial_plan_status !== 'active' || row.status !== 'pending') return 'not-pending' as const;
+      if (row.provider_status === 'CORRECTION_REQUIRED') return 'correction-required' as const;
       if (!['local', 'failed'].includes(row.sync_status)) return 'already-synced' as const;
       let operationPaymentId = id;
       if (row.kind === 'installment') {
@@ -1602,6 +1616,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       'not-pending': [409, 'pagamento-nao-esta-pendente'],
       archiving: [409, 'projeto-em-arquivamento'],
       'installment-plan': [409, 'parcelamento-asaas-incompleto'],
+      'correction-required': [409, 'correcao-pendente-no-plano'],
       'already-synced': [409, 'cobranca-ja-sincronizada-ou-em-processamento'],
     };
     if (typeof result === 'string') {
@@ -1730,12 +1745,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = cancelChargeSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'motivo-obrigatorio' });
     const result = await withActor(req.userId!, async (client) => {
-      const payment = await client.query<{ project_id: string; status: string; asaas_payment_id: string | null }>(
-        'select project_id, status, asaas_payment_id from public.project_payments where id = $1 for update', [id]);
+      const payment = await client.query<{
+        project_id: string; status: string; asaas_payment_id: string | null;
+        kind: 'stage' | 'installment';
+      }>(
+        `select project_id, status, asaas_payment_id, kind
+           from public.project_payments where id = $1 for update`, [id]);
       const row = payment.rows[0];
       if (!row) return 'missing' as const;
       if (row.status === 'paid') return 'paid' as const;
       if (!row.asaas_payment_id) return 'local' as const;
+      if (parsed.data.prepareCorrection && row.kind === 'installment') {
+        return 'installment' as const;
+      }
       const receipt = await client.query(
         `select 1 from public.payment_receipt_intents
           where project_payment_id = $1
@@ -1744,7 +1766,8 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       );
       if (receipt.rows[0]) return 'receipt-in-progress' as const;
       const queued = await queueProjectPaymentOperation(
-        client, row.project_id, id, 'cancel_project_charge', {}, parsed.data.reason,
+        client, row.project_id, id, 'cancel_project_charge',
+        { prepareCorrection: parsed.data.prepareCorrection }, parsed.data.reason,
       );
       if (queued) await client.query(
         "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1", [id]);
@@ -1753,6 +1776,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
     if (result === 'paid') return reply.code(409).send({ error: 'pagamento-ja-realizado' });
     if (result === 'local') return reply.code(409).send({ error: 'cobranca-nao-sincronizada' });
+    if (result === 'installment') return reply.code(409).send({
+      error: 'parcelamento-asaas-exige-cancelamento-do-grupo',
+    });
     if (result === 'receipt-in-progress') return reply.code(409).send({ error: 'baixa-manual-em-andamento' });
     if (result === 'duplicate') return reply.code(409).send({ error: 'cancelamento-ja-em-processamento' });
     financeWorker.kick();
@@ -1790,11 +1816,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
       );
       await client.query(
         `update public.project_payments
-            set payment_url = '', provider_status = 'CHECKOUT_CANCELLED',
-                sync_status = 'failed',
-                sync_error = 'Checkout cancelado. Gere um novo link.'
+            set status = case when $2 then 'pending' else 'cancelled' end,
+                due_date = case when $2 then null else due_date end,
+                asaas_payment_id = null, asaas_installment_id = null,
+                external_reference = case when $2 then null else external_reference end,
+                payment_url = '', bank_slip_url = '', pix_payload = '',
+                billing_type = case when $2 then 'UNDEFINED' else billing_type end,
+                provider_status = case when $2
+                  then 'CORRECTION_REQUIRED' else 'CHECKOUT_CANCELLED' end,
+                provider_event_at = case when $2 then now() else provider_event_at end,
+                sync_status = case when $2 then 'local' else 'synced' end,
+                sync_error = null, external_receipt_pending_at = null
           where id = $1 and status = 'pending'`,
-        [id],
+        [id, parsed.data.prepareCorrection],
       );
       await client.query(
         `update public.asaas_operations
@@ -1810,11 +1844,11 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
          values ($1,$2,'checkout_projeto_evento',$3::jsonb)`,
         [row.project_id, req.userId, JSON.stringify({
           eventType: 'CHECKOUT_CANCEL_REQUESTED', asaasCheckoutId: row.asaas_checkout_id,
-          reason: parsed.data.reason,
+          reason: parsed.data.reason, correctionPrepared: parsed.data.prepareCorrection,
         })],
       );
     });
-    return reply.send({ cancelled: true });
+    return reply.send({ cancelled: true, readyForEdit: parsed.data.prepareCorrection });
   });
 
   // A intenção e o ator são persistidos antes da chamada externa. O worker

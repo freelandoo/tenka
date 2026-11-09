@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Banknote, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, Plus, ReceiptText, RotateCcw, Trash2, X } from 'lucide-react';
+import { Banknote, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, PencilLine, Plus, ReceiptText, RotateCcw, Trash2, X } from 'lucide-react';
 import { subscribeRealtime } from '../../../lib/api/events';
 import type { ProjectPaymentRow } from '../../../lib/supabase/database.types';
 import * as finance from '../../finance/financeService';
@@ -41,6 +41,7 @@ type PendingConfirm =
   | { kind: 'receipt'; item: ProjectPaymentRow }
   | { kind: 'localReceipt'; item: ProjectPaymentRow }
   | { kind: 'reopen'; item: ProjectPaymentRow }
+  | { kind: 'correct'; item: ProjectPaymentRow }
   | { kind: 'cancel'; item: ProjectPaymentRow };
 
 function localIsoDate(): string {
@@ -68,6 +69,11 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const [planEditor, setPlanEditor] = useState<{
     project: { id: string; name: string; value_cents: number };
     appendStage: boolean;
+    correctionPaymentId?: string;
+  } | null>(null);
+  const [pendingCorrection, setPendingCorrection] = useState<{
+    paymentId: string;
+    project: { id: string; name: string; value_cents: number };
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -111,6 +117,18 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     });
   }, [payments]);
 
+  useEffect(() => {
+    if (!pendingCorrection) return;
+    const item = payments.find((payment) => payment.id === pendingCorrection.paymentId);
+    if (item?.provider_status !== 'CORRECTION_REQUIRED' || item.sync_status !== 'local') return;
+    setPlanEditor({
+      project: pendingCorrection.project,
+      appendStage: false,
+      correctionPaymentId: item.id,
+    });
+    setPendingCorrection(null);
+  }, [payments, pendingCorrection]);
+
   const summary = useMemo(() => {
     let pendingTotal = 0;
     let pendingCount = 0;
@@ -137,6 +155,18 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     setPlanEditor({
       project: { id: group.projectId, name: group.projectName, value_cents: group.totalCents },
       appendStage: true,
+    });
+  };
+
+  const openCorrection = (item: ProjectPaymentRow) => {
+    setPlanEditor({
+      project: {
+        id: item.project_id,
+        name: item.project_name || 'Projeto',
+        value_cents: cents(item.project_value_cents),
+      },
+      appendStage: false,
+      correctionPaymentId: item.id,
     });
   };
 
@@ -241,15 +271,32 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     } finally { setBusyId(null); }
   };
 
-  const cancelCharge = async (item: ProjectPaymentRow, reason: string) => {
+  const cancelCharge = async (
+    item: ProjectPaymentRow, reason: string, prepareCorrection = false,
+  ) => {
     setBusyId(item.id);
     try {
-      if (item.external_reference?.includes(':checkout:')) {
-        await finance.cancelProjectCheckout(item.id, reason);
+      // Depois que o cliente escolhe a forma de pagamento no Checkout, o
+      // vínculo passa a ter também um payment id. Nesse caso é a cobrança
+      // concreta que deve ser cancelada, não apenas a sessão de escolha.
+      if (!item.asaas_payment_id && item.external_reference?.includes(':checkout:')) {
+        await finance.cancelProjectCheckout(item.id, reason, prepareCorrection);
       } else {
-        await finance.cancelProjectCharge(item.id, reason);
+        await finance.cancelProjectCharge(item.id, reason, prepareCorrection);
       }
-      toast('success', 'Cancelamento enviado ao Asaas.');
+      if (prepareCorrection) {
+        setPendingCorrection({
+          paymentId: item.id,
+          project: {
+            id: item.project_id,
+            name: item.project_name || 'Projeto',
+            value_cents: cents(item.project_value_cents),
+          },
+        });
+        toast('success', 'Cancelamento enviado. O editor abre assim que o Asaas confirmar.');
+      } else {
+        toast('success', 'Cancelamento enviado ao Asaas.');
+      }
       setConfirming(null);
       await load();
     } catch (caught) {
@@ -270,6 +317,15 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     const busy = busyId === item.id;
     const integrated = item.sync_status !== 'local';
     if (!integrated) {
+      if (item.provider_status === 'CORRECTION_REQUIRED') {
+        return <span className="project-payments__actions">
+          <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm"
+            aria-label={`Ajustar valor e data — ${label}`} title="Continuar correção no plano"
+            disabled={!isAdmin || busy} onClick={() => openCorrection(item)}>
+            <PencilLine size={13} /> Ajustar
+          </button>
+        </span>;
+      }
       const chargeTitle = 'Gerar Checkout no Asaas: Pix à vista ou cartão em até 6x.';
       return <span className="project-payments__actions">
         {item.status === 'pending' && (
@@ -305,14 +361,17 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
           title="Tentar gerar novamente: Pix à vista ou cartão em até 6x."
           disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}><ReceiptText size={14} /></button>
       )}
-      {item.sync_status === 'synced'
+      {['synced', 'failed'].includes(item.sync_status)
         && ['pending', 'overdue', 'failed'].includes(item.status)
         && (item.asaas_payment_id || item.external_reference?.includes(':checkout:')) && <>
         {item.asaas_payment_id && !item.external_reference?.includes(':checkout:') && <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Registrar pagamento por fora — ${label}`} title="Registrar pagamento por fora"
           disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'receipt', item })}><Banknote size={14} /></button>}
+        {item.kind === 'stage' && <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Corrigir cobrança — ${label}`} title="Cancelar e corrigir valor ou vencimento"
+          disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'correct', item })}><PencilLine size={14} /></button>}
         <button type="button" className="panel-iconbtn fees__billing-icon"
-          aria-label={`Cancelar cobrança — ${label}`} title={item.external_reference?.includes(':checkout:') ? 'Cancelar Checkout' : 'Cancelar cobrança'}
+          aria-label={`Cancelar cobrança — ${label}`} title={!item.asaas_payment_id && item.external_reference?.includes(':checkout:') ? 'Cancelar Checkout' : 'Cancelar cobrança'}
           disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'cancel', item })}><Trash2 size={14} /></button>
       </>}
       {item.provider_status === 'OVERDUE' && ['pending', 'overdue'].includes(item.status)
@@ -350,6 +409,9 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   };
 
   const renderDate = (item: ProjectPaymentRow) => {
+    if (item.provider_status === 'CORRECTION_REQUIRED') {
+      return <span className="finance-warning">Correção pendente</span>;
+    }
     if (item.due_date) return <span className="fees__due">{formatDate(item.due_date)}</span>;
     if (dateEditorId === item.id) {
       return (
@@ -451,7 +513,10 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
       </div>
 
       {planEditor && (
-        <ProjectPaymentPlanDrawer project={planEditor.project} appendStage={planEditor.appendStage} onBack={() => setPlanEditor(null)} onClose={() => setPlanEditor(null)} onSaved={() => { setPlanEditor(null); void load(); }} />
+        <ProjectPaymentPlanDrawer project={planEditor.project} appendStage={planEditor.appendStage}
+          correctionPaymentId={planEditor.correctionPaymentId}
+          onBack={() => setPlanEditor(null)} onClose={() => setPlanEditor(null)}
+          onSaved={() => { setPlanEditor(null); void load(); }} />
       )}
 
       {consolidating && (
@@ -614,6 +679,29 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
           confirmLabel="Cancelar cobrança"
           busy={busyId === confirming.item.id}
           onConfirm={(_date, reason) => void cancelCharge(confirming.item, reason)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === 'correct' && (
+        <ConfirmDialog
+          title="Cancelar e corrigir cobrança"
+          description={<>
+            Primeiro a cobrança atual é cancelada no Asaas. Somente depois da
+            confirmação o plano libera esta etapa para você ajustar o valor e
+            escolher uma nova data. Nenhuma cobrança nova é criada antes disso.
+          </>}
+          details={[
+            { label: 'Cobrança atual', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor atual', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          tone="danger"
+          textField={{ label: 'Motivo da correção', placeholder: 'Ex.: pagamento renegociado em duas etapas', minLength: 3 }}
+          warning="O link atual deixa de funcionar. O novo link só será gerado depois que você revisar e salvar o plano."
+          confirmLabel="Cancelar e abrir correção"
+          busy={busyId === confirming.item.id}
+          onConfirm={(_date, reason) => void cancelCharge(confirming.item, reason, true)}
           onCancel={() => setConfirming(null)}
         />
       )}

@@ -317,6 +317,23 @@ describe('worker de cobranças de projeto', () => {
     )).toBe(true);
   });
 
+  it('só libera a linha para correção depois de cancelar a cobrança no Asaas', async () => {
+    hoisted.asaasPaymentId = 'pay_1';
+    hoisted.asaas.deletePayment.mockResolvedValue({ deleted: true, id: 'pay_1' });
+    const correction = operation('cancel_project_charge');
+    correction.request_payload = { prepareCorrection: true };
+
+    await expect(executeOperation(correction)).resolves.toBe('pay_1');
+
+    expect(hoisted.asaas.deletePayment).toHaveBeenCalledWith('pay_1');
+    const released = hoisted.queries.find((query) =>
+      query.sql.includes("provider_status = 'CORRECTION_REQUIRED'"));
+    expect(released?.sql).toContain("sync_status = 'local'");
+    expect(released?.sql).toContain('asaas_payment_id = null');
+    expect(released?.sql).toContain('due_date = null');
+    expect(released?.values[0]).toBe('77777777-7777-4777-8777-777777777777');
+  });
+
   it('edita valor e vencimento no Asaas e aguarda o webhook para trocar os dados locais', async () => {
     hoisted.asaasPaymentId = 'pay_1';
     hoisted.asaas.updatePayment.mockResolvedValue({

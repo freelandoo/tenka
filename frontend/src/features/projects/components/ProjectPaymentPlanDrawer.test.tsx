@@ -254,6 +254,46 @@ describe('ProjectPaymentPlanDrawer', () => {
     })));
   });
 
+  it('sugere o saldo do contrato ao corrigir uma cobrança cancelada', async () => {
+    const correctionId = '11111111-1111-4111-8111-111111111111';
+    const base = {
+      project_id: 'project-1', description: '', paid_at: null, status: 'pending' as const,
+      notes: '', receipt_url: '', kind: 'stage' as const, installment_group_id: null,
+      installment_number: null, installment_count: null, group_label: '',
+      asaas_payment_id: null, external_reference: null, payment_url: '', bank_slip_url: '',
+      pix_payload: '', billing_type: 'UNDEFINED' as const, sync_error: null,
+      payment_date: null, provider_event_at: null,
+    };
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'production',
+      project: { id: 'project-1', name: 'Ecoluz', value_cents: 70_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [
+        {
+          ...base, id: correctionId, name: 'Pagamento do projeto', amount_cents: 70_000,
+          due_date: null, position: 0, provider_status: 'CORRECTION_REQUIRED', sync_status: 'local',
+        },
+        {
+          ...base, id: '22222222-2222-4222-8222-222222222222', name: 'Etapa 2',
+          amount_cents: 35_000, due_date: null, position: 1, provider_status: null,
+          sync_status: 'local',
+        },
+      ],
+      subscriptionPayments: [], paymentPlanDraft: null,
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'Ecoluz', value_cents: 70_000 }}
+      correctionPaymentId={correctionId}
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(await screen.findByText('Cobrança anterior cancelada.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Valor da etapa 1')).toHaveValue('350,00');
+    expect(screen.getByLabelText('Valor da etapa 2')).toHaveValue('350,00');
+    expect(screen.getByLabelText('Vencimento da etapa 1')).toHaveValue('');
+    expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 0,00');
+  });
+
   it('permite ajustar valor e vencimento sincronizados sem liberar estrutura ou exclusão', async () => {
     const synced = (id: string, name: string, amount: number, dueDate: string, position: number) => ({
       id, project_id: 'project-1', name, description: '', amount_cents: amount,

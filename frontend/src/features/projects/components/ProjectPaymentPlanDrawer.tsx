@@ -97,9 +97,12 @@ const draftPayload = (rows: DraftRow[]): finance.PaymentPlanDraftRow[] => rows.m
 
 const serializedDraft = (rows: DraftRow[]) => JSON.stringify(draftPayload(rows));
 
-export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack, onClose, onSaved }: {
+export function ProjectPaymentPlanDrawer({
+  project, appendStage = false, correctionPaymentId, onBack, onClose, onSaved,
+}: {
   project: PaymentPlanProject;
   appendStage?: boolean;
+  correctionPaymentId?: string;
   onBack(): void;
   onClose(): void;
   onSaved(): void;
@@ -125,14 +128,19 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     finance.fetchProjectFinance(project.id).then((detail) => {
       if (!cancelled) {
         const activeById = new Map(detail.projectPayments.map((item) => [item.id, item]));
-        const source = detail.paymentPlanDraft?.payments ?? detail.projectPayments.map((item) => ({
+        const activePlan = detail.projectPayments.map((item) => ({
           id: item.id, name: item.name, description: item.description,
           amountCents: item.amount_cents, dueDate: item.due_date,
           kind: item.kind, installmentGroupId: item.installment_group_id,
           installmentNumber: item.installment_number, installmentCount: item.installment_count,
           groupLabel: item.group_label,
         }));
-        const loaded: DraftRow[] = source.map((item) => {
+        // Uma correção sempre parte do plano publicado. Restaurar um rascunho
+        // antigo aqui poderia reintroduzir os dados da cobrança cancelada.
+        const source = correctionPaymentId
+          ? activePlan
+          : detail.paymentPlanDraft?.payments ?? activePlan;
+        let loaded: DraftRow[] = source.map((item) => {
           const active = item.id ? activeById.get(item.id) : undefined;
           return {
             id: item.id, name: item.name, description: item.description,
@@ -146,8 +154,21 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
             installmentCount: item.installmentCount, groupLabel: item.groupLabel,
           };
         });
-        const opened = appendStage
-          ? loaded.length === 0 || isDefaultProjectPayment(loaded[0], project.value_cents)
+        if (correctionPaymentId) {
+          const distributedElsewhere = loaded.reduce((sum, row) => {
+            if (row.id === correctionPaymentId || row.status === 'cancelled') return sum;
+            return sum + (parseCurrencyToCents(row.amount) ?? 0);
+          }, 0);
+          const suggestedAmount = project.value_cents - distributedElsewhere;
+          loaded = loaded.map((row) => row.id === correctionPaymentId ? {
+            ...row,
+            amount: suggestedAmount > 0 ? moneyInput(suggestedAmount) : '',
+            dueDate: '',
+          } : row);
+        }
+        const opened = correctionPaymentId ? loaded : appendStage
+          ? loaded.length === 0 || (loaded.length === 1
+              && isDefaultProjectPayment(loaded[0], project.value_cents))
             ? quickSplit(project.value_cents, loaded[0])
             : [...loaded, emptyStage(loaded.length)]
           : loaded;
@@ -160,7 +181,7 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
     }).catch((error) => toast('error', error instanceof Error ? error.message : 'Falha ao carregar o plano.'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [appendStage, project.id, project.value_cents, toast]);
+  }, [appendStage, correctionPaymentId, project.id, project.value_cents, toast]);
 
   useEffect(() => { rowsRef.current = rows; }, [rows]);
 
@@ -354,6 +375,10 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
       <button type="button" className="panel-iconbtn" aria-label="Fechar" onClick={() => void closeWithDraft(onClose)}><X size={18} /></button>
     </header>
     <p className="cart-panel__hint">Combine entrada, etapas e parcelas. Itens sem vencimento continuam internos até que uma data seja definida.</p>
+    {correctionPaymentId && <div className="finance-plan__correction" role="status">
+      <strong>Cobrança anterior cancelada.</strong>
+      <span>O valor sugerido completa o contrato com as outras etapas. Revise o valor, escolha o novo vencimento e salve para gerar outro link.</span>
+    </div>}
     {loading ? <p className="panel-field__hint">Carregando plano…</p> : <>
       <div className="finance-plan">
         {rows.map((row, index) => {
@@ -369,7 +394,8 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
           const financialImmutable = settled || cancelled || integratedInstallment
             || !(locallyEditable || row.syncStatus === 'synced');
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
-          return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
+          const correcting = row.id === correctionPaymentId;
+          return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}${correcting ? ' is-correction' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">
               {row.kind === 'installment' && <small>{row.groupLabel || 'Parcelamento'}</small>}
               <input className="panel-input" aria-label={`Nome da ${itemLabel} ${index + 1}`} placeholder="Ex.: Entrada" value={row.name} disabled={structuralImmutable} onChange={(event) => update(index, { name: event.target.value })} />
@@ -377,8 +403,9 @@ export function ProjectPaymentPlanDrawer({ project, appendStage = false, onBack,
                 ? 'Parcelamento nativo imutável: cancele e refaça o grupo completo'
                 : 'Valor e vencimento serão alterados no Asaas'}</small>}
               {recoverableFailed && <small>Falha anterior: revise e salve para tentar novamente</small>}
+              {correcting && <small>Etapa liberada para correção</small>}
             </span>
-            <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} onChange={(event) => update(index, { amount: event.target.value })} />
+            <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} autoFocus={correcting} onChange={(event) => update(index, { amount: event.target.value })} />
             <input className="panel-input" aria-label={`Vencimento da ${itemLabel} ${index + 1}`} type="date" value={row.dueDate} disabled={financialImmutable} onChange={(event) => update(index, { dueDate: event.target.value })} />
             <button type="button" className="panel-iconbtn" aria-label={`Remover ${itemLabel} ${index + 1}`} disabled={structuralImmutable} onClick={() => removeRow(index)}><Trash2 size={14} /></button>
           </div>;

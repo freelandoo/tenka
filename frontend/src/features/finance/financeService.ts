@@ -294,14 +294,18 @@ export const createConsolidatedProjectCharge = (
   { method: 'POST', body: { dueDate, items } },
 );
 
-export const cancelProjectCharge = (paymentId: string, reason: string) =>
+export const cancelProjectCharge = (
+  paymentId: string, reason: string, prepareCorrection = false,
+) =>
   apiRequest<{ queued: true }>(`/project-payments/${paymentId}/cancel-charge`, {
-    method: 'POST', body: { reason },
+    method: 'POST', body: { reason, prepareCorrection },
   });
 
-export const cancelProjectCheckout = (paymentId: string, reason: string) =>
-  apiRequest<{ cancelled: true }>(`/project-payments/${paymentId}/checkout/cancel`, {
-    method: 'POST', body: { reason },
+export const cancelProjectCheckout = (
+  paymentId: string, reason: string, prepareCorrection = false,
+) =>
+  apiRequest<{ cancelled: true; readyForEdit: boolean }>(`/project-payments/${paymentId}/checkout/cancel`, {
+    method: 'POST', body: { reason, prepareCorrection },
   });
 
 export const registerProjectPaymentOutside = (paymentId: string, paymentDate: string) =>

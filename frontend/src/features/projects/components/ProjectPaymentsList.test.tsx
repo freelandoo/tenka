@@ -28,6 +28,8 @@ const createCharge = vi.mocked(finance.createProjectCharge);
 const previewConsolidatedCharge = vi.mocked(finance.previewConsolidatedProjectCharge);
 const createConsolidatedCharge = vi.mocked(finance.createConsolidatedProjectCharge);
 const createDefaultCharge = vi.mocked(finance.createDefaultProjectCharge);
+const cancelCharge = vi.mocked(finance.cancelProjectCharge);
+const cancelCheckout = vi.mocked(finance.cancelProjectCheckout);
 const registerOutside = vi.mocked(finance.registerProjectPaymentOutside);
 
 const payment = (over: Partial<ProjectPaymentRow> = {}): ProjectPaymentRow => ({
@@ -110,6 +112,8 @@ beforeEach(() => {
     queued: true, billingIssue: null, dueDate: '2026-09-09',
   });
   registerOutside.mockResolvedValue({ queued: true, intentId: 'intent-1', awaitingWebhook: true });
+  cancelCharge.mockResolvedValue({ queued: true });
+  cancelCheckout.mockResolvedValue({ cancelled: true, readyForEdit: false });
 });
 
 describe('ProjectPaymentsList', () => {
@@ -321,5 +325,47 @@ describe('ProjectPaymentsList', () => {
     render(<ProjectPaymentsList isAdmin />);
 
     expect(await screen.findByText('Vencida')).toBeInTheDocument();
+  });
+
+  it('oferece correção mesmo quando a sincronização falhou depois de criar a cobrança', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({
+      sync_status: 'failed', asaas_payment_id: 'pay_asaas_1',
+      payment_url: 'https://sandbox.asaas.com/i/pay_asaas_1',
+      provider_status: 'OVERDUE', sync_error: 'Falha temporária',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Corrigir cobrança — Site Braslar' }));
+    expect(screen.getByRole('heading', { name: 'Cancelar e corrigir cobrança' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Motivo da correção'), {
+      target: { value: 'Pagamento renegociado em duas etapas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar e abrir correção' }));
+
+    await waitFor(() => expect(cancelCharge).toHaveBeenCalledWith(
+      'payment-1', 'Pagamento renegociado em duas etapas', true,
+    ));
+  });
+
+  it('retoma uma correção pendente sem permitir reemitir o valor antigo', async () => {
+    const correction = payment({
+      amount_cents: 70_000, due_date: null, sync_status: 'local',
+      provider_status: 'CORRECTION_REQUIRED', project_name: 'Ecoluz',
+      project_value_cents: 70_000,
+    });
+    fetchOverview.mockResolvedValue(overview([correction]));
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'production',
+      project: { id: 'project-1', name: 'Ecoluz', value_cents: 70_000 } as finance.ProjectFinance['project'],
+      subscription: null, projectPayments: [correction], subscriptionPayments: [], paymentPlanDraft: null,
+    });
+    render(<ProjectPaymentsList isAdmin />);
+
+    expect(await screen.findByText('Correção pendente')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gerar cobrança — Ecoluz' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustar valor e data — Ecoluz' }));
+
+    expect(await screen.findByRole('heading', { name: 'Plano de pagamentos' })).toBeInTheDocument();
+    expect(screen.getByText('Cobrança anterior cancelada.')).toBeInTheDocument();
   });
 });
