@@ -94,6 +94,7 @@ export interface AsaasPayment {
 
 export interface AsaasCheckout {
   id: string;
+  link?: string;
 }
 
 export interface AsaasPixQrCode {

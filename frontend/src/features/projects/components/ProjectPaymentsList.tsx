@@ -173,21 +173,6 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const generateCharge = async (item: ProjectPaymentRow) => {
     setBusyId(item.id);
     try {
-      if (!item.virtual) {
-        const dueDate = item.due_date ?? localIsoDate();
-        const preview = await finance.previewConsolidatedProjectCharge(item.id, dueDate);
-        const pendingOldItems = preview.items.filter((candidate) =>
-          !(candidate.kind === 'project_payment' && candidate.id === item.id));
-        if (!preview.client.hasDocument || pendingOldItems.length > 0) {
-          setConsolidating({
-            item,
-            dueDate,
-            preview,
-            selected: new Set(preview.items.map((candidate) => `${candidate.kind}:${candidate.id}`)),
-          });
-          return;
-        }
-      }
       const result = item.virtual
         ? await finance.createDefaultProjectCharge(item.project_id)
         : await finance.createProjectCharge(item.id);
@@ -199,7 +184,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
         };
         toast('error', messages[result.billingIssue] ?? 'A data foi salva, mas a cobrança não pôde ser gerada.');
       } else {
-        toast('success', `Cobrança enviada ao Asaas com vencimento em ${formatDate(result.dueDate)}.`);
+        toast('success', 'Checkout enviado ao Asaas: Pix à vista ou cartão em até 6x.');
       }
       await load();
     } catch (caught) {
@@ -210,8 +195,8 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const createSingleCharge = async (item: ProjectPaymentRow) => {
     setBusyId(item.id);
     try {
-      const result = await finance.createProjectCharge(item.id);
-      toast('success', `Cobrança enviada ao Asaas com vencimento em ${formatDate(result.dueDate)}.`);
+      await finance.createProjectCharge(item.id);
+      toast('success', 'Checkout enviado ao Asaas: Pix à vista ou cartão em até 6x.');
       setConsolidating(null);
       await load();
     } catch (caught) {
@@ -259,7 +244,11 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const cancelCharge = async (item: ProjectPaymentRow, reason: string) => {
     setBusyId(item.id);
     try {
-      await finance.cancelProjectCharge(item.id, reason);
+      if (item.external_reference?.includes(':checkout:')) {
+        await finance.cancelProjectCheckout(item.id, reason);
+      } else {
+        await finance.cancelProjectCharge(item.id, reason);
+      }
       toast('success', 'Cancelamento enviado ao Asaas.');
       setConfirming(null);
       await load();
@@ -281,9 +270,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     const busy = busyId === item.id;
     const integrated = item.sync_status !== 'local';
     if (!integrated) {
-      const chargeTitle = item.due_date
-        ? `Gerar cobrança no Asaas com vencimento em ${formatDate(item.due_date)}.`
-        : 'Gerar cobrança no Asaas com vencimento hoje. Depois disso, o pagamento será atualizado somente pelos eventos do Asaas.';
+      const chargeTitle = 'Gerar Checkout no Asaas: Pix à vista ou cartão em até 6x.';
       return <span className="project-payments__actions">
         {item.status === 'pending' && (
           <button type="button" className="panel-iconbtn fees__billing-icon"
@@ -315,19 +302,17 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
       {item.sync_status === 'failed' && !item.asaas_payment_id && (
         <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Tentar gerar cobrança novamente — ${label}`}
-          title={item.due_date
-            ? `Tentar novamente com vencimento em ${formatDate(item.due_date)}.`
-            : 'Tentar novamente com vencimento hoje.'}
+          title="Tentar gerar novamente: Pix à vista ou cartão em até 6x."
           disabled={!isAdmin || busy} onClick={() => void generateCharge(item)}><ReceiptText size={14} /></button>
       )}
       {item.sync_status === 'synced'
         && ['pending', 'overdue', 'failed'].includes(item.status)
-        && item.asaas_payment_id && <>
-        <button type="button" className="panel-iconbtn fees__billing-icon"
+        && (item.asaas_payment_id || item.external_reference?.includes(':checkout:')) && <>
+        {item.asaas_payment_id && !item.external_reference?.includes(':checkout:') && <button type="button" className="panel-iconbtn fees__billing-icon"
           aria-label={`Registrar pagamento por fora — ${label}`} title="Registrar pagamento por fora"
-          disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'receipt', item })}><Banknote size={14} /></button>
+          disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'receipt', item })}><Banknote size={14} /></button>}
         <button type="button" className="panel-iconbtn fees__billing-icon"
-          aria-label={`Cancelar cobrança — ${label}`} title="Cancelar cobrança"
+          aria-label={`Cancelar cobrança — ${label}`} title={item.external_reference?.includes(':checkout:') ? 'Cancelar Checkout' : 'Cancelar cobrança'}
           disabled={!isAdmin || busy} onClick={() => setConfirming({ kind: 'cancel', item })}><Trash2 size={14} /></button>
       </>}
       {item.provider_status === 'OVERDUE' && ['pending', 'overdue'].includes(item.status)

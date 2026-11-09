@@ -784,8 +784,13 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
                 `select status, asaas_subscription_id
                    from public.project_subscriptions where project_id = $1`, [id]),
               client.query<{ open: string }>(
-                `select count(*)::text as open from public.project_payments
-                  where project_id = $1 and asaas_payment_id is not null and status = 'pending'`,
+                `select count(*)::text as open from public.project_payments pp
+                  where pp.project_id = $1 and pp.status = 'pending'
+                    and (pp.asaas_payment_id is not null or exists (
+                      select 1 from public.project_payment_checkout_sessions cs
+                       where cs.project_payment_id = pp.id
+                         and cs.status in ('queued','active','uncertain')
+                    ))`,
                 [id]),
               client.query(
                 `select 1 from public.asaas_checkout_sessions cs
@@ -884,6 +889,11 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
           where cs.project_id = $1
             and (cs.status in ('queued','active','uncertain')
               or (cs.status = 'paid' and ps.asaas_subscription_id is null))
+          union all
+         select 1
+           from public.project_payment_checkout_sessions pcs
+           join public.project_payments pp on pp.id = pcs.project_payment_id
+          where pp.project_id = $1 and pcs.status in ('queued','active','uncertain')
           limit 1`,
         [id],
       );
@@ -1024,8 +1034,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       message: 'Resolva a cobrança consolidada em aberto antes de arquivar o projeto.',
     });
     if (result === 'checkout-open') return reply.code(409).send({
-      error: 'checkout-de-hospedagem-em-aberto',
-      message: 'Cancele ou aguarde expirar o Checkout da hospedagem antes de arquivar.',
+      error: 'checkout-em-aberto',
+      message: 'Cancele ou aguarde expirar o Checkout em aberto antes de arquivar.',
     });
     if (result === 'asaas') return reply.code(503).send({ error: 'asaas-nao-configurado' });
     const archived = await tryFinalizePendingArchive(id);

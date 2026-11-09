@@ -19,10 +19,13 @@ const hoisted = vi.hoisted(() => ({
     deletePayment: vi.fn(),
     receivePaymentInCash: vi.fn(),
     listInstallmentPayments: vi.fn(),
+    createCheckout: vi.fn(),
   },
 }));
 
-vi.mock('../env', () => ({ hasAsaas: true, env: { asaasEnvironment: 'sandbox' } }));
+vi.mock('../env', () => ({ hasAsaas: true, env: {
+  asaasEnvironment: 'sandbox', panelUrl: 'https://tenka.example.com',
+} }));
 vi.mock('./asaas', () => ({
   asaas: hoisted.asaas,
   AsaasError: class AsaasError extends Error {
@@ -36,6 +39,22 @@ vi.mock('../db/pool', () => ({
       intent_id: 'intent-1', project_id: 'project-1', asaas_payment_id: 'pay_1',
       payment_date: '2026-09-10', amount_cents: 200_000, notify_customer: true,
       intent_status: 'pending', target_status: 'pending',
+    }] };
+    if (sql.includes('from public.project_payment_checkout_sessions cs')) return { rows: [{
+      id: '77777777-7777-4777-8777-777777777777',
+      project_id: 'project-1', project_name: 'Site', name: 'Entrada', description: '',
+      amount_cents: 200_000, due_date: hoisted.dueDate, status: 'pending',
+      billing_type: 'UNDEFINED', sync_status: 'queued', external_reference: null,
+      asaas_payment_id: null, financial_plan_status: 'active', archived_at: null,
+      archive_requested_at: null, client_id: 'client-1', client_name: 'Cliente',
+      client_email: hoisted.clientEmail, client_phone: hoisted.clientPhone,
+      cpf_cnpj: '12345678909', asaas_customer_id: 'cus_1', kind: 'stage',
+      installment_group_id: null, installment_number: null, installment_count: null,
+      asaas_installment_id: null, group_label: '',
+      checkout_session_id: '55555555-5555-4555-8555-555555555555',
+      checkout_status: 'queued', checkout_amount_cents: 200_000, max_installments: 6,
+      checkout_external_reference: 'project-payment:77777777-7777-4777-8777-777777777777:checkout:55555555-5555-4555-8555-555555555555',
+      asaas_checkout_id: null, checkout_url: '',
     }] };
     if (sql.includes('from public.project_payments') && !sql.includes(' pp')) return { rows: [
       { id: '77777777-7777-4777-8777-777777777777', amount_cents: 100_000, due_date: '2026-10-10', installment_number: 1 },
@@ -103,6 +122,33 @@ describe('worker de cobranças de projeto', () => {
       id: 'pay_1', status: 'PENDING', billingType: 'PIX', value: 2000,
       dueDate: '2026-10-10',
     });
+    hoisted.asaas.createCheckout.mockResolvedValue({
+      id: 'checkout_1', link: 'https://sandbox.asaas.com/checkout/checkout_1',
+    });
+  });
+
+  it('cria Checkout com Pix a vista e cartao em ate 6x', async () => {
+    const op = operation('create_project_checkout');
+    op.request_payload = { checkoutSessionId: '55555555-5555-4555-8555-555555555555' };
+
+    await expect(executeOperation(op)).resolves.toBe('checkout_1');
+
+    expect(hoisted.asaas.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      billingTypes: ['PIX', 'CREDIT_CARD'],
+      chargeTypes: ['DETACHED', 'INSTALLMENT'],
+      installment: { maxInstallmentCount: 6 },
+      customer: 'cus_1',
+      externalReference: expect.stringContaining(':checkout:'),
+      items: [expect.objectContaining({ value: 2000 })],
+    }));
+    expect(hoisted.queries.some((query) =>
+      query.sql.startsWith('update public.project_payment_checkout_sessions')
+      && query.values.includes('checkout_1'),
+    )).toBe(true);
+    expect(hoisted.queries.some((query) =>
+      query.sql.startsWith('update public.project_payments')
+      && query.values.includes('https://sandbox.asaas.com/checkout/checkout_1'),
+    )).toBe(true);
   });
 
   it('cria uma cobrança independente e grava o vínculo retornado', async () => {

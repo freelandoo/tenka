@@ -16,6 +16,7 @@ vi.mock('../../finance/financeService', () => ({
   createConsolidatedProjectCharge: vi.fn(),
   createDefaultProjectCharge: vi.fn(),
   cancelProjectCharge: vi.fn(),
+  cancelProjectCheckout: vi.fn(),
   registerProjectPaymentOutside: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -175,18 +176,18 @@ describe('ProjectPaymentsList', () => {
     expect(updatePayment).not.toHaveBeenCalled();
   });
 
-  it('gera cobrança manual sem data usando hoje como vencimento', async () => {
+  it('gera Checkout sem exigir vencimento e informa as formas disponíveis', async () => {
     fetchOverview.mockResolvedValue(overview([payment({ due_date: null })]));
     render(<ProjectPaymentsList isAdmin />);
 
     const button = await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' });
-    expect(button).toHaveAttribute('title', expect.stringContaining('vencimento hoje'));
+    expect(button).toHaveAttribute('title', expect.stringContaining('Pix à vista ou cartão em até 6x'));
     fireEvent.click(button);
 
     await waitFor(() => expect(createCharge).toHaveBeenCalledWith('payment-1'));
   });
 
-  it('abre modal e gera cobrança consolidada quando há pendências antigas do cliente', async () => {
+  it('gera o Checkout individual mesmo quando há outras pendências do cliente', async () => {
     previewConsolidatedCharge.mockResolvedValue({
       client: { id: 'client-1', name: 'Braslar', cpfCnpj: '12345678901', hasDocument: true },
       target: { kind: 'project_payment', id: 'payment-1' },
@@ -233,20 +234,9 @@ describe('ProjectPaymentsList', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Gerar cobrança — Site Braslar' }));
 
-    expect(await screen.findByRole('heading', { name: 'Existem pendências para este cliente' }))
-      .toBeInTheDocument();
-    expect(screen.getByText('Retainer Braslar - mensalidade 08/2026')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Gerar cobrança completa' }));
-
-    await waitFor(() => expect(createConsolidatedCharge).toHaveBeenCalledWith(
-      'payment-1',
-      '2026-09-20',
-      [
-        { kind: 'project_payment', id: 'payment-1' },
-        { kind: 'subscription', id: '11111111-1111-4111-8111-111111111111' },
-      ],
-    ));
-    expect(createCharge).not.toHaveBeenCalled();
+    await waitFor(() => expect(createCharge).toHaveBeenCalledWith('payment-1'));
+    expect(previewConsolidatedCharge).not.toHaveBeenCalled();
+    expect(createConsolidatedCharge).not.toHaveBeenCalled();
   });
 
   it('materializa o pagamento único e gera a cobrança quando ainda é virtual', async () => {

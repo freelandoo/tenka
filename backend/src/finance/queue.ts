@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Enfileiramento de operações do Asaas.
  *
@@ -42,7 +44,7 @@ export async function queueProjectPaymentOperation(
   client: QueryClient,
   projectId: string,
   projectPaymentId: string,
-  kind: 'create_project_charge' | 'update_project_charge' | 'cancel_project_charge'
+  kind: 'create_project_charge' | 'create_project_checkout' | 'update_project_charge' | 'cancel_project_charge'
     | 'receive_project_payment_in_cash',
   requestPayload: Record<string, unknown> = {},
   reason: string | null = null,
@@ -62,6 +64,43 @@ export async function queueProjectPaymentOperation(
     [kind, projectId, projectPaymentId, JSON.stringify(requestPayload), reason],
   );
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function queueProjectCheckoutOperation(
+  client: QueryClient,
+  projectId: string,
+  projectPaymentId: string,
+  reason: string | null = null,
+): Promise<boolean> {
+  const sessionId = randomUUID();
+  const session = await client.query(
+    `insert into public.project_payment_checkout_sessions
+       (id, project_payment_id, amount_cents, max_installments,
+        external_reference, created_by)
+     select $1, pp.id, pp.amount_cents, 6,
+            'project-payment:' || pp.id::text || ':checkout:' || $1::text,
+            public.current_user_id()
+       from public.project_payments pp
+      where pp.id = $2
+        and not exists (
+          select 1 from public.project_payment_checkout_sessions cs
+           where cs.project_payment_id = pp.id
+             and cs.status in ('queued','active','uncertain')
+        )`,
+    [sessionId, projectPaymentId],
+  );
+  if ((session.rowCount ?? 0) === 0) return false;
+  const queued = await queueProjectPaymentOperation(
+    client, projectId, projectPaymentId, 'create_project_checkout',
+    { checkoutSessionId: sessionId }, reason,
+  );
+  if (!queued) {
+    await client.query(
+      'delete from public.project_payment_checkout_sessions where id = $1 and status = \'queued\'',
+      [sessionId],
+    );
+  }
+  return queued;
 }
 
 export async function queueSubscriptionPaymentOperation(

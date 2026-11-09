@@ -19,6 +19,7 @@ import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPo
 import { runReconciliation } from '../finance/reconciliationRun';
 import {
   queueClientBillingBatchOperation,
+  queueProjectCheckoutOperation,
   queueProjectPaymentOperation,
   queueSubscriptionOperation as queueOperation,
 } from '../finance/queue';
@@ -597,7 +598,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const result = await withActor(req.userId!, async (client) => {
       const { rows } = await client.query<{
         id: string; project_payment_id: string | null; subscription_id: string | null;
-        checkout_session_id: string | null;
+        checkout_session_id: string | null; kind: string; request_payload: Record<string, unknown>;
       }>(
         `update public.asaas_operations
             set status = 'pending', attempts = 0, run_after = now(), last_error = null,
@@ -605,8 +606,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           where id = $1 and (status = 'uncertain' or status = 'failed' or status = 'discarded')
             and not (kind = 'create_client_billing_batch' and status = 'uncertain'
                      and last_error is null and updated_at > now() - interval '5 minutes')
-            and not (kind = 'create_hosting_checkout' and status in ('uncertain','discarded'))
-          returning id, project_payment_id, subscription_id, checkout_session_id`,
+            and not (kind in ('create_hosting_checkout','create_project_checkout')
+                     and status in ('uncertain','discarded'))
+          returning id, project_payment_id, subscription_id, checkout_session_id,
+                    kind, request_payload`,
         [id, req.userId],
       );
       const row = rows[0];
@@ -619,6 +622,16 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
               set sync_status = 'queued', sync_error = null where id = $1`,
           [row.project_payment_id],
         );
+        if (row.kind === 'create_project_checkout') {
+          const sessionId = typeof row.request_payload.checkoutSessionId === 'string'
+            ? row.request_payload.checkoutSessionId : null;
+          if (sessionId) await client.query(
+            `update public.project_payment_checkout_sessions
+                set status = 'queued', sync_error = null
+              where id = $1 and status = 'failed'`,
+            [sessionId],
+          );
+        }
       } else if (row.subscription_id) {
         await client.query(
           `update public.project_subscriptions set sync_error = null where id = $1`,
@@ -654,8 +667,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         'select kind, status from public.asaas_operations where id = $1 for update',
         [id],
       );
-      if (current.rows[0]?.kind === 'create_hosting_checkout'
-          && current.rows[0].status === 'uncertain') {
+      const currentOperation = current.rows[0];
+      if (currentOperation
+          && ['create_hosting_checkout', 'create_project_checkout'].includes(currentOperation.kind)
+          && currentOperation.status === 'uncertain') {
         return 'unsafe-checkout' as const;
       }
       const discarded = await client.query<{ id: string; checkout_session_id: string | null }>(
@@ -1349,15 +1364,13 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           );
           for (const payment of eligible.rows) {
             if (payment.kind === 'installment' && payment.installment_number !== 1) continue;
-            if (await queueProjectPaymentOperation(
-              client,
-              id,
-              payment.id,
-              'create_project_charge',
-              payment.kind === 'installment'
-                ? { nativeInstallment: true, installmentGroupId: payment.installment_group_id }
-                : {},
-            )) {
+            const created = payment.kind === 'stage'
+              ? await queueProjectCheckoutOperation(client, id, payment.id)
+              : await queueProjectPaymentOperation(
+                client, id, payment.id, 'create_project_charge',
+                { nativeInstallment: true, installmentGroupId: payment.installment_group_id },
+              );
+            if (created) {
               queuedCount += 1;
               if (payment.kind === 'installment') {
                 await client.query(
@@ -1424,12 +1437,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const result = await withActor(req.userId!, async (client) => {
       const previous = await client.query<{
         project_id: string; status: string; name: string; due_date: string | null;
-        amount_cents: number;
+        amount_cents: number; kind: 'stage' | 'installment';
         sync_status: string; financial_plan_status: string; client_id: string | null;
         cpf_cnpj: string | null;
         archive_requested_at: string | null;
       }>(
-        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.amount_cents, pp.sync_status,
+        `select pp.project_id, pp.status, pp.name, pp.due_date, pp.amount_cents, pp.sync_status, pp.kind,
                 p.financial_plan_status, p.client_id, c.cpf_cnpj, p.archive_requested_at
            from public.project_payments pp
            join public.projects p on p.id = pp.project_id
@@ -1476,8 +1489,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         else if (!row.client_id) billingIssue = 'cliente-obrigatorio';
         else if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) billingIssue = 'cpf-cnpj-obrigatorio';
         else {
-          queued = await queueProjectPaymentOperation(
-            client, row.project_id, id, 'create_project_charge');
+          queued = row.kind === 'stage'
+            ? await queueProjectCheckoutOperation(client, row.project_id, id)
+            : await queueProjectPaymentOperation(client, row.project_id, id, 'create_project_charge');
           if (queued) {
             await client.query(
               "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",
@@ -1562,15 +1576,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         [id],
       )).rows[0]?.due_date;
       if (!dueDate) throw new Error('Falha ao definir o vencimento da cobrança.');
-      const queued = await queueProjectPaymentOperation(
-        client,
-        row.project_id,
-        operationPaymentId,
-        'create_project_charge',
-        row.kind === 'installment'
-          ? { nativeInstallment: true, installmentGroupId: row.installment_group_id }
-          : {},
-      );
+      const queued = row.kind === 'stage'
+        ? await queueProjectCheckoutOperation(client, row.project_id, operationPaymentId)
+        : await queueProjectPaymentOperation(
+          client, row.project_id, operationPaymentId, 'create_project_charge',
+          { nativeInstallment: true, installmentGroupId: row.installment_group_id },
+        );
       if (queued && row.kind === 'installment') {
         await client.query(
           `update public.project_payments set sync_status = 'queued', sync_error = null
@@ -1748,6 +1759,64 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(202).send({ queued: true });
   });
 
+  app.post('/project-payments/:id/checkout/cancel', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const parsed = cancelChargeSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'motivo-obrigatorio' });
+    const checkout = await getPool().query<{
+      id: string; project_id: string; asaas_checkout_id: string | null;
+    }>(
+      `select cs.id, pp.project_id, cs.asaas_checkout_id
+         from public.project_payment_checkout_sessions cs
+         join public.project_payments pp on pp.id = cs.project_payment_id
+        where cs.project_payment_id = $1 and cs.status in ('queued','active','uncertain')
+        order by cs.created_at desc limit 1`,
+      [id],
+    );
+    const row = checkout.rows[0];
+    if (!row) return reply.code(404).send({ error: 'checkout-aberto-inexistente' });
+    if (!row.asaas_checkout_id) return reply.code(409).send({
+      error: 'checkout-incerto-sem-id',
+      message: 'O Asaas ainda não informou o ID desta tentativa. Aguarde o Webhook antes de cancelar.',
+    });
+    await asaas.cancelCheckout(row.asaas_checkout_id);
+    await withActor(req.userId!, async (client) => {
+      await client.query(
+        `update public.project_payment_checkout_sessions
+            set status = 'cancelled', provider_event_at = now(), sync_error = null
+          where id = $1`,
+        [row.id],
+      );
+      await client.query(
+        `update public.project_payments
+            set payment_url = '', provider_status = 'CHECKOUT_CANCELLED',
+                sync_status = 'failed',
+                sync_error = 'Checkout cancelado. Gere um novo link.'
+          where id = $1 and status = 'pending'`,
+        [id],
+      );
+      await client.query(
+        `update public.asaas_operations
+            set status = 'discarded', reviewed_by = $2, reviewed_at = now(),
+                review_notes = $3, last_error = null
+          where project_payment_id = $4 and kind = 'create_project_checkout'
+            and request_payload ->> 'checkoutSessionId' = $1
+            and status in ('pending','processing','failed','uncertain')`,
+        [row.id, req.userId, parsed.data.reason, id],
+      );
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'checkout_projeto_evento',$3::jsonb)`,
+        [row.project_id, req.userId, JSON.stringify({
+          eventType: 'CHECKOUT_CANCEL_REQUESTED', asaasCheckoutId: row.asaas_checkout_id,
+          reason: parsed.data.reason,
+        })],
+      );
+    });
+    return reply.send({ cancelled: true });
+  });
+
   // A intenção e o ator são persistidos antes da chamada externa. O worker
   // consulta o Asaas antes de tentar/repetir; somente o webhook liquida a linha.
   app.post('/project-payments/:id/receive-in-cash', adminOnly, async (req, reply) => {
@@ -1890,8 +1959,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           else if (!(project.rows[0].cpf_cnpj ?? '').replace(/\D/g, '')) {
             billingIssue = 'cpf-cnpj-obrigatorio';
           } else {
-            queued = await queueProjectPaymentOperation(
-              client, id, rows[0].id, 'create_project_charge');
+            queued = await queueProjectCheckoutOperation(client, id, rows[0].id);
             if (queued) {
               await client.query(
                 "update public.project_payments set sync_status = 'queued', sync_error = null where id = $1",

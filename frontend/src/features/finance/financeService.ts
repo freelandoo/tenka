@@ -299,6 +299,11 @@ export const cancelProjectCharge = (paymentId: string, reason: string) =>
     method: 'POST', body: { reason },
   });
 
+export const cancelProjectCheckout = (paymentId: string, reason: string) =>
+  apiRequest<{ cancelled: true }>(`/project-payments/${paymentId}/checkout/cancel`, {
+    method: 'POST', body: { reason },
+  });
+
 export const registerProjectPaymentOutside = (paymentId: string, paymentDate: string) =>
   apiRequest<{ queued: true; intentId: string; awaitingWebhook: true }>(
     `/project-payments/${paymentId}/receive-in-cash`,
