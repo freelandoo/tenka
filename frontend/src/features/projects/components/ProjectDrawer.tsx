@@ -13,6 +13,7 @@ import { COMPANY_LABELS } from '../companies';
 import { ProjectNotesSection } from './ProjectNotes';
 import { ProjectActivityList } from './ProjectActivity';
 import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
+import { ProjectServicesSection } from './ProjectServicesSection';
 import * as financeService from '../../finance/financeService';
 import type { ProjectFinance } from '../../finance/financeService';
 import { subscribeRealtime } from '../../../lib/api/events';
@@ -54,7 +55,7 @@ export function ProjectDrawer({
   }, [isAdmin, project.id]);
   useEffect(() => { void loadFinance(); }, [loadFinance]);
   useEffect(() => subscribeRealtime(
-    ['project_subscriptions', 'project_payments', 'subscription_payments', 'asaas_checkout_sessions'],
+    ['project_subscriptions', 'project_payments', 'subscription_payments', 'asaas_checkout_sessions', 'client_services'],
     () => { void loadFinance(); setActivityRevision((value) => value + 1); },
   ), [loadFinance]);
 
@@ -453,6 +454,8 @@ export function ProjectDrawer({
           {finance.hostingCheckout?.sync_error && <small className="panel-field__error">{finance.hostingCheckout.sync_error}</small>}
         </div>}
       </section>
+
+      {isAdmin && <ProjectServicesSection projectId={project.id} reloadKey={activityRevision} />}
 
       <section className="panel-drawer__section" aria-labelledby="drawer-assignees">
         <h3 id="drawer-assignees" className="panel-eyebrow">

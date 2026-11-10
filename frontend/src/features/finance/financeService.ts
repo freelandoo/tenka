@@ -330,6 +330,57 @@ export const createDefaultProjectCharge = (projectId: string) =>
     { method: 'PUT', body: { paid: false, generateCharge: true } },
   );
 
+export type ServiceFrequency = 'once' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+export type ClientServiceStatus = 'draft' | 'active' | 'paused' | 'ended' | 'archived';
+
+export interface ClientServiceRow {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  amount_cents: number;
+  frequency: ServiceFrequency;
+  billing_type: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+  due_day: number;
+  next_due_date: string;
+  status: ClientServiceStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientServiceInput {
+  name: string;
+  description?: string;
+  amountCents: number;
+  frequency: ServiceFrequency;
+  billingType?: ClientServiceRow['billing_type'];
+  dueDay: number;
+  nextDueDate?: string;
+  activate?: boolean;
+}
+
+export const fetchProjectServices = (projectId: string) =>
+  apiRequest<{ services: ClientServiceRow[] }>(`/projects/${projectId}/services`).then((d) => d.services);
+
+export const createProjectService = (projectId: string, input: ClientServiceInput) =>
+  apiRequest<{ id: string }>(`/projects/${projectId}/services`, { method: 'POST', body: input });
+
+export const updateProjectService = (
+  serviceId: string,
+  input: Partial<Pick<ClientServiceInput, 'name' | 'description' | 'amountCents' | 'frequency' | 'billingType' | 'dueDay'>>
+    & { reason?: string },
+) => apiRequest<{ saved: true }>(`/services/${serviceId}`, { method: 'PATCH', body: input });
+
+export const transitionProjectService = (
+  serviceId: string,
+  action: 'pause' | 'reactivate' | 'end' | 'archive',
+  reason?: string,
+) => apiRequest<{ status: ClientServiceStatus }>(`/services/${serviceId}/transition`, {
+  method: 'POST', body: { action, ...(reason ? { reason } : {}) },
+});
+
 export const fetchFinanceQueue = () =>
   apiRequest<{ queue: FinanceQueueHealth }>('/admin/finance/queue').then((data) => data.queue);
 
