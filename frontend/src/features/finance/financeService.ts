@@ -361,6 +361,11 @@ export interface ClientServiceInput {
   activate?: boolean;
 }
 
+/** Serviços ativos de todos os projetos vivos — base da receita por cliente. */
+export const fetchActiveClientServices = () =>
+  apiRequest<{ services: Array<{ project_id: string; amount_cents: number; frequency: ServiceFrequency }> }>(
+    '/admin/finance/client-services').then((d) => d.services);
+
 export const fetchProjectServices = (projectId: string) =>
   apiRequest<{ services: ClientServiceRow[] }>(`/projects/${projectId}/services`).then((d) => d.services);
 

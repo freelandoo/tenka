@@ -256,19 +256,36 @@ export function summarize(input: FinanceInput): FinanceSummary {
 // agência e NÃO é rateado por cliente aqui — apareceria como custo fantasma.
 // ---------------------------------------------------------------------------
 
+export type ServiceFrequency = 'once' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+
+/** Serviço recorrente ativo, como vem de /admin/finance/client-services. */
+export interface ClientServiceLite {
+  project_id: string;
+  amount_cents: number;
+  frequency: ServiceFrequency;
+}
+
+/** Meses entre cobranças; `once` não é recorrente. */
+const SERVICE_INTERVAL_MONTHS: Record<ServiceFrequency, number> = {
+  once: 0, monthly: 1, quarterly: 3, semiannual: 6, annual: 12,
+};
+
 export interface ClienteFinanceiro {
   key: string;
   nome: string;
   projetos: number;
   projetosComMensalidade: number;
-  /** Mensalidades ativas do cliente — receita recorrente mensal. */
+  /** Mensalidades ativas + serviços MENSAIS — receita recorrente mensal real. */
   receitaRecorrenteCents: number;
+  /** Serviços periódicos (anual/trimestral/semestral) mensalizados (valor ÷ intervalo).
+   *  Separado de propósito: um contrato anual não é receita mensal recorrente (§13). */
+  receitaPeriodicaMensalCents: number;
   /** Custos mensais ativos atribuídos a projetos do cliente. */
   custoMensalCents: number;
   /** Custos únicos lançados no mês selecionado. */
   custoVariavelCents: number;
   custoTotalCents: number;
-  /** Receita recorrente menos custos atribuídos. */
+  /** (recorrente + periódico mensalizado) menos custos atribuídos. */
   margemCents: number;
   margemPct: number | null;
 }
@@ -276,6 +293,7 @@ export interface ClienteFinanceiro {
 export function summarizeByClient(input: {
   projects: ProjectRow[];
   costs: CostRow[];
+  services?: ClientServiceLite[];
   year: number;
   month: number;
 }): ClienteFinanceiro[] {
@@ -288,7 +306,8 @@ export function summarizeByClient(input: {
     if (!row) {
       row = {
         key, nome, projetos: 0, projetosComMensalidade: 0,
-        receitaRecorrenteCents: 0, custoMensalCents: 0, custoVariavelCents: 0,
+        receitaRecorrenteCents: 0, receitaPeriodicaMensalCents: 0,
+        custoMensalCents: 0, custoVariavelCents: 0,
         custoTotalCents: 0, margemCents: 0, margemPct: null,
       };
       clientes.set(key, row);
@@ -307,6 +326,15 @@ export function summarizeByClient(input: {
     }
   }
 
+  for (const service of input.services ?? []) {
+    const key = projetoParaCliente.get(service.project_id);
+    if (!key) continue;
+    const row = clientes.get(key)!;
+    const interval = SERVICE_INTERVAL_MONTHS[service.frequency] ?? 0;
+    if (interval === 1) row.receitaRecorrenteCents += cents(service.amount_cents);
+    else if (interval > 1) row.receitaPeriodicaMensalCents += Math.round(cents(service.amount_cents) / interval);
+  }
+
   for (const c of input.costs) {
     if (!c.active || !c.project_id) continue;
     const key = projetoParaCliente.get(c.project_id);
@@ -319,13 +347,16 @@ export function summarizeByClient(input: {
   const rows: ClienteFinanceiro[] = [];
   for (const row of clientes.values()) {
     row.custoTotalCents = row.custoMensalCents + row.custoVariavelCents;
-    row.margemCents = row.receitaRecorrenteCents - row.custoTotalCents;
-    row.margemPct = pct(row.margemCents, row.receitaRecorrenteCents);
-    // Clientes sem receita recorrente nem custo atribuído só fariam ruído.
-    if (row.receitaRecorrenteCents > 0 || row.custoTotalCents > 0) rows.push(row);
+    const receitaMensalizada = row.receitaRecorrenteCents + row.receitaPeriodicaMensalCents;
+    row.margemCents = receitaMensalizada - row.custoTotalCents;
+    row.margemPct = pct(row.margemCents, receitaMensalizada);
+    // Clientes sem receita nem custo atribuído só fariam ruído.
+    if (receitaMensalizada > 0 || row.custoTotalCents > 0) rows.push(row);
   }
   return rows.sort((a, b) =>
-    b.receitaRecorrenteCents - a.receitaRecorrenteCents || a.nome.localeCompare(b.nome));
+    (b.receitaRecorrenteCents + b.receitaPeriodicaMensalCents)
+    - (a.receitaRecorrenteCents + a.receitaPeriodicaMensalCents)
+    || a.nome.localeCompare(b.nome));
 }
 
 // ---------------------------------------------------------------------------

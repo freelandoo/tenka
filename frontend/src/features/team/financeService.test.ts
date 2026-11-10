@@ -89,6 +89,24 @@ describe('summarizeByClient', () => {
     expect(rows.map((r) => r.key)).toEqual(['c1', 'c2']);
   });
 
+  it('inclui serviço mensal na receita recorrente e periódico mensalizado à parte', () => {
+    const rows = summarizeByClient({
+      year: 2026, month: 7,
+      projects: [project({ id: 'p1', client_id: 'c1', client_name: 'Alfa', monthly_fee_cents: 100_000, subscription_active: true })],
+      costs: [],
+      services: [
+        { project_id: 'p1', amount_cents: 50_000, frequency: 'monthly' },   // entra no recorrente
+        { project_id: 'p1', amount_cents: 120_000, frequency: 'annual' },    // mensaliza em 10.000
+        { project_id: 'p1', amount_cents: 30_000, frequency: 'once' },       // não é recorrente: ignora
+        { project_id: 'desconhecido', amount_cents: 999, frequency: 'monthly' }, // sem cliente: ignora
+      ],
+    });
+    const alfa = rows.find((r) => r.key === 'c1')!;
+    expect(alfa.receitaRecorrenteCents).toBe(150_000); // 100k mensalidade + 50k serviço mensal
+    expect(alfa.receitaPeriodicaMensalCents).toBe(10_000); // 120k anual ÷ 12
+    expect(alfa.margemCents).toBe(160_000); // recorrente + periódico, sem custos
+  });
+
   it('omite cliente sem receita recorrente nem custo atribuído', () => {
     const rows = summarizeByClient({
       year: 2026, month: 7,

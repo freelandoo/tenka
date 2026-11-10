@@ -20,6 +20,7 @@ import type { BoardProject } from '../projects/services/projectsService';
 import { formatCurrencyFromCents } from '../panel/format';
 import { todayISO } from '../dailies/weeks';
 import * as clientsService from '../clients/clientsService';
+import { fetchActiveClientServices } from '../finance/financeService';
 import { subscribeRealtime } from '../../lib/api/events';
 import * as finance from './financeService';
 import type { Saude } from './financeService';
@@ -58,13 +59,20 @@ function money(cents: number | null): string {
  */
 export function FinanceView({ projects, profiles, year, month }: FinanceViewProps) {
   const [costs, setCosts] = useState<CostRow[]>([]);
+  const [services, setServices] = useState<finance.ClientServiceLite[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const today = useMemo(() => todayISO(), []);
 
   const load = useCallback(async () => {
     setStatus('loading');
     try {
-      setCosts(await clientsService.fetchCosts());
+      // Serviços são admin-only; para staff sem acesso a chamada falha e segue sem eles.
+      const [fetchedCosts, fetchedServices] = await Promise.all([
+        clientsService.fetchCosts(),
+        fetchActiveClientServices().catch(() => [] as finance.ClientServiceLite[]),
+      ]);
+      setCosts(fetchedCosts);
+      setServices(fetchedServices);
       setStatus('ready');
     } catch {
       setStatus('error');
@@ -74,7 +82,7 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => subscribeRealtime(['costs'], () => void load()), [load]);
+  useEffect(() => subscribeRealtime(['costs', 'client_services'], () => void load()), [load]);
 
   const headcount = useMemo(() => profiles.filter((p) => p.active).length, [profiles]);
 
@@ -86,8 +94,8 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
   );
 
   const porCliente = useMemo(
-    () => finance.summarizeByClient({ projects, costs, year, month }),
-    [projects, costs, year, month],
+    () => finance.summarizeByClient({ projects, costs, services, year, month }),
+    [projects, costs, services, year, month],
   );
 
   const variacao = useMemo(() => {
@@ -314,7 +322,12 @@ function ClientCostTable({ rows, periodo }: { rows: finance.ClienteFinanceiro[];
               {row.projetosComMensalidade > 0 ? ` · ${row.projetosComMensalidade} com mensalidade` : ''}
             </small>
           </span>
-          <span style={{ textAlign: 'right' }}>{money(row.receitaRecorrenteCents)}</span>
+          <span style={{ textAlign: 'right', display: 'grid', gap: 2 }}>
+            {money(row.receitaRecorrenteCents)}
+            {row.receitaPeriodicaMensalCents > 0 && (
+              <small style={{ color: 'var(--panel-text-faint)' }}>+{money(row.receitaPeriodicaMensalCents)} periódico</small>
+            )}
+          </span>
           <span style={{ textAlign: 'right' }}>{money(row.custoTotalCents)}</span>
           <span style={{ textAlign: 'right', color: row.margemCents >= 0 ? 'var(--panel-text)' : 'var(--panel-danger, #c0392b)' }}>
             <strong>{money(row.margemCents)}</strong>
@@ -323,9 +336,11 @@ function ClientCostTable({ rows, periodo }: { rows: finance.ClienteFinanceiro[];
         </div>
       ))}
       <p className="panel-field__hint">
-        <strong>Receita</strong> é a mensalidade ativa do cliente; <strong>custo</strong> é o que foi
-        lançado nos projetos dele (mensais + únicos do mês); <strong>margem</strong> é a diferença.
-        Custos da empresa (overhead) não são rateados por cliente e só aparecem na visão Geral.
+        <strong>Receita rec.</strong> é a mensalidade ativa mais os serviços mensais; o
+        <strong> periódico</strong> são serviços anuais/trimestrais/semestrais mensalizados
+        (valor ÷ intervalo) — contam na margem, mas não como receita mensal recorrente.
+        <strong> Custo</strong> é o que foi lançado nos projetos do cliente (mensais + únicos do mês);
+        <strong> margem</strong> é a diferença. Custos da empresa (overhead) não são rateados por cliente.
       </p>
     </div>
   );

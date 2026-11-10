@@ -2091,6 +2091,17 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   // --- Serviços recorrentes do cliente (além da hospedagem) -----------------
   // CRUD isolado; a materialização na cobrança consolidada é etapa à parte.
 
+  // Serviços ativos de todos os projetos vivos — base da receita por cliente.
+  app.get('/admin/finance/client-services', adminOnly, async (_req, reply) => {
+    const { rows } = await getPool().query(
+      `select cs.id, cs.project_id, cs.amount_cents, cs.frequency
+         from public.client_services cs
+         join public.projects p on p.id = cs.project_id
+        where cs.status = 'active' and p.archived_at is null`,
+    );
+    return reply.send({ services: rows });
+  });
+
   app.get('/projects/:id/services', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { rows } = await getPool().query(
