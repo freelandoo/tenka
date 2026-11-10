@@ -350,14 +350,28 @@ export interface ClientServiceRow {
   updated_at: string;
 }
 
+export interface ClientRecurringBilling {
+  dueDay: number;
+  billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+}
+
+export interface ClientServicePreview {
+  billing: ClientRecurringBilling;
+  dueDate: string;
+  currentAmountCents: number;
+  newServiceAmountCents: number;
+  totalAmountCents: number;
+  currentAvailable: boolean;
+  emitted: boolean;
+}
+
 export interface ClientServiceInput {
   name: string;
   description?: string;
   amountCents: number;
   frequency: ServiceFrequency;
-  billingType?: ClientServiceRow['billing_type'];
-  dueDay: number;
-  nextDueDate?: string;
+  startMode: 'next' | 'current' | 'scheduled';
+  startDate?: string;
   activate?: boolean;
 }
 
@@ -367,16 +381,26 @@ export const fetchActiveClientServices = () =>
     '/admin/finance/client-services').then((d) => d.services);
 
 export const fetchProjectServices = (projectId: string) =>
-  apiRequest<{ services: ClientServiceRow[] }>(`/projects/${projectId}/services`).then((d) => d.services);
+  apiRequest<{ services: ClientServiceRow[]; billing: ClientRecurringBilling | null }>(`/projects/${projectId}/services`);
 
 export const createProjectService = (projectId: string, input: ClientServiceInput) =>
   apiRequest<{ id: string }>(`/projects/${projectId}/services`, { method: 'POST', body: input });
 
 export const updateProjectService = (
   serviceId: string,
-  input: Partial<Pick<ClientServiceInput, 'name' | 'description' | 'amountCents' | 'frequency' | 'billingType' | 'dueDay'>>
+  input: Partial<Pick<ClientServiceInput, 'name' | 'description' | 'amountCents' | 'frequency'>>
     & { reason?: string },
 ) => apiRequest<{ saved: true }>(`/services/${serviceId}`, { method: 'PATCH', body: input });
+
+export const configureProjectRecurringBilling = (projectId: string, input: ClientRecurringBilling) =>
+  apiRequest<{ billing: ClientRecurringBilling; rebasedServiceCount: number }>(`/projects/${projectId}/recurring-billing`, {
+    method: 'PUT', body: input,
+  });
+
+export const previewProjectService = (
+  projectId: string,
+  input: Pick<ClientServiceInput, 'amountCents' | 'frequency' | 'startMode' | 'startDate'> & { serviceId?: string },
+) => apiRequest<ClientServicePreview>(`/projects/${projectId}/services/preview`, { method: 'POST', body: input });
 
 export const transitionProjectService = (
   serviceId: string,

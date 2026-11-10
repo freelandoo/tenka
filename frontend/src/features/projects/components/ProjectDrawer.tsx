@@ -47,6 +47,7 @@ export function ProjectDrawer({
   const [planOpen, setPlanOpen] = useState(false);
   const [activityRevision, setActivityRevision] = useState(0);
   const [lifecycleAction, setLifecycleAction] = useState<'finalize' | 'archive' | null>(null);
+  const [serviceModalOpen, setServiceModalOpen] = useState(false);
 
   const loadFinance = useCallback(async () => {
     if (!isAdmin) return;
@@ -232,7 +233,7 @@ export function ProjectDrawer({
   }
 
   return <>
-    <PanelOverlay variant="drawer" labelledBy="project-drawer-title" onClose={onClose}>
+    <PanelOverlay variant="drawer" labelledBy="project-drawer-title" suspended={serviceModalOpen} onClose={onClose}>
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <span
           data-postit-color={project.color_key satisfies PostItColorKey}
@@ -455,7 +456,7 @@ export function ProjectDrawer({
         </div>}
       </section>
 
-      {isAdmin && <ProjectServicesSection projectId={project.id} reloadKey={activityRevision} />}
+      {isAdmin && <ProjectServicesSection projectId={project.id} reloadKey={activityRevision} onModalVisibilityChange={setServiceModalOpen} />}
 
       <section className="panel-drawer__section" aria-labelledby="drawer-assignees">
         <h3 id="drawer-assignees" className="panel-eyebrow">

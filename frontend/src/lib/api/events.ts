@@ -25,7 +25,8 @@ export type ChangeType =
   | 'subscription_payments'
   | 'project_subscriptions'
   | 'asaas_checkout_sessions'
-  | 'project_payments';
+  | 'project_payments'
+  | 'client_services';
 
 /**
  * Carga do evento. O backend manda só um sinal — quem recebe refaz o próprio

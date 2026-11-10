@@ -1539,6 +1539,7 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 }
 
 .panel-overlay--drawer { justify-content: flex-end; padding: 0; }
+.panel-overlay--suspended { visibility: hidden; pointer-events: none; }
 
 .panel-modal {
   width: min(560px, 100%);

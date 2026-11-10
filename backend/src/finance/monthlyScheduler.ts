@@ -26,19 +26,25 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
   return withActor(null, async (client) => {
     const target = await client.query<{ client_id: string; next_due_date: string; billing_type: string }>(
       `select client_id, next_due_date, billing_type from (
-         select p.client_id, ps.next_due_date, ps.billing_type
+         select p.client_id, ps.next_due_date,
+                coalesce(bs.billing_type, ps.billing_type) as billing_type
            from public.projects p
            join public.project_subscriptions ps on ps.project_id = p.id
+           left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
           where ps.app_managed and ps.status = 'active' and p.subscription_active
             and ps.asaas_subscription_id is null and p.archived_at is null
             and p.archive_requested_at is null and p.client_id is not null
+            and (bs.client_id is null or (ps.due_day = bs.due_day and ps.billing_type = bs.billing_type))
             and ps.next_due_date <= ${WINDOW}
          union all
-         select p.client_id, cs.next_due_date, cs.billing_type
+         select p.client_id, cs.next_due_date,
+                coalesce(bs.billing_type, cs.billing_type) as billing_type
            from public.projects p
            join public.client_services cs on cs.project_id = p.id
+           left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
           where cs.status = 'active' and p.archived_at is null
             and p.archive_requested_at is null and p.client_id is not null
+            and (bs.client_id is null or (cs.due_day = bs.due_day and cs.billing_type = bs.billing_type))
             and cs.next_due_date <= ${WINDOW}
        ) candidates
        order by next_due_date, client_id, billing_type
@@ -63,7 +69,10 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
       `select ps.id, ps.project_id, ps.amount_cents, ps.due_day, ps.next_due_date, ps.frequency
          from public.projects p
          join public.project_subscriptions ps on ps.project_id = p.id
-        where p.client_id = $1 and ps.next_due_date = $2::date and ps.billing_type = $3
+         left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
+        where p.client_id = $1 and ps.next_due_date = $2::date
+          and coalesce(bs.billing_type, ps.billing_type) = $3
+          and (bs.client_id is null or (ps.due_day = bs.due_day and ps.billing_type = bs.billing_type))
           and ps.app_managed and ps.status = 'active' and p.subscription_active
           and ps.asaas_subscription_id is null and p.archived_at is null
           and p.archive_requested_at is null
@@ -121,7 +130,10 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
       `select cs.id, cs.project_id, cs.amount_cents, cs.due_day, cs.next_due_date, cs.frequency
          from public.projects p
          join public.client_services cs on cs.project_id = p.id
-        where p.client_id = $1 and cs.next_due_date = $2::date and cs.billing_type = $3
+         left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
+        where p.client_id = $1 and cs.next_due_date = $2::date
+          and coalesce(bs.billing_type, cs.billing_type) = $3
+          and (bs.client_id is null or (cs.due_day = bs.due_day and cs.billing_type = bs.billing_type))
           and cs.status = 'active' and p.archived_at is null and p.archive_requested_at is null
         order by cs.id
         for update of cs`,

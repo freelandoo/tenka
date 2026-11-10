@@ -6,6 +6,8 @@ interface PanelOverlayProps {
   /** 'modal' centraliza; 'drawer' encosta à direita. */
   variant: 'modal' | 'drawer';
   labelledBy: string;
+  /** Mantém o painel montado, mas o retira da pilha visual durante um modal filho. */
+  suspended?: boolean;
   onClose(): void;
   children: ReactNode;
 }
@@ -18,7 +20,7 @@ const FOCUSABLE =
  * ESC, clique no backdrop, bloqueio do scroll de fundo (inclusive contra
  * smooth scroll) e transição GSAP de entrada.
  */
-export function PanelOverlay({ variant, labelledBy, onClose, children }: PanelOverlayProps) {
+export function PanelOverlay({ variant, labelledBy, suspended = false, onClose, children }: PanelOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
@@ -27,7 +29,7 @@ export function PanelOverlay({ variant, labelledBy, onClose, children }: PanelOv
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const overlay = overlayRef.current;
     const panel = panelRef.current;
-    if (!overlay || !panel) return;
+    if (!overlay || !panel || suspended) return;
 
     // Bloqueia o scroll de fundo enquanto o overlay está aberto.
     const prevOverflow = document.body.style.overflow;
@@ -76,12 +78,13 @@ export function PanelOverlay({ variant, labelledBy, onClose, children }: PanelOv
       previouslyFocused?.focus?.({ preventScroll: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [suspended]);
 
   return (
     <div
       ref={overlayRef}
-      className={`panel-overlay${variant === 'drawer' ? ' panel-overlay--drawer' : ''}`}
+      className={`panel-overlay${variant === 'drawer' ? ' panel-overlay--drawer' : ''}${suspended ? ' panel-overlay--suspended' : ''}`}
+      aria-hidden={suspended || undefined}
       onMouseDown={(event) => {
         if (event.target === overlayRef.current) onClose();
       }}

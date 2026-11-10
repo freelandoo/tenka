@@ -18,6 +18,9 @@ describe.skipIf(!enabled)('mensalidade + serviço recorrente numa cobrança (Pos
     const client = await pool.query<{ id: string }>(
       "insert into public.clients (name, cpf_cnpj) values ('Teste serviço', '12345678901') returning id");
     clientId = client.rows[0]!.id;
+    await pool.query(
+      `insert into public.client_recurring_billing_settings (client_id, due_day, billing_type)
+       values ($1, 10, 'PIX')`, [clientId]);
     const dueDate = "timezone('America/Sao_Paulo', now())::date + 7";
 
     // Projeto A: mensalidade de R$100 (project_subscription mensal).
@@ -27,8 +30,8 @@ describe.skipIf(!enabled)('mensalidade + serviço recorrente numa cobrança (Pos
     subProjectId = subProject.rows[0]!.id;
     await pool.query(
       `insert into public.project_subscriptions
-         (project_id, amount_cents, due_day, next_due_date, status, external_reference, app_managed)
-       values ($1,10000,10,${dueDate},'active',$2,true)`,
+         (project_id, amount_cents, billing_type, due_day, next_due_date, status, external_reference, app_managed)
+       values ($1,10000,'PIX',10,${dueDate},'active',$2,true)`,
       [subProjectId, `test-sub:${subProjectId}`]);
 
     // Projeto B do mesmo cliente: serviço recorrente anual de R$80.
@@ -38,8 +41,8 @@ describe.skipIf(!enabled)('mensalidade + serviço recorrente numa cobrança (Pos
     serviceProjectId = serviceProject.rows[0]!.id;
     const service = await pool.query<{ id: string }>(
       `insert into public.client_services
-         (project_id, name, amount_cents, frequency, due_day, next_due_date, status)
-       values ($1,'Renovação anual',8000,'annual',10,${dueDate},'active') returning id`,
+         (project_id, name, amount_cents, frequency, billing_type, due_day, next_due_date, status)
+       values ($1,'Renovação anual',8000,'annual','PIX',10,${dueDate},'active') returning id`,
       [serviceProjectId]);
     serviceId = service.rows[0]!.id;
   });
