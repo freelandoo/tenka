@@ -27,7 +27,8 @@ export interface ChangeEvent {
     | 'project_subscriptions'
     | 'asaas_checkout_sessions'
     | 'project_payments'
-    | 'subscription_payments';
+    | 'subscription_payments'
+    | 'client_services';
   /** Dono da notificação (só em eventos de `notifications`). */
   u?: string;
   /** Conversa afetada (só em eventos de `wa_messages`) — a thread aberta filtra por ela. */

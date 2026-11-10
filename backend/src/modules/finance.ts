@@ -27,6 +27,7 @@ import { queueAlert } from '../finance/queueHealth';
 import { subscriptionChangePreview } from '../finance/subscriptionPreview';
 import { asaasEventDate } from '../finance/asaasDate';
 import { financeReadiness } from '../finance/readiness';
+import { canTransitionClientService, type ClientServiceStatus } from '../finance/clientServiceStatus';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -42,6 +43,35 @@ const subscriptionSchema = z.object({
 
 const subscriptionPreviewSchema = subscriptionSchema.pick({
   amountCents: true, dueDay: true, applyToCurrentPayment: true,
+});
+
+const serviceFrequencyEnum = z.enum(['once', 'monthly', 'quarterly', 'semiannual', 'annual']);
+const serviceBillingEnum = z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']);
+
+const clientServiceCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(1000).default(''),
+  amountCents: z.number().int().positive(),
+  frequency: serviceFrequencyEnum,
+  billingType: serviceBillingEnum.optional(),
+  dueDay: z.number().int().min(1).max(31),
+  nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  activate: z.boolean().default(true),
+});
+
+const clientServiceUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  description: z.string().trim().max(1000).optional(),
+  amountCents: z.number().int().positive().optional(),
+  frequency: serviceFrequencyEnum.optional(),
+  billingType: serviceBillingEnum.optional(),
+  dueDay: z.number().int().min(1).max(31).optional(),
+  reason: z.string().trim().max(500).optional(),
+});
+
+const clientServiceTransitionSchema = z.object({
+  action: z.enum(['pause', 'reactivate', 'end', 'archive']),
+  reason: z.string().trim().max(500).optional(),
 });
 
 const planSchema = z.object({
@@ -2056,5 +2086,151 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     );
     financeWorker.kick();
     return reply.send({ received: true });
+  });
+
+  // --- Serviços recorrentes do cliente (além da hospedagem) -----------------
+  // CRUD isolado; a materialização na cobrança consolidada é etapa à parte.
+
+  app.get('/projects/:id/services', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { rows } = await getPool().query(
+      `select id, project_id, name, description, amount_cents, frequency, billing_type,
+              due_day, next_due_date, status, started_at, ended_at, created_at, updated_at
+         from public.client_services
+        where project_id = $1
+        order by (status = 'active') desc, next_due_date, lower(name)`,
+      [id],
+    );
+    return reply.send({ services: rows });
+  });
+
+  app.post('/projects/:id/services', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = clientServiceCreateSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const data = parsed.data;
+    const nextDueDate = data.nextDueDate ?? nextMonthlyDueDate(data.dueDay);
+    const status = data.activate ? 'active' : 'draft';
+    try {
+      const service = await withActor(req.userId!, async (client) => {
+        const project = await client.query<{ id: string }>(
+          `select id from public.projects
+            where id = $1 and archived_at is null and archive_requested_at is null`, [id]);
+        if (!project.rows[0]) return null;
+        const inserted = await client.query<{ id: string }>(
+          `insert into public.client_services
+             (project_id, name, description, amount_cents, frequency, billing_type,
+              due_day, next_due_date, status, started_at, created_by, updated_by)
+           values ($1,$2,$3,$4,$5,coalesce($6,'UNDEFINED'),$7,$8::date,$9,
+                   case when $9 = 'active' then now() end,$10,$10)
+           returning id`,
+          [id, data.name, data.description, data.amountCents, data.frequency,
+            data.billingType ?? null, data.dueDay, nextDueDate, status, req.userId],
+        );
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'servico_criado',$3::jsonb)`,
+          [id, req.userId, JSON.stringify({
+            serviceId: inserted.rows[0]!.id, name: data.name,
+            amountCents: data.amountCents, frequency: data.frequency,
+            dueDay: data.dueDay, nextDueDate, status,
+          })],
+        );
+        return inserted.rows[0]!;
+      });
+      if (!service) return reply.code(404).send({ error: 'projeto-inexistente' });
+      return reply.code(201).send({ id: service.id });
+    } catch (error) {
+      return sendDbError(error, reply);
+    }
+  });
+
+  app.patch('/services/:serviceId', adminOnly, async (req, reply) => {
+    const { serviceId } = req.params as { serviceId: string };
+    const parsed = clientServiceUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const data = parsed.data;
+    try {
+      const result = await withActor(req.userId!, async (client) => {
+        const current = await client.query<{
+          project_id: string; status: ClientServiceStatus; name: string;
+          amount_cents: number; frequency: string; due_day: number;
+        }>(
+          `select project_id, status, name, amount_cents, frequency, due_day
+             from public.client_services where id = $1 for update`, [serviceId]);
+        const service = current.rows[0];
+        if (!service) return 'missing' as const;
+        // Encerrado/arquivado não se edita: preserva o registro financeiro.
+        if (service.status === 'ended' || service.status === 'archived') return 'locked' as const;
+        const updated = await client.query(
+          `update public.client_services set
+             name = coalesce($2, name),
+             description = coalesce($3, description),
+             amount_cents = coalesce($4, amount_cents),
+             frequency = coalesce($5, frequency),
+             billing_type = coalesce($6, billing_type),
+             due_day = coalesce($7, due_day)
+           where id = $1`,
+          [serviceId, data.name ?? null, data.description ?? null, data.amountCents ?? null,
+            data.frequency ?? null, data.billingType ?? null, data.dueDay ?? null],
+        );
+        if (updated.rowCount === 0) return 'missing' as const;
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'servico_alterado',$3::jsonb)`,
+          [service.project_id, req.userId, JSON.stringify({
+            serviceId,
+            previous: { amountCents: service.amount_cents, frequency: service.frequency, dueDay: service.due_day },
+            next: { amountCents: data.amountCents, frequency: data.frequency, dueDay: data.dueDay },
+            reason: data.reason ?? null,
+          })],
+        );
+        return 'ok' as const;
+      });
+      if (result === 'missing') return reply.code(404).send({ error: 'servico-inexistente' });
+      if (result === 'locked') return reply.code(409).send({ error: 'servico-encerrado' });
+      return reply.send({ saved: true });
+    } catch (error) {
+      return sendDbError(error, reply);
+    }
+  });
+
+  app.post('/services/:serviceId/transition', adminOnly, async (req, reply) => {
+    const { serviceId } = req.params as { serviceId: string };
+    const parsed = clientServiceTransitionSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
+    const target: ClientServiceStatus = parsed.data.action === 'pause' ? 'paused'
+      : parsed.data.action === 'reactivate' ? 'active'
+      : parsed.data.action === 'end' ? 'ended' : 'archived';
+    try {
+      const result = await withActor(req.userId!, async (client) => {
+        const current = await client.query<{ project_id: string; status: ClientServiceStatus }>(
+          `select project_id, status from public.client_services where id = $1 for update`, [serviceId]);
+        const service = current.rows[0];
+        if (!service) return 'missing' as const;
+        if (!canTransitionClientService(service.status, target)) return 'invalid-transition' as const;
+        await client.query(
+          `update public.client_services
+              set status = $2,
+                  ended_at = case when $2 = 'ended' then now() else ended_at end,
+                  started_at = case when $2 = 'active' then coalesce(started_at, now()) else started_at end
+            where id = $1`,
+          [serviceId, target],
+        );
+        await client.query(
+          `insert into public.project_activity (project_id, actor_id, action, metadata)
+           values ($1,$2,'servico_status',$3::jsonb)`,
+          [service.project_id, req.userId, JSON.stringify({
+            serviceId, from: service.status, to: target, reason: parsed.data.reason ?? null,
+          })],
+        );
+        return 'ok' as const;
+      });
+      if (result === 'missing') return reply.code(404).send({ error: 'servico-inexistente' });
+      if (result === 'invalid-transition') return reply.code(409).send({ error: 'transicao-invalida' });
+      return reply.send({ status: target });
+    } catch (error) {
+      return sendDbError(error, reply);
+    }
   });
 }
