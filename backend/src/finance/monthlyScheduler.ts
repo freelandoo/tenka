@@ -26,15 +26,18 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
     // `target` escolhe o par (cliente, vencimento) mais antigo elegível; o
     // SELECT externo bloqueia todos os serviços daquele cliente nessa data.
     const { rows } = await client.query<DueService>(
+      // Agrupa também por billing_type: só consolida serviços da mesma
+      // modalidade de pagamento. Boleto e Pix do mesmo cliente viram cobranças
+      // separadas (não dá para fundir numa única transação de tipo divergente).
       `with target as (
-         select p.client_id, ps.next_due_date
+         select p.client_id, ps.next_due_date, ps.billing_type
            from public.projects p
            join public.project_subscriptions ps on ps.project_id = p.id
           where ps.app_managed and ps.status = 'active' and p.subscription_active
             and ps.asaas_subscription_id is null and p.archived_at is null
             and p.archive_requested_at is null and p.client_id is not null
             and ps.next_due_date <= (timezone('America/Sao_Paulo', now())::date + 7)
-          order by ps.next_due_date, p.client_id
+          order by ps.next_due_date, p.client_id, ps.billing_type
           limit 1
        )
        select ps.id, ps.project_id, p.client_id, ps.amount_cents, ps.billing_type,
@@ -42,6 +45,7 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
          from public.projects p
          join public.project_subscriptions ps on ps.project_id = p.id
          join target t on t.client_id = p.client_id and t.next_due_date = ps.next_due_date
+           and t.billing_type = ps.billing_type
         where ps.app_managed and ps.status = 'active' and p.subscription_active
           and ps.asaas_subscription_id is null and p.archived_at is null
           and p.archive_requested_at is null
@@ -65,9 +69,9 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
                     and b.status <> 'cancelled'
                 )) as issued
            from public.subscription_payments sp
-          where sp.subscription_id = $1 and sp.competence = date_trunc('month', $2::date)::date
+          where sp.project_id = $1 and sp.competence = date_trunc('month', $2::date)::date
           order by issued desc, sp.id limit 1`,
-        [sub.id, sub.next_due_date],
+        [sub.project_id, sub.next_due_date],
       );
       const previous = existing.rows[0];
       if (previous && !previous.issued && !['confirmed', 'received', 'legacy_paid'].includes(previous.status)) {
