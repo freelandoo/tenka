@@ -747,10 +747,12 @@ async function billingBatchContext(operation: Operation, db: PoolClient | Return
        join public.clients c on c.id = b.client_id
        join (
          select bi.batch_id, bi.amount_cents, sp.due_date,
-                p.name || ' - mensalidade ' || to_char(sp.competence, 'MM/YYYY') as label
+                p.name || ' - ' || coalesce(cs.name,
+                  'mensalidade ' || to_char(sp.competence, 'MM/YYYY')) as label
            from public.client_billing_batch_items bi
            join public.subscription_payments sp on sp.id = bi.subscription_payment_id
            join public.projects p on p.id = bi.project_id
+           left join public.client_services cs on cs.id = sp.client_service_id
           where bi.kind = 'subscription' and bi.status = 'active'
          union all
          select bi.batch_id, bi.amount_cents, pp.due_date,
@@ -941,68 +943,84 @@ export async function executeOperation(operation: Operation): Promise<string | n
   if (operation.checkout_session_id) return executeHostingCheckout(operation);
   if (operation.billing_batch_id) {
     const payload = operation.request_payload ?? {};
-    const scheduledIds = Array.isArray(payload.scheduledSubscriptionIds)
-      ? payload.scheduledSubscriptionIds.filter((value): value is string => typeof value === 'string')
-      : typeof payload.scheduledSubscriptionId === 'string'
-        ? [payload.scheduledSubscriptionId]
-        : [];
-    if (scheduledIds.length === 0) return executeBillingBatchOperation(operation);
+    const toIds = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+    const subscriptionIds = toIds(payload.scheduledSubscriptionIds).length
+      ? toIds(payload.scheduledSubscriptionIds)
+      : typeof payload.scheduledSubscriptionId === 'string' ? [payload.scheduledSubscriptionId] : [];
+    const serviceIds = toIds(payload.scheduledServiceIds);
+    if (subscriptionIds.length === 0 && serviceIds.length === 0) {
+      return executeBillingBatchOperation(operation);
+    }
     return withActor(null, async (client) => {
-      // Reconfere, pouco antes de cobrar, se cada serviço continua ativo. Uma
-      // pausa/arquivamento que chegou depois de materializar precisa sair da
-      // cobrança consolidada — mas sem derrubar os serviços que seguem ativos.
-      const guard = await client.query<{ id: string; active: boolean }>(
-        `select ps.id, (p.subscription_active and p.archived_at is null
-                 and p.archive_requested_at is null and ps.app_managed
-                 and ps.status = 'active' and ps.asaas_subscription_id is null) as active
-           from public.project_subscriptions ps
-           join public.projects p on p.id = ps.project_id
-          where ps.id = any($1::uuid[]) for update of p, ps`,
-        [scheduledIds],
-      );
-      const activeIds = new Set(guard.rows.filter((row) => row.active).map((row) => row.id));
-      const inactiveIds = scheduledIds.filter((id) => !activeIds.has(id));
-      if (inactiveIds.length > 0) {
+      // Reconfere, pouco antes de cobrar, se cada item segue ativo. Pausa ou
+      // arquivamento que chegou depois de materializar sai da cobrança — sem
+      // derrubar os itens que continuam ativos.
+      const inactiveSubscriptionIds: string[] = [];
+      if (subscriptionIds.length) {
+        const guard = await client.query<{ id: string; active: boolean }>(
+          `select ps.id, (p.subscription_active and p.archived_at is null
+                   and p.archive_requested_at is null and ps.app_managed
+                   and ps.status = 'active' and ps.asaas_subscription_id is null) as active
+             from public.project_subscriptions ps
+             join public.projects p on p.id = ps.project_id
+            where ps.id = any($1::uuid[]) for update of p, ps`,
+          [subscriptionIds]);
+        const active = new Set(guard.rows.filter((r) => r.active).map((r) => r.id));
+        inactiveSubscriptionIds.push(...subscriptionIds.filter((id) => !active.has(id)));
+      }
+      const inactiveServiceIds: string[] = [];
+      if (serviceIds.length) {
+        const guard = await client.query<{ id: string; active: boolean }>(
+          `select cs.id, (cs.status = 'active' and p.archived_at is null
+                   and p.archive_requested_at is null) as active
+             from public.client_services cs
+             join public.projects p on p.id = cs.project_id
+            where cs.id = any($1::uuid[]) for update of cs, p`,
+          [serviceIds]);
+        const active = new Set(guard.rows.filter((r) => r.active).map((r) => r.id));
+        inactiveServiceIds.push(...serviceIds.filter((id) => !active.has(id)));
+      }
+      if (inactiveSubscriptionIds.length > 0 || inactiveServiceIds.length > 0) {
         if (operation.request_payload.billingCreationAttempted === true) {
-          // Já houve tentativa no provedor: a cobrança não pode ser alterada em
-          // silêncio, vai para revisão em vez de emitir um valor divergente.
+          // Já houve tentativa no provedor: a cobrança não pode mudar em silêncio.
           operation.billingCreationStarted = true;
           throw new Error('Emissão anterior precisa ser revisada antes de parar esta cobrança.');
         }
-        await client.query(
-          `update public.client_billing_batch_items bi set status = 'cancelled'
-             from public.subscription_payments sp
-            where bi.batch_id = $1 and bi.subscription_payment_id = sp.id
-              and sp.subscription_id = any($2::uuid[]) and bi.status = 'active'`,
-          [operation.billing_batch_id, inactiveIds],
-        );
-        await client.query(
-          `update public.subscription_payments sp set status = 'cancelled'
-            where sp.subscription_id = any($2::uuid[]) and sp.asaas_payment_id is null
-              and exists (
-                select 1 from public.client_billing_batch_items bi
-                 where bi.subscription_payment_id = sp.id and bi.batch_id = $1)`,
-          [operation.billing_batch_id, inactiveIds],
-        );
+        // column é um literal interno (não entra input de usuário), seguro interpolar.
+        const dropItems = async (column: 'subscription_id' | 'client_service_id', ids: string[]) => {
+          if (ids.length === 0) return;
+          await client.query(
+            `update public.client_billing_batch_items bi set status = 'cancelled'
+               from public.subscription_payments sp
+              where bi.batch_id = $1 and bi.subscription_payment_id = sp.id
+                and sp.${column} = any($2::uuid[]) and bi.status = 'active'`,
+            [operation.billing_batch_id, ids]);
+          await client.query(
+            `update public.subscription_payments sp set status = 'cancelled'
+              where sp.${column} = any($2::uuid[]) and sp.asaas_payment_id is null
+                and exists (
+                  select 1 from public.client_billing_batch_items bi
+                   where bi.subscription_payment_id = sp.id and bi.batch_id = $1)`,
+            [operation.billing_batch_id, ids]);
+        };
+        await dropItems('subscription_id', inactiveSubscriptionIds);
+        await dropItems('client_service_id', inactiveServiceIds);
         const remaining = await client.query<{ total: string }>(
           `select coalesce(sum(amount_cents), 0)::text as total
-             from public.client_billing_batch_items
-            where batch_id = $1 and status = 'active'`,
-          [operation.billing_batch_id],
-        );
+             from public.client_billing_batch_items where batch_id = $1 and status = 'active'`,
+          [operation.billing_batch_id]);
         const total = Number(remaining.rows[0]?.total ?? 0);
         if (total <= 0) {
-          // Nenhum serviço ativo sobrou: cancela a cobrança inteira.
+          // Nenhum item ativo sobrou: cancela a cobrança inteira.
           await client.query(
             "update public.client_billing_batches set status = 'cancelled' where id = $1",
-            [operation.billing_batch_id],
-          );
+            [operation.billing_batch_id]);
           return null;
         }
         await client.query(
           'update public.client_billing_batches set amount_cents = $2 where id = $1',
-          [operation.billing_batch_id, total],
-        );
+          [operation.billing_batch_id, total]);
       }
       return executeBillingBatchOperation(operation, client);
     });
