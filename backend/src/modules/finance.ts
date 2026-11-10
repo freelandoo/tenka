@@ -33,6 +33,8 @@ const subscriptionSchema = z.object({
   dueDay: z.number().int().min(1).max(31),
   nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   billingType: z.enum(['UNDEFINED', 'BOLETO', 'CREDIT_CARD', 'PIX']).optional(),
+  frequency: z.enum(['once', 'monthly', 'quarterly', 'semiannual', 'annual']).optional(),
+  serviceName: z.string().trim().max(120).optional(),
   activate: z.boolean().default(false),
   confirmPaidCompetence: z.boolean().default(false),
   applyToCurrentPayment: z.boolean().default(false),
@@ -919,10 +921,12 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         const { rows } = await client.query<{ id: string; asaas_subscription_id: string | null }>(
           `insert into public.project_subscriptions
              (project_id, amount_cents, billing_type, due_day, next_due_date,
-              status, external_reference, created_by, app_managed, first_due_date, started_at)
+              status, external_reference, created_by, app_managed, first_due_date, started_at,
+              frequency, service_name)
            values ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,
                    case when $6 = 'active' then $5::date end,
-                   case when $6 = 'active' then now() end)
+                   case when $6 = 'active' then now() end,
+                   coalesce($10, 'monthly'), coalesce($11, ''))
            on conflict (project_id) do update set
              amount_cents = excluded.amount_cents,
              billing_type = excluded.billing_type,
@@ -937,11 +941,15 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                                    then $5::date else project_subscriptions.first_due_date end,
              started_at = case when $6 = 'active' then coalesce(project_subscriptions.started_at, now())
                                else project_subscriptions.started_at end,
+             -- Omitir a frequência num ajuste não deve resetar um serviço anual.
+             frequency = coalesce($10, project_subscriptions.frequency),
+             service_name = coalesce($11, project_subscriptions.service_name),
              sync_error = null
            returning id, asaas_subscription_id`,
           [id, parsed.data.amountCents, billingType, parsed.data.dueDay,
             nextDueDate, activationStatus,
-            `project-subscription:${id}`, req.userId, appManaged],
+            `project-subscription:${id}`, req.userId, appManaged,
+            parsed.data.frequency ?? null, parsed.data.serviceName ?? null],
         );
         const subscription = rows[0];
         if (!subscription) throw new Error('Falha ao salvar a assinatura.');
