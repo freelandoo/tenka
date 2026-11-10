@@ -8,6 +8,7 @@ import {
   saudeMargem,
   saudeRecorrencia,
   summarize,
+  summarizeByClient,
 } from './financeService';
 
 const project = (over: Partial<ProjectRow> = {}): ProjectRow => ({
@@ -55,6 +56,48 @@ const base = {
   month: 7,
   today: '2026-07-25',
 };
+
+describe('summarizeByClient', () => {
+  it('agrupa receita recorrente e custos atribuídos por cliente, com margem', () => {
+    const rows = summarizeByClient({
+      year: 2026, month: 7,
+      projects: [
+        project({ id: 'p1', client_id: 'c1', client_name: 'Alfa', monthly_fee_cents: 100_000, subscription_active: true }),
+        project({ id: 'p2', client_id: 'c1', client_name: 'Alfa', monthly_fee_cents: 50_000, subscription_active: false }),
+        project({ id: 'p3', client_id: 'c2', client_name: 'Beta', monthly_fee_cents: 30_000, subscription_active: true }),
+      ],
+      costs: [
+        cost({ project_id: 'p1', kind: 'mensal', amount_cents: 20_000 }),
+        cost({ project_id: 'p1', kind: 'unico', amount_cents: 10_000, incurred_on: '2026-07-05' }),
+        cost({ project_id: 'p3', kind: 'unico', amount_cents: 90_000, incurred_on: '2026-06-30' }), // outro mês: ignora
+        cost({ project_id: null, kind: 'mensal', amount_cents: 500_000 }), // empresa: não entra
+      ],
+    });
+
+    const alfa = rows.find((r) => r.key === 'c1')!;
+    expect(alfa.receitaRecorrenteCents).toBe(100_000); // só a ativa
+    expect(alfa.projetosComMensalidade).toBe(2);
+    expect(alfa.custoMensalCents).toBe(20_000);
+    expect(alfa.custoVariavelCents).toBe(10_000);
+    expect(alfa.margemCents).toBe(70_000);
+
+    const beta = rows.find((r) => r.key === 'c2')!;
+    expect(beta.custoVariavelCents).toBe(0); // custo de junho não conta em julho
+    expect(beta.margemCents).toBe(30_000);
+
+    // Alfa primeiro (maior receita); nenhuma linha de custo de empresa.
+    expect(rows.map((r) => r.key)).toEqual(['c1', 'c2']);
+  });
+
+  it('omite cliente sem receita recorrente nem custo atribuído', () => {
+    const rows = summarizeByClient({
+      year: 2026, month: 7,
+      projects: [project({ client_id: 'c9', client_name: 'Sem recorrência', value_cents: 900_000 })],
+      costs: [],
+    });
+    expect(rows).toHaveLength(0);
+  });
+});
 
 describe('summarize — receita', () => {
   it('reconhece o valor do projeto no mês da entrega e ignora os outros meses', () => {

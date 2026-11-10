@@ -78,9 +78,16 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
 
   const headcount = useMemo(() => profiles.filter((p) => p.active).length, [profiles]);
 
+  const [view, setView] = useState<'geral' | 'cliente'>('geral');
+
   const s = useMemo(
     () => finance.summarize({ projects, costs, headcount, year, month, today }),
     [projects, costs, headcount, year, month, today],
+  );
+
+  const porCliente = useMemo(
+    () => finance.summarizeByClient({ projects, costs, year, month }),
+    [projects, costs, year, month],
   );
 
   const variacao = useMemo(() => {
@@ -123,6 +130,20 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
 
   return (
     <div className="fin">
+      <div className="fin-toggle" role="tablist" aria-label="Visão do custo mensal"
+        style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 999, border: '1px solid var(--panel-border)', width: 'fit-content' }}>
+        {([['geral', 'Geral'], ['cliente', 'Por cliente']] as const).map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={view === key}
+            className={`panel-btn panel-btn--sm${view === key ? '' : ' panel-btn--ghost'}`}
+            style={{ borderRadius: 999 }} onClick={() => setView(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'cliente' ? (
+        <ClientCostTable rows={porCliente} periodo={periodo} />
+      ) : (<>
       {/* ---- Resultado do mês: entra, sai, sobra, e quanto sobra em % ---- */}
       <div className="fin-result">
         <Card
@@ -253,6 +274,58 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
         da Carteira. Custo fixo = custos mensais ativos (empresa + projeto); custo variável =
         custos únicos lançados no mês. A concentração usa a receita do ano: entregas do ano mais
         doze meses de cada mensalidade ativa.
+      </p>
+      </>)}
+    </div>
+  );
+}
+
+/**
+ * Custo mensal recortado por cliente: receita recorrente, custos atribuídos
+ * aos projetos dele e a margem entre as duas. Separa explicitamente o que o
+ * cliente paga (receita) do que a agência gasta para atendê-lo (custo).
+ */
+function ClientCostTable({ rows, periodo }: { rows: finance.ClienteFinanceiro[]; periodo: string }) {
+  if (rows.length === 0) {
+    return (
+      <p style={{ color: 'var(--panel-text-faint)', fontSize: 14 }}>
+        Nenhum cliente com receita recorrente ou custo atribuído em {periodo}. Cadastre a mensalidade
+        no projeto e lance os custos dele para ver a margem por cliente aqui.
+      </p>
+    );
+  }
+  return (
+    <div className="fin-clientes" style={{ display: 'grid', gap: 10 }}>
+      <div className="fin-clientes__head" role="row"
+        style={{ display: 'grid', gridTemplateColumns: '1.6fr repeat(4, 1fr)', gap: 8, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--panel-text-faint)', padding: '0 12px' }}>
+        <span>Cliente</span>
+        <span style={{ textAlign: 'right' }}>Receita rec.</span>
+        <span style={{ textAlign: 'right' }}>Custo mês</span>
+        <span style={{ textAlign: 'right' }}>Margem</span>
+        <span style={{ textAlign: 'right' }}>%</span>
+      </div>
+      {rows.map((row) => (
+        <div key={row.key} role="row"
+          style={{ display: 'grid', gridTemplateColumns: '1.6fr repeat(4, 1fr)', gap: 8, alignItems: 'baseline', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--panel-border)' }}>
+          <span style={{ display: 'grid', gap: 2 }}>
+            <strong style={{ fontSize: 14 }}>{row.nome}</strong>
+            <small style={{ color: 'var(--panel-text-faint)' }}>
+              {row.projetos} projeto{row.projetos === 1 ? '' : 's'}
+              {row.projetosComMensalidade > 0 ? ` · ${row.projetosComMensalidade} com mensalidade` : ''}
+            </small>
+          </span>
+          <span style={{ textAlign: 'right' }}>{money(row.receitaRecorrenteCents)}</span>
+          <span style={{ textAlign: 'right' }}>{money(row.custoTotalCents)}</span>
+          <span style={{ textAlign: 'right', color: row.margemCents >= 0 ? 'var(--panel-text)' : 'var(--panel-danger, #c0392b)' }}>
+            <strong>{money(row.margemCents)}</strong>
+          </span>
+          <span style={{ textAlign: 'right' }}>{pct(row.margemPct)}</span>
+        </div>
+      ))}
+      <p className="panel-field__hint">
+        <strong>Receita</strong> é a mensalidade ativa do cliente; <strong>custo</strong> é o que foi
+        lançado nos projetos dele (mensais + únicos do mês); <strong>margem</strong> é a diferença.
+        Custos da empresa (overhead) não são rateados por cliente e só aparecem na visão Geral.
       </p>
     </div>
   );

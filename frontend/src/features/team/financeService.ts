@@ -248,6 +248,87 @@ export function summarize(input: FinanceInput): FinanceSummary {
 }
 
 // ---------------------------------------------------------------------------
+// Custo mensal por cliente
+//
+// A mesma régua da visão geral, recortada por cliente: receita recorrente
+// (mensalidades ativas), custos ATRIBUÍDOS aos projetos daquele cliente e a
+// margem entre as duas. Custo de empresa (`project_id` null) é overhead da
+// agência e NÃO é rateado por cliente aqui — apareceria como custo fantasma.
+// ---------------------------------------------------------------------------
+
+export interface ClienteFinanceiro {
+  key: string;
+  nome: string;
+  projetos: number;
+  projetosComMensalidade: number;
+  /** Mensalidades ativas do cliente — receita recorrente mensal. */
+  receitaRecorrenteCents: number;
+  /** Custos mensais ativos atribuídos a projetos do cliente. */
+  custoMensalCents: number;
+  /** Custos únicos lançados no mês selecionado. */
+  custoVariavelCents: number;
+  custoTotalCents: number;
+  /** Receita recorrente menos custos atribuídos. */
+  margemCents: number;
+  margemPct: number | null;
+}
+
+export function summarizeByClient(input: {
+  projects: ProjectRow[];
+  costs: CostRow[];
+  year: number;
+  month: number;
+}): ClienteFinanceiro[] {
+  const mesAtual = mesKey(input.year, input.month);
+  const projetoParaCliente = new Map<string, string>();
+  const clientes = new Map<string, ClienteFinanceiro>();
+
+  const linha = (key: string, nome: string): ClienteFinanceiro => {
+    let row = clientes.get(key);
+    if (!row) {
+      row = {
+        key, nome, projetos: 0, projetosComMensalidade: 0,
+        receitaRecorrenteCents: 0, custoMensalCents: 0, custoVariavelCents: 0,
+        custoTotalCents: 0, margemCents: 0, margemPct: null,
+      };
+      clientes.set(key, row);
+    }
+    return row;
+  };
+
+  for (const project of input.projects) {
+    const key = clienteKey(project);
+    projetoParaCliente.set(project.id, key);
+    const row = linha(key, project.client_name.trim() || 'Sem cliente');
+    row.projetos += 1;
+    if (cents(project.monthly_fee_cents) > 0) {
+      row.projetosComMensalidade += 1;
+      if (project.subscription_active) row.receitaRecorrenteCents += cents(project.monthly_fee_cents);
+    }
+  }
+
+  for (const c of input.costs) {
+    if (!c.active || !c.project_id) continue;
+    const key = projetoParaCliente.get(c.project_id);
+    if (!key) continue;
+    const row = clientes.get(key)!;
+    if (c.kind === 'mensal') row.custoMensalCents += cents(c.amount_cents);
+    else if (mesDe(c.incurred_on) === mesAtual) row.custoVariavelCents += cents(c.amount_cents);
+  }
+
+  const rows: ClienteFinanceiro[] = [];
+  for (const row of clientes.values()) {
+    row.custoTotalCents = row.custoMensalCents + row.custoVariavelCents;
+    row.margemCents = row.receitaRecorrenteCents - row.custoTotalCents;
+    row.margemPct = pct(row.margemCents, row.receitaRecorrenteCents);
+    // Clientes sem receita recorrente nem custo atribuído só fariam ruído.
+    if (row.receitaRecorrenteCents > 0 || row.custoTotalCents > 0) rows.push(row);
+  }
+  return rows.sort((a, b) =>
+    b.receitaRecorrenteCents - a.receitaRecorrenteCents || a.nome.localeCompare(b.nome));
+}
+
+// ---------------------------------------------------------------------------
 // Faixas saudáveis
 //
 // São referências de agência de serviço, não verdade contábil: servem para a
