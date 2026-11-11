@@ -32,7 +32,15 @@ export function CostList({ costs, projectId, onChanged, readOnly, defaultIncurre
     const amountCents = parseCents(amount); if (!description.trim() || amountCents <= 0 || saving) return;
     if (clientName && !selectedClient) { toast('error', 'Selecione um cliente da lista ou deixe o campo vazio para custo geral.'); return; }
     setSaving(true);
-    try { await service.createCost({ projectId, clientId: selectedClient?.id ?? null, description: description.trim(), amountCents, kind, incurredOn, notes }); setLaunchOpen(false); onChanged(); }
+    try {
+      await service.createCost({ projectId, clientId: selectedClient?.id ?? null, description: description.trim(), amountCents, kind, incurredOn, notes });
+      // Mantém o contexto (cliente, recorrência e data) para lançar uma sequência.
+      setDescription('');
+      setAmount('');
+      setNotes('');
+      toast('success', 'Custo lançado. Você pode registrar o próximo agora.');
+      onChanged();
+    }
     catch (error) { toast('error', error instanceof Error ? error.message : 'Falha ao lançar o custo.'); } finally { setSaving(false); }
   };
   const confirmDelete = async (mode: 'unique' | 'occurrence' | 'future') => {
