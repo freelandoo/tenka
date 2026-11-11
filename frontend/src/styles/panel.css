@@ -7,7 +7,8 @@
    interferir nas experiências públicas (Games / Multimídia / Dev).
    ========================================================================== */
 
-.tenka-panel {
+.tenka-panel,
+.panel-overlay {
   /* ---- paleta base ---- */
   --panel-bg: #08090d;
   --panel-bg-raise: #0d0f15;
@@ -29,7 +30,9 @@
   --panel-script: 'Caveat', 'Segoe Script', cursive;
 
   --panel-radius: 14px;
+}
 
+.tenka-panel {
   min-height: 100dvh;
   background-color: var(--panel-bg);
   color: var(--panel-text);
@@ -3034,6 +3037,33 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 .fees__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .fees__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fees__entity-link {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 140ms ease, text-decoration-color 140ms ease;
+}
+.fees__entity-link:hover {
+  color: var(--panel-text);
+  text-decoration-color: color-mix(in srgb, currentColor 42%, transparent);
+}
+.fees__entity-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid color-mix(in srgb, var(--panel-accent) 72%, transparent);
+  outline-offset: 3px;
+  text-decoration-color: currentColor;
+}
 .fees__client {
   font-size: 11px;
   color: var(--panel-text-faint);
@@ -3063,6 +3093,9 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
   gap: 6px;
 }
 .fees__billing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+.fees__authorization { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+.fees__authorization .finance-badge { display: inline-flex; align-items: center; gap: 4px; }
+.fees__authorization-link { min-height: 28px; padding: 4px 8px; font-size: 10.5px; }
 a.fees__billing-icon { text-decoration: none; }
 .fees__billing-icon { width: 26px; height: 26px; border-radius: 999px; }
 .fees__billing-icon:disabled { opacity: 0.5; cursor: wait; }
@@ -3265,6 +3298,7 @@ a.fees__billing-icon { text-decoration: none; }
   .fees__row { grid-template-columns: minmax(0, 1fr) auto minmax(58px, max-content); row-gap: 6px; }
   .fees__due { display: none; }
   .fees__billing { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
+  .fees__authorization { justify-content: flex-start; }
   .project-payments__row { grid-template-columns: 22px minmax(90px, 1fr) auto auto; }
   .project-payments__actions { grid-column: 2 / -1; justify-self: end; }
   .leads__rows { --leads-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(88px, auto); }
@@ -3710,7 +3744,8 @@ a.fees__billing-icon { text-decoration: none; }
 .finance-table th { color: var(--panel-text-dim); font-weight: 600; text-align: left; }
 .finance-table th, .finance-table td { padding: 11px 10px; border-bottom: 1px solid var(--panel-border); vertical-align: top; }
 .finance-table td small { display: block; max-width: 340px; margin-top: 5px; color: #ef8f8f; line-height: 1.35; }
-.finance-badge { display: inline-flex; padding: 3px 7px; border: 1px solid var(--panel-border); border-radius: 999px; white-space: nowrap; }
+.finance-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border: 1px solid var(--panel-border); border-radius: 999px; white-space: nowrap; }
+.finance-badge--icon { padding: 4px; border-radius: 999px; cursor: help; }
 .finance-badge--active, .finance-badge--received, .finance-badge--paid, .finance-badge--confirmed, .finance-badge--legacy_paid { color: #7bd7a0; border-color: color-mix(in srgb, #7bd7a0 35%, transparent); }
 .finance-badge--error, .finance-badge--overdue, .finance-badge--chargeback { color: #ef8f8f; border-color: color-mix(in srgb, #ef8f8f 35%, transparent); }
 .finance-badge--pending_activation, .finance-badge--pending { color: #f4bd68; }
@@ -3818,6 +3853,19 @@ a.fees__billing-icon { text-decoration: none; }
 .project-drawer__split:hover { border-color: var(--panel-accent); }
 .project-drawer__subscription { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .project-drawer__subscription small { color: var(--panel-text-faint); font-size: 11.5px; }
+.card-authorization-admin { display: grid; gap: 11px; padding: 13px; border: 1px solid color-mix(in srgb, var(--panel-accent) 22%, var(--panel-border)); border-radius: 12px; background: color-mix(in srgb, var(--panel-accent) 4%, var(--panel-surface)); }
+.card-authorization-admin__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.card-authorization-admin__head > div { display: grid; gap: 5px; }
+.card-authorization-admin__head strong { font-size: 14px; }
+.card-authorization-admin > p, .card-authorization-admin > small { margin: 0; color: var(--panel-text-faint); font-size: 11.5px; line-height: 1.5; }
+.card-authorization-admin__details { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.card-authorization-admin__details > span { display: grid; gap: 3px; min-width: 0; }
+.card-authorization-admin__details small { color: var(--panel-text-faint); font-size: 10px; }
+.card-authorization-admin__details strong { overflow-wrap: anywhere; font-size: 12px; }
+.card-authorization-admin__link { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; }
+.card-authorization-admin__link .panel-input { min-height: 34px; padding: 6px 9px; font-size: 11px; }
+.card-authorization-admin__actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.card-authorization-admin > .card-authorization-admin__notice { padding: 9px 10px; border: 1px solid color-mix(in srgb, #f4bd68 35%, var(--panel-border)); border-radius: 9px; background: color-mix(in srgb, #f4bd68 7%, var(--panel-surface)); color: var(--panel-text-dim); }
 .project-plan-drawer__header { display: grid; grid-template-columns: auto 1fr auto auto; align-items: start; gap: 12px; }
 .project-plan-drawer__header small { display: block; margin-top: 5px; color: var(--panel-text-faint); }
 .finance-draft-state {
@@ -3852,6 +3900,7 @@ a.fees__billing-icon { text-decoration: none; }
   .finance-admin__editors { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
+  .card-authorization-admin__details, .card-authorization-admin__link { grid-template-columns: 1fr; }
   .finance-queue__meta { grid-template-columns: 1fr; }
   .finance-queue .cart-panel__head { align-items: flex-start; }
   .finance-admin__status { grid-template-columns: minmax(0, 1fr); width: 100%; }
