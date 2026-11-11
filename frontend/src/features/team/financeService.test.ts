@@ -175,6 +175,48 @@ describe('summarize — receita', () => {
 });
 
 describe('summarize — custo e margem', () => {
+  it('separa competências, inclusive no mesmo mês de anos diferentes', () => {
+    const october = summarize({
+      ...base,
+      year: 2026,
+      month: 10,
+      projects: [],
+      costs: [
+        cost({ kind: 'unico', amount_cents: 50_000, incurred_on: '2026-10-12' }),
+        cost({ kind: 'unico', amount_cents: 80_000, incurred_on: '2026-11-12' }),
+        cost({ kind: 'unico', amount_cents: 90_000, incurred_on: '2025-10-12' }),
+        cost({ kind: 'mensal', amount_cents: 10_000, incurred_on: '2026-11-01' }),
+      ],
+    });
+    const november = summarize({
+      ...base,
+      year: 2026,
+      month: 11,
+      projects: [],
+      costs: [
+        cost({ kind: 'unico', amount_cents: 50_000, incurred_on: '2026-10-12' }),
+        cost({ kind: 'unico', amount_cents: 80_000, incurred_on: '2026-11-12' }),
+        cost({ kind: 'unico', amount_cents: 90_000, incurred_on: '2025-10-12' }),
+        cost({ kind: 'mensal', amount_cents: 10_000, incurred_on: '2026-11-01' }),
+      ],
+    });
+
+    expect(october.custoTotal).toBe(50_000);
+    expect(november.custoTotal).toBe(90_000);
+  });
+
+  it('não antecipa um custo mensal antes do início da vigência', () => {
+    const beforeStart = summarize({
+      ...base,
+      year: 2026,
+      month: 10,
+      projects: [],
+      costs: [cost({ kind: 'mensal', amount_cents: 70_000, incurred_on: '2026-11-01' })],
+    });
+
+    expect(beforeStart.custoFixo).toBe(0);
+  });
+
   it('separa custo fixo (mensal) do único do mês e ignora o inativo', () => {
     const s = summarize({
       ...base,

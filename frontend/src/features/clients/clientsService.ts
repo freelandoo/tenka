@@ -64,10 +64,16 @@ export async function restoreClient(id: string): Promise<void> {
 export async function fetchCosts(options: {
   scope?: 'company';
   projectId?: string;
+  /** Competência financeira; custos únicos usam a ocorrência e mensais a vigência. */
+  competence?: string;
+  /** Restringe aos projetos deste cliente; custos gerais ficam fora do recorte. */
+  clientId?: string;
 } = {}): Promise<CostRow[]> {
   const query: Record<string, string> = {};
   if (options.scope) query.scope = options.scope;
   if (options.projectId) query.projectId = options.projectId;
+  if (options.competence) query.competence = options.competence;
+  if (options.clientId) query.clientId = options.clientId;
   const data = await apiRequest<{ costs: CostRow[] }>('/costs', { query });
   return data.costs;
 }

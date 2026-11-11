@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import type { CostKind, CostRow } from '../../lib/supabase/database.types';
 import { formatCurrencyFromCents } from '../panel/format';
@@ -12,6 +12,10 @@ interface CostListProps {
   onChanged(): void;
   /** Some com o formulário quando o usuário não pode lançar aqui. */
   readOnly?: boolean;
+  /** Competência sugerida para o lançamento; não usa a data de cadastro. */
+  defaultIncurredOn?: string;
+  totalLabel?: string;
+  emptyMessage?: string;
 }
 
 const KIND_LABEL: Record<CostKind, string> = {
@@ -33,13 +37,26 @@ function parseCents(raw: string): number {
  * Desativar não apaga: a linha continua no histórico, cinza, fora da soma. O
  * lixeira é para lançamento errado.
  */
-export function CostList({ costs, projectId, onChanged, readOnly }: CostListProps) {
+export function CostList({
+  costs,
+  projectId,
+  onChanged,
+  readOnly,
+  defaultIncurredOn,
+  totalLabel = 'Total ativo',
+  emptyMessage,
+}: CostListProps) {
   const { toast } = useToast();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [kind, setKind] = useState<CostKind>(projectId ? 'unico' : 'mensal');
+  const [incurredOn, setIncurredOn] = useState(defaultIncurredOn ?? new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultIncurredOn) setIncurredOn(defaultIncurredOn);
+  }, [defaultIncurredOn]);
 
   const total = service.sumActiveCosts(costs);
 
@@ -49,7 +66,7 @@ export function CostList({ costs, projectId, onChanged, readOnly }: CostListProp
     if (!text || cents <= 0 || saving) return;
     setSaving(true);
     try {
-      await service.createCost({ projectId, description: text, amountCents: cents, kind });
+      await service.createCost({ projectId, description: text, amountCents: cents, kind, incurredOn });
       setDescription('');
       setAmount('');
       onChanged();
@@ -88,7 +105,7 @@ export function CostList({ costs, projectId, onChanged, readOnly }: CostListProp
     <div className="costs">
       {costs.length === 0 ? (
         <p className="costs__empty">
-          {projectId ? 'Nenhum custo lançado neste projeto.' : 'Nenhum custo da empresa lançado.'}
+          {emptyMessage ?? (projectId ? 'Nenhum custo lançado neste projeto.' : 'Nenhum custo da empresa lançado.')}
         </p>
       ) : (
         <ul className="costs__list">
@@ -132,7 +149,7 @@ export function CostList({ costs, projectId, onChanged, readOnly }: CostListProp
       )}
 
       <div className="costs__total">
-        <span>Total ativo</span>
+        <span>{totalLabel}</span>
         <strong>{formatCurrencyFromCents(total)}</strong>
       </div>
 
@@ -162,6 +179,17 @@ export function CostList({ costs, projectId, onChanged, readOnly }: CostListProp
             <option value="unico">Único</option>
             <option value="mensal">Mensal</option>
           </select>
+          <label className="sr-only" htmlFor={`cost-date-${projectId ?? 'company'}`}>
+            {kind === 'mensal' ? 'Início da vigência do custo' : 'Data do custo'}
+          </label>
+          <input
+            id={`cost-date-${projectId ?? 'company'}`}
+            className="panel-input costs__form-date"
+            type="date"
+            value={incurredOn}
+            onChange={(event) => setIncurredOn(event.target.value)}
+            aria-label={kind === 'mensal' ? 'Início da vigência do custo' : 'Data do custo'}
+          />
           <button
             type="button"
             className="panel-btn panel-btn--sm"

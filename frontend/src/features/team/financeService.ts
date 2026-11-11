@@ -94,6 +94,18 @@ export function mesKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
+/**
+ * Define a competência financeira do custo, sem depender da data de cadastro.
+ * Único entra só no mês em que ocorreu; mensal entra a partir do início da
+ * vigência. A falta de uma data de término no modelo preserva a regra já
+ * existente de `active`: desligado deixa de compor os indicadores.
+ */
+export function costCountsInCompetence(cost: CostRow, competence: string): boolean {
+  if (!cost.active) return false;
+  const costMonth = mesDe(cost.incurred_on);
+  return cost.kind === 'mensal' ? costMonth <= competence : costMonth === competence;
+}
+
 /** `2026-01` → `2025-12`. */
 export function mesAnterior(key: string): string {
   const [y, m] = key.split('-').map(Number);
@@ -212,9 +224,9 @@ export function summarize(input: FinanceInput): FinanceSummary {
   let custoFixo = 0;
   let custoVariavel = 0;
   for (const cost of costs) {
-    if (!cost.active) continue;
+    if (!costCountsInCompetence(cost, mesAtual)) continue;
     if (cost.kind === 'mensal') custoFixo += cents(cost.amount_cents);
-    else if (mesDe(cost.incurred_on) === mesAtual) custoVariavel += cents(cost.amount_cents);
+    else custoVariavel += cents(cost.amount_cents);
   }
 
   const receitaTotal = receitaProjetos + mrr;
@@ -336,12 +348,12 @@ export function summarizeByClient(input: {
   }
 
   for (const c of input.costs) {
-    if (!c.active || !c.project_id) continue;
+    if (!c.project_id || !costCountsInCompetence(c, mesAtual)) continue;
     const key = projetoParaCliente.get(c.project_id);
     if (!key) continue;
     const row = clientes.get(key)!;
     if (c.kind === 'mensal') row.custoMensalCents += cents(c.amount_cents);
-    else if (mesDe(c.incurred_on) === mesAtual) row.custoVariavelCents += cents(c.amount_cents);
+    else row.custoVariavelCents += cents(c.amount_cents);
   }
 
   const rows: ClienteFinanceiro[] = [];

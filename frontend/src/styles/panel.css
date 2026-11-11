@@ -2929,13 +2929,14 @@ button.leads__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 .costs__form {
   display: grid;
-  grid-template-columns: 1fr 110px 104px auto;
+  grid-template-columns: 1fr 110px 104px 142px auto;
   gap: 8px;
   align-items: center;
 }
 .costs__form .panel-input,
 .costs__form .panel-select { padding: 7px 10px; font-size: 13px; }
 .costs__form-amount { font-family: var(--panel-mono); text-align: right; }
+.costs__form-date { min-width: 0; color-scheme: dark; }
 
 .cart-panel__hint {
   font-size: 12.5px;

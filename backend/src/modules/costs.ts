@@ -52,16 +52,47 @@ async function canWrite(req: FastifyRequest, projectId: string | null): Promise<
 export async function costRoutes(app: FastifyInstance): Promise<void> {
   /**
    * Lista custos. `?scope=company` traz só os da empresa; `?projectId=` traz os
-   * de um projeto; sem filtro, todos os visíveis (o que a Carteira soma).
+   * de um projeto; `?competence=YYYY-MM` recorta a competência financeira e
+   * `?clientId=` restringe aos projetos de um cliente. Sem filtro, todos os
+   * custos visíveis continuam disponíveis para as telas de histórico.
    */
   app.get('/costs', staffOnly, async (req, reply) => {
-    const { scope, projectId } = req.query as { scope?: string; projectId?: string };
+    const { scope, projectId, competence, clientId } = req.query as {
+      scope?: string;
+      projectId?: string;
+      competence?: string;
+      clientId?: string;
+    };
     const admin = isAdmin(req);
 
+    if (competence && !/^\d{4}-(0[1-9]|1[0-2])$/.test(competence)) {
+      return reply.code(400).send({ error: 'competencia-invalida' });
+    }
+    if (clientId && !z.string().uuid().safeParse(clientId).success) {
+      return reply.code(400).send({ error: 'cliente-invalido' });
+    }
+
+    const [year, month] = competence?.split('-').map(Number) ?? [];
+    const competenceStart = competence ? `${competence}-01` : null;
+    const competenceEnd = competence
+      ? `${month === 12 ? year! + 1 : year}-${String(month === 12 ? 1 : month! + 1).padStart(2, '0')}-01`
+      : null;
+    // Um custo único pertence à data em que ocorreu. Um mensal pertence a cada
+    // competência a partir do início da vigência; assim um custo criado em
+    // novembro não aparece indevidamente em outubro.
     if (scope === 'company') {
       if (!admin) return reply.code(403).send({ error: 'sem-acesso' });
+      const companyFilter = competence
+        ? `and (
+             (c.kind = 'unico' and c.incurred_on >= $1::date and c.incurred_on < $2::date)
+          or (c.kind = 'mensal' and c.incurred_on < $2::date)
+        )`
+        : '';
       const { rows } = await getPool().query(
-        'select * from public.costs where project_id is null order by incurred_on desc, created_at desc',
+        `select c.* from public.costs c
+          where c.project_id is null ${companyFilter}
+          order by c.incurred_on desc, c.created_at desc`,
+        competence ? [competenceStart, competenceEnd] : [],
       );
       return reply.send({ costs: rows });
     }
@@ -69,25 +100,46 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
     if (projectId) {
       if (!(await canAccessProject(req.userId!, admin, projectId)))
         return reply.code(403).send({ error: 'sem-acesso' });
+      const projectFilter = competence
+        ? `and (
+             (kind = 'unico' and incurred_on >= $2::date and incurred_on < $3::date)
+          or (kind = 'mensal' and incurred_on < $3::date)
+        )`
+        : '';
       const { rows } = await getPool().query(
-        'select * from public.costs where project_id = $1 order by incurred_on desc, created_at desc',
-        [projectId],
+        `select * from public.costs where project_id = $1 ${projectFilter}
+          order by incurred_on desc, created_at desc`,
+        competence ? [projectId, competenceStart, competenceEnd] : [projectId],
       );
       return reply.send({ costs: rows });
     }
 
-    // Sem filtro: custos da empresa (só admin) + custos dos projetos visíveis.
+    // Sem cliente: custos da empresa (só admin) + custos dos projetos visíveis.
+    // Com cliente: apenas custos dos projetos dele; overhead não é atribuído
+    // artificialmente a um cliente.
+    const clientFilter = clientId ? 'and p.client_id = $3::uuid' : '';
+    const competenceParams = competence
+      ? [req.userId, admin, clientId ?? null, competenceStart, competenceEnd]
+      : [req.userId, admin, clientId ?? null];
+    const competenceSql = competence
+      ? `and (
+           (c.kind = 'unico' and c.incurred_on >= $4::date and c.incurred_on < $5::date)
+        or (c.kind = 'mensal' and c.incurred_on < $5::date)
+      )`
+      : '';
     const { rows } = await getPool().query(
       `select c.* from public.costs c
-        where (c.project_id is null and $2)
+        where (${clientId ? 'false' : '(c.project_id is null and $2)'}
            or exists (
              select 1 from public.projects p
               where p.id = c.project_id
                 and p.archived_at is null
+                ${clientFilter}
                 and ($2 or exists (select 1 from public.project_assignees a
                                     where a.project_id = p.id and a.user_id = $1)))
+        ) ${competenceSql}
         order by c.incurred_on desc, c.created_at desc`,
-      [req.userId, admin],
+      competenceParams,
     );
     return reply.send({ costs: rows });
   });

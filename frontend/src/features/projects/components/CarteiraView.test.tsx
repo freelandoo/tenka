@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { CarteiraView } from './CarteiraView';
 import * as clientsService from '../../clients/clientsService';
 import type { ProfileRow } from '../../../lib/supabase/database.types';
@@ -171,9 +171,32 @@ describe('Extrato da Carteira', () => {
 
     // Ambas as listas visíveis ao mesmo tempo, sem clique.
     await waitFor(() =>
-      expect(screen.getByText(/Nenhum custo da empresa lançado/)).toBeInTheDocument(),
+      expect(screen.getByText(/Nenhum custo em/)).toBeInTheDocument(),
     );
     expect(container.querySelector('.fees__row')).toBeTruthy();
+  });
+
+  it('consulta os custos pelo cliente selecionado na competência atual', async () => {
+    render(
+      <CarteiraView
+        projects={[
+          makeProject({ client_id: 'c1', client_name: 'Alex' }),
+          makeProject({ id: 'p2', client_id: 'c2', client_name: 'Bia' }),
+        ]}
+        profiles={profiles}
+        isAdmin
+        onProjectsChanged={vi.fn()}
+      />,
+    );
+
+    const filter = await screen.findByLabelText('Buscar cliente nos custos');
+    fireEvent.change(filter, { target: { value: 'Bia' } });
+
+    await waitFor(() => expect(clientsService.fetchCosts).toHaveBeenLastCalledWith({
+      competence: `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`,
+      clientId: 'c2',
+    }));
+    expect(screen.getByRole('button', { name: 'Todos os clientes' })).toBeInTheDocument();
   });
 
   it('projeto sem mensalidade não mostra botão de recorrência', async () => {

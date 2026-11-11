@@ -46,7 +46,10 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [clientSearch, setClientSearch] = useState('');
   const financeStripRef = useRef<HTMLDivElement>(null);
+  const costRequestRef = useRef(0);
 
   const moveFinanceStrip = (direction: -1 | 1) => {
     const strip = financeStripRef.current;
@@ -71,16 +74,50 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
     [profiles],
   );
 
-  // Custos: os da empresa aparecem na seção editável; os de projeto entram só
-  // na soma do card. `/costs` sem filtro já devolve os dois conforme o papel.
-  const [costs, setCosts] = useState<CostRow[]>([]);
-  const loadCosts = useCallback(async () => {
-    try {
-      setCosts(await clientsService.fetchCosts());
-    } catch {
-      setCosts([]);
+  const competencia = `${ano}-${String(mes + 1).padStart(2, '0')}`;
+  const periodo = `${MESES_LONGOS[mes]} de ${ano}`;
+  const clientes = useMemo(() => {
+    const unique = new Map<string, { id: string; name: string; label: string }>();
+    for (const project of projects) {
+      if (!project.client_id || unique.has(project.client_id)) continue;
+      const name = project.client_name.trim() || 'Cliente sem nome';
+      unique.set(project.client_id, { id: project.client_id, name, label: name });
     }
-  }, []);
+    const grouped = new Map<string, number>();
+    for (const client of unique.values()) grouped.set(client.name, (grouped.get(client.name) ?? 0) + 1);
+    return [...unique.values()]
+      .map((client) => ({
+        ...client,
+        label: (grouped.get(client.name) ?? 0) > 1 ? `${client.name} · ${client.id.slice(-4)}` : client.name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [projects]);
+  const selectedClient = clientes.find((client) => client.id === selectedClientId) ?? null;
+
+  // A consulta já chega recortada pela competência para que uma resposta lenta
+  // de outro mês não misture os valores. `incurred_on`, não `created_at`, é a
+  // data que define o mês de um custo único; em custos mensais, é o início da
+  // vigência.
+  const [costs, setCosts] = useState<CostRow[]>([]);
+  const [costStatus, setCostStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const loadCosts = useCallback(async () => {
+    const requestId = ++costRequestRef.current;
+    setCostStatus('loading');
+    setCosts([]);
+    try {
+      const nextCosts = await clientsService.fetchCosts({
+        competence: competencia,
+        clientId: selectedClientId ?? undefined,
+      });
+      if (requestId !== costRequestRef.current) return;
+      setCosts(nextCosts);
+      setCostStatus('ready');
+    } catch {
+      if (requestId !== costRequestRef.current) return;
+      setCosts([]);
+      setCostStatus('error');
+    }
+  }, [competencia, selectedClientId]);
   useEffect(() => {
     void loadCosts();
   }, [loadCosts]);
@@ -176,11 +213,11 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
           icon={<Repeat size={13} aria-hidden="true" />}
         />
         <Kpi
-          label="Custos acumulados"
+          label="Custo do mês"
           value={formatCurrencyFromCents(custoTotal)}
-          sub={`${companyCosts.filter((c) => c.active).length} da empresa · ${
-            projectCosts.filter((c) => c.active).length
-          } de projeto`}
+          sub={selectedClient
+            ? `${selectedClient.name} · ${projectCosts.filter((c) => c.active).length} lançamento${projectCosts.filter((c) => c.active).length === 1 ? '' : 's'}`
+            : `${companyCosts.filter((c) => c.active).length} da empresa · ${projectCosts.filter((c) => c.active).length} de projeto`}
           icon={<TrendingDown size={13} aria-hidden="true" />}
         />
       </div>
@@ -207,15 +244,71 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
             <h2 className="cart-panel__title">Custo mensal</h2>
           </header>
           <p className="cart-panel__hint">
-            Custos da empresa — aluguel, ferramentas, salários. Entram em{' '}
-            <strong>Custos acumulados</strong> junto com os custos de cada projeto.
+            Competência: <strong>{periodo}</strong>. Custos únicos usam a data do lançamento;
+            custos mensais entram a partir do início da vigência. Custos gerais só aparecem em
+            <strong> Todos os clientes</strong>.
           </p>
-          <CostList
-            costs={companyCosts}
-            projectId={null}
-            onChanged={loadCosts}
-            readOnly={!isAdmin}
-          />
+          <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
+            <label className="panel-field__label" htmlFor="cost-client-filter">
+              Cliente
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                id="cost-client-filter"
+                className="panel-input"
+                list="cost-client-options"
+                type="search"
+                value={clientSearch}
+                placeholder="Todos os clientes — buscar cliente"
+                aria-label="Buscar cliente nos custos"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setClientSearch(value);
+                  const match = clientes.find((client) => client.label === value);
+                  setSelectedClientId(match?.id ?? null);
+                }}
+              />
+              <datalist id="cost-client-options">
+                {clientes.map((client) => <option key={client.id} value={client.label} />)}
+              </datalist>
+              {selectedClient && (
+                <button
+                  type="button"
+                  className="panel-btn panel-btn--sm panel-btn--ghost"
+                  onClick={() => {
+                    setSelectedClientId(null);
+                    setClientSearch('');
+                  }}
+                >
+                  Todos os clientes
+                </button>
+              )}
+            </div>
+          </div>
+          {costStatus === 'loading' && (
+            <p className="costs__empty" role="status" aria-live="polite">Atualizando custos de {periodo}…</p>
+          )}
+          {costStatus === 'error' && (
+            <div className="costs__empty">
+              <p>Não foi possível carregar os custos deste período.</p>
+              <button type="button" className="panel-btn panel-btn--sm" onClick={() => void loadCosts()}>
+                Tentar novamente
+              </button>
+            </div>
+          )}
+          {costStatus === 'ready' && (
+            <CostList
+              costs={costs}
+              projectId={null}
+              onChanged={loadCosts}
+              readOnly={!isAdmin || Boolean(selectedClient)}
+              defaultIncurredOn={`${competencia}-01`}
+              totalLabel={selectedClient ? `Total de ${selectedClient.name} no mês` : 'Total do mês'}
+              emptyMessage={selectedClient
+                ? `Nenhum custo de ${selectedClient.name} em ${periodo}.`
+                : `Nenhum custo em ${periodo}.`}
+            />
+          )}
         </section>
 
         <section className="cart-panel">
