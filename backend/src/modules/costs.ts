@@ -117,14 +117,21 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
     // Sem cliente: custos da empresa (só admin) + custos dos projetos visíveis.
     // Com cliente: apenas custos dos projetos dele; overhead não é atribuído
     // artificialmente a um cliente.
+    // A posição dos parâmetros precisa acompanhar o filtro de cliente. Não
+    // deixe um `$3` sem uso: o PostgreSQL não consegue inferir seu tipo e
+    // devolve 500 mesmo quando só a competência foi informada.
     const clientFilter = clientId ? 'and p.client_id = $3::uuid' : '';
+    const competenceStartParam = clientId ? '$4' : '$3';
+    const competenceEndParam = clientId ? '$5' : '$4';
     const competenceParams = competence
-      ? [req.userId, admin, clientId ?? null, competenceStart, competenceEnd]
-      : [req.userId, admin, clientId ?? null];
+      ? (clientId
+        ? [req.userId, admin, clientId, competenceStart, competenceEnd]
+        : [req.userId, admin, competenceStart, competenceEnd])
+      : (clientId ? [req.userId, admin, clientId] : [req.userId, admin]);
     const competenceSql = competence
       ? `and (
-           (c.kind = 'unico' and c.incurred_on >= $4::date and c.incurred_on < $5::date)
-        or (c.kind = 'mensal' and c.incurred_on < $5::date)
+           (c.kind = 'unico' and c.incurred_on >= ${competenceStartParam}::date and c.incurred_on < ${competenceEndParam}::date)
+        or (c.kind = 'mensal' and c.incurred_on < ${competenceEndParam}::date)
       )`
       : '';
     const { rows } = await getPool().query(
