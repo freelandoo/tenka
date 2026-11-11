@@ -62,11 +62,11 @@ export async function restoreClient(id: string): Promise<void> {
 
 /** Sem argumento traz tudo que o usuário enxerga (o que a Carteira soma). */
 export async function fetchCosts(options: {
-  scope?: 'company';
+  scope?: 'company' | 'general';
   projectId?: string;
   /** Competência financeira; custos únicos usam a ocorrência e mensais a vigência. */
   competence?: string;
-  /** Restringe aos projetos deste cliente; custos gerais ficam fora do recorte. */
+  /** Restringe ao vínculo direto do cliente; custos gerais ficam fora do recorte. */
   clientId?: string;
 } = {}): Promise<CostRow[]> {
   const query: Record<string, string> = {};
@@ -81,10 +81,13 @@ export async function fetchCosts(options: {
 export interface CostInput {
   /** Omitido/nulo = custo da empresa. */
   projectId?: string | null;
+  /** Omitido = herda o cliente do projeto; null = custo geral. */
+  clientId?: string | null;
   description: string;
   amountCents: number;
   kind: CostKind;
   incurredOn?: string;
+  notes?: string;
 }
 
 export async function createCost(input: CostInput): Promise<CostRow> {
@@ -104,9 +107,12 @@ export async function updateCost(
   return data.cost;
 }
 
-/** Apaga de vez — para lançamento errado. Para "parou de valer", desative. */
-export async function deleteCost(id: string): Promise<void> {
-  await apiRequest(`/costs/${id}`, { method: 'DELETE' });
+/** Exclusão financeira exige a competência e nunca remove o histórico anterior. */
+export async function deleteCost(
+  id: string,
+  input: { competence: string; mode: 'unique' | 'occurrence' | 'future' },
+): Promise<void> {
+  await apiRequest(`/costs/${id}/delete`, { method: 'POST', body: input });
 }
 
 // ---------------------------------------------------------------------------

@@ -62,13 +62,14 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
   const [services, setServices] = useState<finance.ClientServiceLite[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const today = useMemo(() => todayISO(), []);
+  const competence = `${year}-${String(month).padStart(2, '0')}`;
 
   const load = useCallback(async () => {
     setStatus('loading');
     try {
       // Serviços são admin-only; para staff sem acesso a chamada falha e segue sem eles.
       const [fetchedCosts, fetchedServices] = await Promise.all([
-        clientsService.fetchCosts(),
+        clientsService.fetchCosts({ competence }),
         fetchActiveClientServices().catch(() => [] as finance.ClientServiceLite[]),
       ]);
       setCosts(fetchedCosts);
@@ -77,7 +78,7 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
     } catch {
       setStatus('error');
     }
-  }, []);
+  }, [competence]);
 
   useEffect(() => {
     void load();

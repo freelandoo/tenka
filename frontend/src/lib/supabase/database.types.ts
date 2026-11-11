@@ -395,19 +395,24 @@ export interface ClientWithTotals extends ClientRow {
   due_day: number | null;
 }
 
-/** `unico` caiu uma vez; `mensal` repete todo mês enquanto `active`. */
-export type CostKind = 'unico' | 'mensal';
+/** `unico` cai uma vez; os demais repetem na competência do intervalo. */
+export type CostKind = 'unico' | 'mensal' | 'trimestral' | 'semestral' | 'anual';
 
 export interface CostRow {
   id: string;
   /** `null` = custo da EMPRESA; preenchido = custo daquele projeto. */
   project_id: string | null;
+  /** Vínculo financeiro direto. `null` identifica custo geral, sem rateio. */
+  client_id: string | null;
   description: string;
   amount_cents: number;
   kind: CostKind;
-  /** Único: quando caiu. Mensal: a partir de quando passou a valer. */
+  /** Único: quando caiu. Recorrente: início da vigência. */
   incurred_on: string;
+  /** Primeira competência que não deve mais ser considerada. */
+  ends_on: string | null;
   active: boolean;
+  notes: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;

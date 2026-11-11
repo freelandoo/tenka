@@ -7,6 +7,7 @@ import {
   saudeCobertura,
   saudeMargem,
   saudeRecorrencia,
+  costCountsInCompetence,
   summarize,
   summarizeByClient,
 } from './financeService';
@@ -39,10 +40,13 @@ const project = (over: Partial<ProjectRow> = {}): ProjectRow => ({
 const cost = (over: Partial<CostRow> = {}): CostRow => ({
   id: crypto.randomUUID(),
   project_id: null,
+  client_id: null,
   description: 'Custo',
   amount_cents: 0,
   kind: 'mensal',
   incurred_on: '2026-07-01',
+  ends_on: null,
+  notes: '',
   active: true,
   created_by: null,
   created_at: '2026-07-01T00:00:00Z',
@@ -67,9 +71,9 @@ describe('summarizeByClient', () => {
         project({ id: 'p3', client_id: 'c2', client_name: 'Beta', monthly_fee_cents: 30_000, subscription_active: true }),
       ],
       costs: [
-        cost({ project_id: 'p1', kind: 'mensal', amount_cents: 20_000 }),
-        cost({ project_id: 'p1', kind: 'unico', amount_cents: 10_000, incurred_on: '2026-07-05' }),
-        cost({ project_id: 'p3', kind: 'unico', amount_cents: 90_000, incurred_on: '2026-06-30' }), // outro mês: ignora
+        cost({ project_id: 'p1', client_id: 'c1', kind: 'mensal', amount_cents: 20_000 }),
+        cost({ project_id: 'p1', client_id: 'c1', kind: 'unico', amount_cents: 10_000, incurred_on: '2026-07-05' }),
+        cost({ project_id: 'p3', client_id: 'c2', kind: 'unico', amount_cents: 90_000, incurred_on: '2026-06-30' }), // outro mês: ignora
         cost({ project_id: null, kind: 'mensal', amount_cents: 500_000 }), // empresa: não entra
       ],
     });
@@ -114,6 +118,15 @@ describe('summarizeByClient', () => {
       costs: [],
     });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('competência de custos recorrentes', () => {
+  it('respeita frequência e encerramento sem trazer recorrência futura', () => {
+    expect(costCountsInCompetence(cost({ kind: 'trimestral', incurred_on: '2026-02-10' }), '2026-02')).toBe(true);
+    expect(costCountsInCompetence(cost({ kind: 'trimestral', incurred_on: '2026-02-10' }), '2026-03')).toBe(false);
+    expect(costCountsInCompetence(cost({ kind: 'trimestral', incurred_on: '2026-02-10' }), '2026-05')).toBe(true);
+    expect(costCountsInCompetence(cost({ kind: 'anual', incurred_on: '2026-02-10', ends_on: '2027-02-01' }), '2027-02')).toBe(false);
   });
 });
 

@@ -1,214 +1,53 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import type { CostKind, CostRow } from '../../lib/supabase/database.types';
 import { formatCurrencyFromCents } from '../panel/format';
 import { useToast } from '../panel/ToastContext';
+import { ConfirmDialog } from '../panel/ConfirmDialog';
+import { PanelOverlay } from '../panel/PanelOverlay';
 import * as service from './clientsService';
 
+type CostClient = { id: string; name: string };
 interface CostListProps {
-  costs: CostRow[];
-  /** `null` = custos da empresa (Carteira); id = custos daquele projeto. */
-  projectId: string | null;
-  onChanged(): void;
-  /** Some com o formulário quando o usuário não pode lançar aqui. */
-  readOnly?: boolean;
-  /** Competência sugerida para o lançamento; não usa a data de cadastro. */
-  defaultIncurredOn?: string;
-  totalLabel?: string;
-  emptyMessage?: string;
+  costs: CostRow[]; projectId: string | null; onChanged(): void; readOnly?: boolean;
+  defaultIncurredOn?: string; competence?: string; totalLabel?: string; emptyMessage?: string;
+  clients?: CostClient[]; defaultClientId?: string | null;
 }
+const KIND_LABEL: Record<CostKind, string> = { unico: 'Único', mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral', anual: 'Anual' };
+const KIND_SUFFIX: Partial<Record<CostKind, string>> = { mensal: '/mês', trimestral: '/trim.', semestral: '/sem.', anual: '/ano' };
+const today = () => new Date().toISOString().slice(0, 10);
+function parseCents(raw: string): number { const value = Number(raw.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : 0; }
 
-const KIND_LABEL: Record<CostKind, string> = {
-  unico: 'Único',
-  mensal: 'Mensal',
-};
-
-/** "1.234,56" → 123456 centavos. Aceita o que a pessoa digitar de verdade. */
-function parseCents(raw: string): number {
-  const clean = raw.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.');
-  const value = Number(clean);
-  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : 0;
-}
-
-/**
- * Lista de custos com lançamento inline. Mesma peça para custo de projeto e
- * custo da empresa — a única diferença é o `projectId` (nulo = empresa).
- *
- * Desativar não apaga: a linha continua no histórico, cinza, fora da soma. O
- * lixeira é para lançamento errado.
- */
-export function CostList({
-  costs,
-  projectId,
-  onChanged,
-  readOnly,
-  defaultIncurredOn,
-  totalLabel = 'Total ativo',
-  emptyMessage,
-}: CostListProps) {
+export function CostList({ costs, projectId, onChanged, readOnly, defaultIncurredOn, competence, totalLabel = 'Total do período', emptyMessage, clients = [], defaultClientId = null }: CostListProps) {
   const { toast } = useToast();
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [kind, setKind] = useState<CostKind>(projectId ? 'unico' : 'mensal');
-  const [incurredOn, setIncurredOn] = useState(defaultIncurredOn ?? new Date().toISOString().slice(0, 10));
-  const [saving, setSaving] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (defaultIncurredOn) setIncurredOn(defaultIncurredOn);
-  }, [defaultIncurredOn]);
-
-  const total = service.sumActiveCosts(costs);
+  const [launchOpen, setLaunchOpen] = useState(false); const [remove, setRemove] = useState<CostRow | null>(null); const [saving, setSaving] = useState(false);
+  const [description, setDescription] = useState(''); const [amount, setAmount] = useState(''); const [kind, setKind] = useState<CostKind>('unico');
+  const [incurredOn, setIncurredOn] = useState(defaultIncurredOn ?? today()); const [clientName, setClientName] = useState(''); const [notes, setNotes] = useState('');
+  const selectedClient = useMemo(() => clients.find((client) => client.name === clientName) ?? null, [clients, clientName]);
+  const period = competence ?? incurredOn.slice(0, 7); const total = service.sumActiveCosts(costs);
+  useEffect(() => { if (defaultIncurredOn) setIncurredOn(defaultIncurredOn); }, [defaultIncurredOn]);
+  useEffect(() => { if (launchOpen) { setDescription(''); setAmount(''); setKind('unico'); setNotes(''); setIncurredOn(defaultIncurredOn ?? today()); setClientName(clients.find((client) => client.id === defaultClientId)?.name ?? ''); } }, [launchOpen, defaultIncurredOn, defaultClientId, clients]);
 
   const add = async () => {
-    const text = description.trim();
-    const cents = parseCents(amount);
-    if (!text || cents <= 0 || saving) return;
+    const amountCents = parseCents(amount); if (!description.trim() || amountCents <= 0 || saving) return;
+    if (clientName && !selectedClient) { toast('error', 'Selecione um cliente da lista ou deixe o campo vazio para custo geral.'); return; }
     setSaving(true);
-    try {
-      await service.createCost({ projectId, description: text, amountCents: cents, kind, incurredOn });
-      setDescription('');
-      setAmount('');
-      onChanged();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao lançar o custo.');
-    } finally {
-      setSaving(false);
-    }
+    try { await service.createCost({ projectId, clientId: selectedClient?.id ?? null, description: description.trim(), amountCents, kind, incurredOn, notes }); setLaunchOpen(false); onChanged(); }
+    catch (error) { toast('error', error instanceof Error ? error.message : 'Falha ao lançar o custo.'); } finally { setSaving(false); }
+  };
+  const confirmDelete = async (mode: 'unique' | 'occurrence' | 'future') => {
+    if (!remove || saving) return; setSaving(true);
+    try { await service.deleteCost(remove.id, { competence: period, mode }); setRemove(null); onChanged(); }
+    catch (error) { toast('error', error instanceof Error ? error.message : 'Falha ao excluir o custo.'); } finally { setSaving(false); }
   };
 
-  const toggle = async (cost: CostRow) => {
-    setBusyId(cost.id);
-    try {
-      await service.updateCost(cost.id, { active: !cost.active });
-      onChanged();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao alterar o custo.');
-    } finally {
-      setBusyId(null);
-    }
-  };
+  return <div className="costs">
+    {!readOnly && <button type="button" className="panel-btn panel-btn--sm" onClick={() => setLaunchOpen(true)}><Plus size={14} aria-hidden="true" />Lançar custo</button>}
+    {costs.length === 0 ? <p className="costs__empty">{emptyMessage ?? (projectId ? 'Nenhum custo lançado neste projeto.' : 'Nenhum custo nesta competência.')}</p> : <ul className="costs__list">{costs.map((cost) => <li key={cost.id} className={`costs__row${cost.active ? '' : ' is-off'}`}><span className="costs__desc"><strong>{cost.description}</strong>{cost.notes && <small>{cost.notes}</small>}</span><span className={`costs__kind costs__kind--${cost.kind}`}>{KIND_LABEL[cost.kind]}</span><span className="costs__amount">{formatCurrencyFromCents(cost.amount_cents)}{KIND_SUFFIX[cost.kind] && <small>{KIND_SUFFIX[cost.kind]}</small>}</span>{!readOnly && <button type="button" className="panel-iconbtn costs__del" disabled={saving} aria-label={`Excluir ${cost.description}`} title="Excluir lançamento" onClick={() => setRemove(cost)}><Trash2 size={13} aria-hidden="true" /></button>}</li>)}</ul>}
+    <div className="costs__total"><span>{totalLabel}</span><strong>{formatCurrencyFromCents(total)}</strong></div>
 
-  const remove = async (cost: CostRow) => {
-    setBusyId(cost.id);
-    try {
-      await service.deleteCost(cost.id);
-      onChanged();
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Falha ao excluir o custo.');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  return (
-    <div className="costs">
-      {costs.length === 0 ? (
-        <p className="costs__empty">
-          {emptyMessage ?? (projectId ? 'Nenhum custo lançado neste projeto.' : 'Nenhum custo da empresa lançado.')}
-        </p>
-      ) : (
-        <ul className="costs__list">
-          {costs.map((cost) => (
-            <li key={cost.id} className={`costs__row${cost.active ? '' : ' is-off'}`}>
-              <span className="costs__desc">{cost.description}</span>
-              <span className={`costs__kind costs__kind--${cost.kind}`}>
-                {KIND_LABEL[cost.kind]}
-              </span>
-              <span className="costs__amount">
-                {formatCurrencyFromCents(cost.amount_cents)}
-                {cost.kind === 'mensal' && <small>/mês</small>}
-              </span>
-              {!readOnly && (
-                <>
-                  <button
-                    type="button"
-                    className={`costs__toggle${cost.active ? ' is-on' : ''}`}
-                    disabled={busyId === cost.id}
-                    aria-pressed={cost.active}
-                    title={cost.active ? 'Desativar (sai da soma)' : 'Reativar'}
-                    onClick={() => void toggle(cost)}
-                  >
-                    {cost.active ? 'Ativo' : 'Inativo'}
-                  </button>
-                  <button
-                    type="button"
-                    className="panel-iconbtn costs__del"
-                    disabled={busyId === cost.id}
-                    aria-label={`Excluir ${cost.description}`}
-                    title="Excluir lançamento"
-                    onClick={() => void remove(cost)}
-                  >
-                    <Trash2 size={13} aria-hidden="true" />
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="costs__total">
-        <span>{totalLabel}</span>
-        <strong>{formatCurrencyFromCents(total)}</strong>
-      </div>
-
-      {!readOnly && (
-        <div className="costs__form">
-          <input
-            className="panel-input"
-            placeholder="Descrição (ex.: licença do plugin)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            aria-label="Descrição do custo"
-          />
-          <input
-            className="panel-input costs__form-amount"
-            placeholder="0,00"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            aria-label="Valor do custo"
-          />
-          <select
-            className="panel-select costs__form-kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as CostKind)}
-            aria-label="Tipo do custo"
-          >
-            <option value="unico">Único</option>
-            <option value="mensal">Mensal</option>
-          </select>
-          <label className="sr-only" htmlFor={`cost-date-${projectId ?? 'company'}`}>
-            {kind === 'mensal' ? 'Início da vigência do custo' : 'Data do custo'}
-          </label>
-          <input
-            id={`cost-date-${projectId ?? 'company'}`}
-            className="panel-input costs__form-date"
-            type="date"
-            value={incurredOn}
-            onChange={(event) => setIncurredOn(event.target.value)}
-            aria-label={kind === 'mensal' ? 'Início da vigência do custo' : 'Data do custo'}
-          />
-          <button
-            type="button"
-            className="panel-btn panel-btn--sm"
-            disabled={saving || description.trim() === '' || parseCents(amount) <= 0}
-            onClick={() => void add()}
-          >
-            {saving ? (
-              <LoaderCircle
-                size={14}
-                aria-hidden="true"
-                style={{ animation: 'panel-spin 900ms linear infinite' }}
-              />
-            ) : (
-              <Plus size={14} aria-hidden="true" />
-            )}
-            Lançar
-          </button>
-        </div>
-      )}
-    </div>
-  );
+    {launchOpen && <PanelOverlay variant="modal" labelledBy="cost-launch-title" onClose={() => !saving && setLaunchOpen(false)}><div style={{ display: 'grid', gap: 14 }}><div><h2 id="cost-launch-title" style={{ fontSize: 18, fontWeight: 700 }}>Lançar custo</h2><p className="panel-field__hint">Sem cliente, o lançamento é um custo geral.</p></div><label className="panel-field"><span>Descrição</span><input autoFocus className="panel-input" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Ex.: licença do plugin" /></label><label className="panel-field"><span>Valor</span><input className="panel-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0,00" /></label><label className="panel-field"><span>Recorrência</span><select className="panel-select" value={kind} onChange={(event) => setKind(event.target.value as CostKind)}>{Object.entries(KIND_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="panel-field"><span>{kind === 'unico' ? 'Data do lançamento' : 'Início da vigência'}</span><input className="panel-input" type="date" value={incurredOn} onChange={(event) => setIncurredOn(event.target.value)} /></label>{clients.length > 0 && <label className="panel-field"><span>Cliente <small>(opcional)</small></span><input className="panel-input" list="cost-client-options" value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Custo geral" /><datalist id="cost-client-options">{clients.map((client) => <option key={client.id} value={client.name} />)}</datalist></label>}<label className="panel-field"><span>Observações <small>(opcional)</small></span><textarea className="panel-input" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></label><div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}><button type="button" className="panel-btn panel-btn--ghost" disabled={saving} onClick={() => setLaunchOpen(false)}>Cancelar</button><button type="button" className="panel-btn panel-btn--primary" disabled={saving || !description.trim() || parseCents(amount) <= 0} onClick={() => void add()}>{saving ? <LoaderCircle size={14} style={{ animation: 'panel-spin 900ms linear infinite' }} /> : <Plus size={14} />}Lançar custo</button></div></div></PanelOverlay>}
+    {remove?.kind === 'unico' && <ConfirmDialog title="Excluir lançamento único" description="Este custo será removido desta competência. O registro de auditoria será preservado internamente." details={[{ label: 'Custo', value: remove.description }, { label: 'Competência', value: period }]} warning="Essa exclusão não pode ser desfeita pela tela." confirmLabel="Excluir lançamento" tone="danger" busy={saving} onConfirm={() => void confirmDelete('unique')} onCancel={() => !saving && setRemove(null)} />}
+    {remove && remove.kind !== 'unico' && <PanelOverlay variant="modal" labelledBy="cost-recurrence-delete-title" onClose={() => !saving && setRemove(null)}><div style={{ display: 'grid', gap: 16 }}><div><h2 id="cost-recurrence-delete-title" style={{ fontSize: 18, fontWeight: 700 }}>Excluir custo recorrente</h2><p className="panel-field__hint">{remove.description} · competência {period}</p></div><p style={{ color: 'var(--panel-text-dim)', lineHeight: 1.5 }}>Competências anteriores não serão alteradas.</p><div style={{ display: 'grid', gap: 8 }}><button type="button" className="panel-btn panel-btn--danger" disabled={saving} onClick={() => void confirmDelete('occurrence')}>Excluir somente esta ocorrência</button><button type="button" className="panel-btn panel-btn--danger" disabled={saving} onClick={() => void confirmDelete('future')}>Excluir desta ocorrência em diante</button><button type="button" className="panel-btn panel-btn--ghost" disabled={saving} onClick={() => setRemove(null)}>Cancelar</button></div></div></PanelOverlay>}
+  </div>;
 }

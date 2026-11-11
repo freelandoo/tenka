@@ -22,6 +22,7 @@ interface CarteiraViewProps {
 }
 
 type Filtro = 'todos' | ProjectStatus;
+type CostScope = 'all' | 'general' | 'client';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MESES_LONGOS = [
@@ -48,6 +49,7 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientSearch, setClientSearch] = useState('');
+  const [costScope, setCostScope] = useState<CostScope>('all');
   const financeStripRef = useRef<HTMLDivElement>(null);
   const costRequestRef = useRef(0);
 
@@ -107,7 +109,8 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
     try {
       const nextCosts = await clientsService.fetchCosts({
         competence: competencia,
-        clientId: selectedClientId ?? undefined,
+        scope: costScope === 'general' ? 'general' : undefined,
+        clientId: costScope === 'client' ? selectedClientId ?? undefined : undefined,
       });
       if (requestId !== costRequestRef.current) return;
       setCosts(nextCosts);
@@ -117,14 +120,14 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
       setCosts([]);
       setCostStatus('error');
     }
-  }, [competencia, selectedClientId]);
+  }, [competencia, selectedClientId, costScope]);
   useEffect(() => {
     void loadCosts();
   }, [loadCosts]);
   useEffect(() => subscribeRealtime(['costs'], () => void loadCosts()), [loadCosts]);
 
-  const companyCosts = useMemo(() => costs.filter((c) => c.project_id === null), [costs]);
-  const projectCosts = useMemo(() => costs.filter((c) => c.project_id !== null), [costs]);
+  const companyCosts = useMemo(() => costs.filter((c) => c.client_id === null), [costs]);
+  const projectCosts = useMemo(() => costs.filter((c) => c.client_id !== null), [costs]);
   const custoTotal = useMemo(() => clientsService.sumActiveCosts(costs), [costs]);
 
   // Projetos ENTREGUES no mês selecionado (receita única daquele mês).
@@ -245,42 +248,50 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
           </header>
           <p className="cart-panel__hint">
             Competência: <strong>{periodo}</strong>. Custos únicos usam a data do lançamento;
-            custos mensais entram a partir do início da vigência. Custos gerais só aparecem em
-            <strong> Todos os clientes</strong>.
+            custos recorrentes entram a partir do início da vigência. Custos gerais nunca são
+            atribuídos a um cliente.
           </p>
           <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
             <label className="panel-field__label" htmlFor="cost-client-filter">
               Cliente
             </label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className={`panel-btn panel-btn--sm${costScope === 'all' ? '' : ' panel-btn--ghost'}`} onClick={() => { setCostScope('all'); setSelectedClientId(null); setClientSearch(''); }}>
+                Todos os clientes
+              </button>
+              <button type="button" className={`panel-btn panel-btn--sm${costScope === 'general' ? '' : ' panel-btn--ghost'}`} onClick={() => { setCostScope('general'); setSelectedClientId(null); setClientSearch(''); }}>
+                Custos gerais
+              </button>
               <input
                 id="cost-client-filter"
                 className="panel-input"
                 list="cost-client-options"
                 type="search"
                 value={clientSearch}
-                placeholder="Todos os clientes — buscar cliente"
+                placeholder="Buscar cliente"
                 aria-label="Buscar cliente nos custos"
                 onChange={(event) => {
                   const value = event.target.value;
                   setClientSearch(value);
                   const match = clientes.find((client) => client.label === value);
                   setSelectedClientId(match?.id ?? null);
+                  setCostScope(match ? 'client' : 'all');
                 }}
               />
               <datalist id="cost-client-options">
                 {clientes.map((client) => <option key={client.id} value={client.label} />)}
               </datalist>
-              {selectedClient && (
+              {costScope === 'client' && (
                 <button
                   type="button"
                   className="panel-btn panel-btn--sm panel-btn--ghost"
                   onClick={() => {
                     setSelectedClientId(null);
                     setClientSearch('');
+                    setCostScope('all');
                   }}
                 >
-                  Todos os clientes
+                  Limpar filtro
                 </button>
               )}
             </div>
@@ -301,12 +312,15 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
               costs={costs}
               projectId={null}
               onChanged={loadCosts}
-              readOnly={!isAdmin || Boolean(selectedClient)}
+              readOnly={!isAdmin}
               defaultIncurredOn={`${competencia}-01`}
-              totalLabel={selectedClient ? `Total de ${selectedClient.name} no mês` : 'Total do mês'}
-              emptyMessage={selectedClient
+              competence={competencia}
+              clients={clientes}
+              defaultClientId={costScope === 'client' ? selectedClientId : null}
+              totalLabel={selectedClient && costScope === 'client' ? `Total de ${selectedClient.name} no mês` : costScope === 'general' ? 'Total geral no mês' : 'Total do mês'}
+              emptyMessage={selectedClient && costScope === 'client'
                 ? `Nenhum custo de ${selectedClient.name} em ${periodo}.`
-                : `Nenhum custo em ${periodo}.`}
+                : costScope === 'general' ? `Nenhum custo geral em ${periodo}.` : `Nenhum custo em ${periodo}.`}
             />
           )}
         </section>

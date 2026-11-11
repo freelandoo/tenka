@@ -96,14 +96,21 @@ export function mesKey(year: number, month: number): string {
 
 /**
  * Define a competência financeira do custo, sem depender da data de cadastro.
- * Único entra só no mês em que ocorreu; mensal entra a partir do início da
- * vigência. A falta de uma data de término no modelo preserva a regra já
- * existente de `active`: desligado deixa de compor os indicadores.
+ * Único entra só no mês em que ocorreu. Recorrentes respeitam a periodicidade,
+ * o início da vigência e a primeira competência encerrada (`ends_on`).
  */
 export function costCountsInCompetence(cost: CostRow, competence: string): boolean {
   if (!cost.active) return false;
   const costMonth = mesDe(cost.incurred_on);
-  return cost.kind === 'mensal' ? costMonth <= competence : costMonth === competence;
+  if (cost.kind === 'unico') return costMonth === competence;
+  if (costMonth > competence || (cost.ends_on && mesDe(cost.ends_on) <= competence)) return false;
+  const [year, month] = competence.split('-').map(Number);
+  const [startYear, startMonth] = costMonth.split('-').map(Number);
+  const elapsed = (year! - startYear!) * 12 + month! - startMonth!;
+  const interval: Record<Exclude<CostRow['kind'], 'unico'>, number> = {
+    mensal: 1, trimestral: 3, semestral: 6, anual: 12,
+  };
+  return elapsed >= 0 && elapsed % interval[cost.kind] === 0;
 }
 
 /** `2026-01` → `2025-12`. */
@@ -225,7 +232,7 @@ export function summarize(input: FinanceInput): FinanceSummary {
   let custoVariavel = 0;
   for (const cost of costs) {
     if (!costCountsInCompetence(cost, mesAtual)) continue;
-    if (cost.kind === 'mensal') custoFixo += cents(cost.amount_cents);
+    if (cost.kind !== 'unico') custoFixo += cents(cost.amount_cents);
     else custoVariavel += cents(cost.amount_cents);
   }
 
@@ -348,11 +355,12 @@ export function summarizeByClient(input: {
   }
 
   for (const c of input.costs) {
-    if (!c.project_id || !costCountsInCompetence(c, mesAtual)) continue;
-    const key = projetoParaCliente.get(c.project_id);
+    if (!c.client_id || !costCountsInCompetence(c, mesAtual)) continue;
+    const key = c.client_id ?? projetoParaCliente.get(c.project_id ?? '');
     if (!key) continue;
-    const row = clientes.get(key)!;
-    if (c.kind === 'mensal') row.custoMensalCents += cents(c.amount_cents);
+    const row = clientes.get(key);
+    if (!row) continue;
+    if (c.kind !== 'unico') row.custoMensalCents += cents(c.amount_cents);
     else row.custoVariavelCents += cents(c.amount_cents);
   }
 

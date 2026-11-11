@@ -167,16 +167,17 @@ function ProjectSection({
   profiles: ProfileRow[];
 }) {
   const [costs, setCosts] = useState<CostRow[]>([]);
+  const competence = new Date().toISOString().slice(0, 7);
 
   const autor = profiles.find((p) => p.id === project.created_by)?.name ?? 'Usuário removido';
 
   const loadCosts = useCallback(async () => {
     try {
-      setCosts(await service.fetchCosts({ projectId: project.id }));
+      setCosts(await service.fetchCosts({ projectId: project.id, competence }));
     } catch {
       setCosts([]);
     }
-  }, [project.id]);
+  }, [project.id, competence]);
 
   useEffect(() => {
     void loadCosts();
@@ -252,7 +253,7 @@ function ProjectSection({
 
       <div className="client-project__costs">
         <h4 className="panel-eyebrow">Custos do projeto</h4>
-        <CostList costs={costs} projectId={project.id} onChanged={loadCosts} />
+        <CostList costs={costs} projectId={project.id} onChanged={loadCosts} competence={competence} defaultIncurredOn={`${competence}-01`} />
       </div>
     </section>
   );
