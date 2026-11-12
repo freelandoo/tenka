@@ -156,6 +156,18 @@
       "destination": "/tech/sites/quanto-custa/index.html"
     },
     {
+      "source": "/tech/sistemas-sob-medida/quanto-custa",
+      "destination": "/tech/sistemas-sob-medida/quanto-custa/index.html"
+    },
+    {
+      "source": "/tech/automacoes-e-agentes-de-ia/quanto-custa",
+      "destination": "/tech/automacoes-e-agentes-de-ia/quanto-custa/index.html"
+    },
+    {
+      "source": "/tech/aplicativos/quanto-custa",
+      "destination": "/tech/aplicativos/quanto-custa/index.html"
+    },
+    {
       "source": "/politica-de-privacidade",
       "destination": "/politica-de-privacidade/index.html"
     },

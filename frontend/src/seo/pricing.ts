@@ -184,6 +184,129 @@ export const PRICING_ROUTES: SeoRoute[] = [
     priority: 0.75,
     changefreq: 'monthly',
   },
+  {
+    path: '/tech/sistemas-sob-medida/quanto-custa',
+    title: 'Quanto custa um sistema sob medida | TENKA Tech',
+    description:
+      'O que define o preço de um sistema sob medida: complexidade das regras de negócio, integrações, usuários e papéis, migração de dados e operação.',
+    h1: 'Quanto custa um sistema sob medida',
+    intro:
+      'Não dá para precificar "um sistema" pela quantidade de telas — duas telas podem esconder a regra de negócio mais cara do projeto. O que move o orçamento é a complexidade das regras, com o que o sistema precisa se integrar e quantos papéis diferentes ele atende. Esta página mostra essas variáveis antes de qualquer conversa.',
+    highlights: [
+      'Regras de negócio — a lógica por trás das telas, não a contagem delas',
+      'Integrações — ERP, pagamento, nota fiscal e os sistemas que já rodam',
+      'Usuários e papéis — cada perfil com o que vê e o que pode fazer',
+      'Dados e migração — trazer o que já existe em planilha ou sistema antigo',
+      'Operação depois da entrega — hospedagem, suporte e evolução',
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
+    faq: [
+      {
+        question: 'Por que ninguém publica o preço de um sistema sob medida?',
+        answer:
+          'Porque o mesmo pedido — "um sistema para gerir a minha operação" — pode ser um cadastro com relatório ou uma plataforma com cobrança recorrente, vários perfis e integração fiscal. Um número dito antes de conhecer as regras de negócio compara projetos que não têm nada em comum. No lugar do número, esta página entrega as variáveis que o movem.',
+      },
+      {
+        question: 'O que pesa mais: as telas ou as regras?',
+        answer:
+          'As regras, quase sempre. Uma tela de cadastro é barata; a lógica que decide o que acontece quando um pedido é aprovado, estornado ou parcelado é onde o esforço se concentra. Por isso contar telas engana — um sistema "pequeno" de poucas telas pode carregar a parte mais difícil do projeto.',
+      },
+      {
+        question: 'Sai mais barato usar um sistema pronto?',
+        answer:
+          'Com frequência, sim — e quando é o caso, dizemos. O sob medida compensa quando a soma das assinaturas e das gambiarras de integração já passou do custo de ter o seu, ou quando o processo é a sua vantagem e o sistema de prateleira obriga a abrir mão dela. Se o pronto resolve, a resposta honesta é usar o pronto.',
+      },
+      {
+        question: 'Dá para diluir o custo ao longo do tempo?',
+        answer:
+          'Dá, e costuma ser o caminho mais seguro: entregamos em fatias, começando pela parte que já resolve uma dor sozinha e entra em uso cedo. O resto do escopo é decidido com o sistema rodando, o que evita pagar por função que a operação real mostrou ser desnecessária.',
+      },
+    ],
+    priority: 0.75,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/tech/automacoes-e-agentes-de-ia/quanto-custa',
+    title: 'Quanto custa automatizar atendimento e processos com IA | TENKA',
+    description:
+      'O que define o preço de uma automação com IA: número de processos, integrações, se é fluxo ou agente que decide, e o tratamento de erro.',
+    h1: 'Quanto custa automatizar processos e atendimento com IA',
+    intro:
+      'O mercado de automação com IA vai de uma assinatura mensal de ferramenta pronta a um projeto de integração sob medida — e os dois resolvem problemas diferentes. O que define o custo é quantos processos entram, com o que eles se integram e se o caso pede um fluxo simples ou um agente que decide. Às vezes a resposta mais barata é não usar IA.',
+    highlights: [
+      'Número de processos automatizados e a frequência de cada um',
+      'Integrações — WhatsApp oficial, CRM, ERP, agenda e sistemas da operação',
+      'Fluxo determinístico ou agente de IA — nem todo caso pede IA',
+      'Tratamento de erro e escalonamento para humano onde o erro custa caro',
+      'Ferramenta pronta (mensalidade) ou desenvolvimento próprio (uma vez)',
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
+    faq: [
+      {
+        question: 'Automatizar com IA é caro?',
+        answer:
+          'Varia mais do que quase qualquer outro serviço de tecnologia, porque "automação com IA" vai de ligar uma ferramenta pronta a construir uma integração sob medida entre vários sistemas. O que decide é quantos processos entram e com o que precisam conversar — não o rótulo "IA".',
+      },
+      {
+        question: 'Preciso mesmo de IA, ou um fluxo resolve?',
+        answer:
+          'Muitas vezes um fluxo com perguntas e caminhos bem definidos é mais previsível, mais barato e mais fácil de manter que um agente de IA — e dizemos isso quando é o caso. IA compensa quando a conversa é aberta, quando é preciso consultar dados e decidir com contexto, ou quando o roteiro fixo já não dá conta. Metade do ganho costuma vir de eliminar etapas, não de colocar IA nelas.',
+      },
+      {
+        question: 'O custo é único ou mensal?',
+        answer:
+          'Os dois existem e é importante separá-los. Uma ferramenta pronta tem mensalidade por usuário ou por volume. Uma automação sob medida tem o custo de construção, pago uma vez, mais hospedagem e manutenção. O que a TENKA faz com frequência é integrar a ferramenta que você já paga à sua operação, em vez de somar mais uma assinatura.',
+      },
+      {
+        question: 'E se a automação errar com um cliente?',
+        answer:
+          'Automação sem tratamento de erro é dívida, não ganho. Todo fluxo entregue tem log, política de repetição e escalonamento para humano nos pontos em que o custo do erro é alto. Em atendimento ou processo financeiro, o padrão é o agente propor e uma pessoa confirmar — e isso faz parte do orçamento, não é um extra.',
+      },
+    ],
+    priority: 0.75,
+    changefreq: 'monthly',
+  },
+  {
+    path: '/tech/aplicativos/quanto-custa',
+    title: 'Quanto custa desenvolver um aplicativo | TENKA Tech',
+    description:
+      'O que define o preço de um aplicativo: back-end e integrações, nativo ou multiplataforma, publicação nas lojas e a operação depois do lançamento.',
+    h1: 'Quanto custa desenvolver um aplicativo',
+    intro:
+      'O app raramente é só a tela, e é por isso que o orçamento surpreende. O que move o preço é o back-end por trás do aplicativo, se ele precisa ser nativo ou multiplataforma, com o que se integra e o custo de manter de pé depois de publicado. E, antes de tudo isso: às vezes um site resolve mais barato.',
+    highlights: [
+      'Back-end, API e autenticação — o app quase nunca é só a interface',
+      'Nativo ou multiplataforma — uma base de código ou duas',
+      'Integrações — pagamento, notificação, mapa e sistemas da empresa',
+      'Publicação nas lojas Apple e Google, com a revisão conduzida',
+      'Operação depois do lançamento — as lojas e os sistemas mudam',
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
+    faq: [
+      {
+        question: 'Por que um app custa mais do que parece?',
+        answer:
+          'Porque a tela é a ponta visível. Por trás dela há back-end, autenticação, integração, notificação e a infraestrutura que mantém tudo no ar — mais o processo de publicar em duas lojas com regras próprias. Orçar pelo que se vê na tela é a origem da surpresa no meio do projeto.',
+      },
+      {
+        question: 'Preciso mesmo de um app, ou um site resolve?',
+        answer:
+          'Se o uso é esporádico ou vem de campanha, um site rápido quase sempre converte mais, porque não exige instalação. App compensa quando há uso recorrente, necessidade de funcionar offline, notificação como parte do produto ou acesso ao hardware do aparelho. Essa conversa vem antes do orçamento, porque pode cortar o custo pela metade.',
+      },
+      {
+        question: 'Nativo ou multiplataforma muda muito o preço?',
+        answer:
+          'Muda. Multiplataforma mantém uma base de código para iOS e Android e reduz custo e prazo — cobre bem a maioria dos apps de negócio. Nativo (duas bases) compensa quando há exigência pesada de performance gráfica ou integração profunda com o sistema. A decisão sai dos requisitos, e é uma das que mais mexem no total.',
+      },
+      {
+        question: 'Tem custo depois de publicar?',
+        answer:
+          'Tem, e é parte do projeto, não um extra. As lojas mudam requisitos, os sistemas operacionais atualizam e o uso real revela o que o teste não pegou. App sem manutenção para de funcionar sozinho em um ou dois ciclos de atualização. A conta honesta considera o ano seguinte ao lançamento.',
+      },
+    ],
+    priority: 0.75,
+    changefreq: 'monthly',
+  },
 ];
 
 const PRICE_PROCESS = [
@@ -408,5 +531,158 @@ export const PRICING_CONTENT: ServiceContent[] = [
       { to: '/contato', label: 'Falar com a TENKA' },
     ],
     ctaLabel: 'Pedir um orçamento de site',
+  },
+  {
+    path: '/tech/sistemas-sob-medida/quanto-custa',
+    parent: '/tech/sistemas-sob-medida',
+    parentLabel: 'Sistema sob medida',
+    accent: '#00B8B3',
+    problem: {
+      title: 'Contar telas não orça um sistema',
+      body: 'A primeira pergunta de quase toda proposta é "quantas telas?", e é uma das que menos explica o preço. Duas telas simples podem esconder a regra de negócio mais cara do projeto — a que decide o que acontece quando o dado entra. O que move o orçamento de um sistema sob medida é a complexidade das regras, o número de integrações e quantos papéis diferentes precisam de visões e permissões próprias.',
+    },
+    includes: [
+      {
+        title: 'Complexidade das regras de negócio',
+        description:
+          'A lógica por trás das telas — aprovações, estados, exceções. É onde o esforço se concentra, não na contagem de telas.',
+      },
+      {
+        title: 'Integrações',
+        description:
+          'Cada sistema que precisa conversar com o seu — ERP, pagamento, nota fiscal, CRM — muda o projeto de categoria.',
+      },
+      {
+        title: 'Usuários e papéis',
+        description:
+          'Um perfil único é simples; vários papéis com permissões distintas multiplicam as telas e os testes.',
+      },
+      {
+        title: 'Dados e migração',
+        description:
+          'Trazer o histórico de uma planilha é uma coisa; de um sistema antigo com dado sujo é outra, e pesa no prazo.',
+      },
+      {
+        title: 'Operação depois da entrega',
+        description:
+          'Hospedagem, monitoramento e evolução. Sistema não tem custo só de construção — tem custo de manter vivo.',
+      },
+    ],
+    process: PRICE_PROCESS,
+    sections: [
+      {
+        title: 'Pronto vs. sob medida: a conta que importa',
+        body: 'A comparação justa não é o preço do sistema sob medida contra a mensalidade de uma ferramenta pronta no primeiro mês. É o custo acumulado ao longo dos anos: assinaturas por usuário que crescem com a equipe, integrações mantidas na unha entre ferramentas que não foram feitas para conversar, e o processo que precisa se dobrar ao software em vez do contrário. Em muitos casos o pronto ganha essa conta — e quando ganha, é o que recomendamos. O sob medida vence quando o processo é a vantagem competitiva ou quando a soma das prateleiras já passou do custo de ter o seu.',
+      },
+      DISCLAIMER,
+    ],
+    related: [
+      { to: '/tech/sistemas-sob-medida', label: 'Sistema sob medida' },
+      { to: '/tech/automacoes-e-agentes-de-ia', label: 'Automações e agentes de IA' },
+      { to: '/contato', label: 'Falar com a TENKA' },
+    ],
+    ctaLabel: 'Pedir um orçamento de sistema',
+  },
+  {
+    path: '/tech/automacoes-e-agentes-de-ia/quanto-custa',
+    parent: '/tech/automacoes-e-agentes-de-ia',
+    parentLabel: 'Automações e agentes de IA',
+    accent: '#00B8B3',
+    problem: {
+      title: 'O preço de "automação com IA" não existe sem o processo',
+      body: 'Pedir o preço de uma automação com IA é como pedir o preço de "uma reforma": depende inteiramente do que entra. O mesmo pedido pode ser ligar uma ferramenta pronta que você já assina, ou construir uma integração sob medida entre WhatsApp, CRM e ERP com um agente que consulta dado e age. E, antes do preço, vem uma pergunta que economiza dinheiro: esse caso precisa mesmo de IA, ou um fluxo simples resolve melhor?',
+    },
+    includes: [
+      {
+        title: 'Quantidade de processos',
+        description:
+          'Cada processo automatizado tem seu mapeamento, construção e teste. Um é um projeto curto; a operação inteira é outro.',
+      },
+      {
+        title: 'Integrações',
+        description:
+          'Conectar ao WhatsApp oficial, ao CRM e ao ERP é o que dá trabalho — e o que faz a automação valer a pena.',
+      },
+      {
+        title: 'Fluxo ou agente',
+        description:
+          'Fluxo determinístico é mais barato e previsível. Agente de IA custa mais e só compensa onde há decisão real.',
+      },
+      {
+        title: 'Tratamento de erro',
+        description:
+          'Log, repetição e escalonamento para humano. É o que separa automação que ajuda de automação que cria incêndio.',
+      },
+      {
+        title: 'Modelo de custo',
+        description:
+          'Ferramenta pronta é mensalidade; sob medida é construção uma vez mais manutenção. Muitas vezes o melhor é integrar a que você já paga.',
+      },
+    ],
+    process: PRICE_PROCESS,
+    sections: [
+      {
+        title: 'A pergunta que economiza mais que qualquer desconto',
+        body: 'Antes de orçar, vale decidir se o caso pede IA. Um fluxo com caminhos bem definidos — menu, condições, respostas prontas — é mais previsível e mais barato de manter que uma conversa aberta com um modelo, e resolve boa parte do atendimento repetitivo. A IA entra quando a pergunta é aberta, quando é preciso consultar dados e decidir com contexto, ou quando o roteiro fixo trava. Automatizar um processo ruim só faz ele dar errado mais rápido; por isso metade do ganho costuma vir de eliminar etapas antes de automatizar o resto.',
+      },
+      DISCLAIMER,
+    ],
+    related: [
+      { to: '/tech/automacoes-e-agentes-de-ia', label: 'Automações e agentes de IA' },
+      { to: '/tech/sistemas-sob-medida', label: 'Sistema sob medida' },
+      { to: '/contato', label: 'Falar com a TENKA' },
+    ],
+    ctaLabel: 'Pedir um orçamento de automação',
+  },
+  {
+    path: '/tech/aplicativos/quanto-custa',
+    parent: '/tech/aplicativos',
+    parentLabel: 'Aplicativos',
+    accent: '#00B8B3',
+    problem: {
+      title: 'A tela é a parte barata',
+      body: 'O orçamento de um aplicativo surpreende porque a maior parte do trabalho não aparece na tela: back-end, autenticação, integrações, notificações e a infraestrutura que mantém tudo no ar, mais o processo de publicar em duas lojas com regras próprias. E, antes de somar tudo isso, há uma pergunta que muda o orçamento inteiro — esse caso precisa mesmo de um app, ou um site resolve mais barato?',
+    },
+    includes: [
+      {
+        title: 'Back-end e integrações',
+        description:
+          'O que sustenta o app por trás da tela — dados, login, pagamento, notificação. Onde o esforço de verdade está.',
+      },
+      {
+        title: 'Nativo ou multiplataforma',
+        description:
+          'Uma base de código ou duas. A decisão sai dos requisitos de performance e hardware, e mexe bastante no total.',
+      },
+      {
+        title: 'Complexidade das telas e dos fluxos',
+        description:
+          'Um app de consulta é simples; um com transação, estado offline e sincronização é outro projeto.',
+      },
+      {
+        title: 'Publicação nas lojas',
+        description:
+          'Conta de desenvolvedor, revisão da Apple e da Google e os ajustes que cada uma exige. Conduzido, mas não instantâneo.',
+      },
+      {
+        title: 'Operação pós-lançamento',
+        description:
+          'Atualização por mudança de loja e de sistema operacional. App parado degrada em um ou dois ciclos.',
+      },
+    ],
+    process: PRICE_PROCESS,
+    sections: [
+      {
+        title: 'Antes de orçar o app: você precisa de um app?',
+        body: 'É a pergunta que mais economiza. Um site rápido converte mais que um app quando o uso é esporádico ou vem de campanha, porque não pede instalação — e instalar é o maior filtro entre o interesse e o uso. O aplicativo compensa quando há uso recorrente, necessidade real de funcionar offline, notificação como parte do produto, ou uso intensivo de recursos do aparelho. Dizer isso antes de orçar às vezes significa recomendar um projeto menor do que o cliente veio pedir — e é assim que a conta fecha de verdade.',
+      },
+      DISCLAIMER,
+    ],
+    related: [
+      { to: '/tech/aplicativos', label: 'Desenvolvimento de aplicativos' },
+      { to: '/tech/sites', label: 'Criação de sites' },
+      { to: '/contato', label: 'Falar com a TENKA' },
+    ],
+    ctaLabel: 'Pedir um orçamento de aplicativo',
   },
 ];
