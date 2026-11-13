@@ -15,6 +15,7 @@ import { COMPANY_NAME } from '../config/contact';
 import { HEADLINE, LEAD } from '../data/positioning';
 import { LEGAL_ROUTES } from './legal';
 import { SERVICE_ROUTES } from './services';
+import { CASE_STUDIES, casePath } from '../cases';
 
 export const SITE_URL = 'https://www.tenkagroup.com.br';
 
@@ -254,7 +255,23 @@ const CORE_ROUTES: SeoRoute[] = [
   },
 ];
 
-export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES, ...LEGAL_ROUTES];
+/**
+ * Páginas de construção ("como foi feito"), uma por projeto de `src/cases`.
+ * Sem `highlights` de propósito: o `serviceSchema` leria a lista como catálogo
+ * de serviços, e um caso não é um serviço.
+ */
+export const CASE_ROUTES: SeoRoute[] = CASE_STUDIES.map((item) => ({
+  path: casePath(item.slug),
+  title: item.seo.title,
+  description: item.seo.description,
+  h1: `Como fizemos: ${item.name}`,
+  intro: item.hero.lead,
+  ogImage: item.hero.image.src,
+  priority: 0.6,
+  changefreq: 'monthly' as const,
+}));
+
+export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES, ...CASE_ROUTES, ...LEGAL_ROUTES];
 
 /**
  * Só home, divisões e institucionais — o que cabe num menu ou rodapé.

@@ -9,6 +9,7 @@ import { useGoogleFonts } from '../hooks/useGoogleFonts';
 import { trackContactClick } from '../lib/analytics';
 import { WORLD_PROJECTS } from '../games/data/projects';
 import CaseArchive, { CASES } from '../components/site/CaseArchive';
+import { CASE_STUDIES, casePath } from '../cases';
 import SiteFooter from '../components/site/SiteFooter';
 import TabloidHeader from '../tabloid/TabloidHeader';
 import PortfolioCard from '../pricing/PortfolioCard';
@@ -139,6 +140,7 @@ export default function ProjetosPage() {
   const show = (group: DivisionId) => filter === 'all' || filter === group;
   const cases = CASES.filter((item) => show(item.group));
   const sites = PORTFOLIO.filter((item) => show(item.division));
+  const making = CASE_STUDIES.filter((item) => show(item.division));
   const total = CASES.length + PORTFOLIO.length + WORLD_PROJECTS.length + STUDIO_PIECES.length;
 
   // numeração das seções acompanha o que o filtro deixou na tela
@@ -275,6 +277,28 @@ export default function ProjetosPage() {
               lead="Projetos em produção, abertos peça por peça nas páginas de cada divisão: passe o mouse para ver em movimento e entre para girar, jogar e colecionar."
             />
             <CaseArchive items={cases} />
+          </section>
+        )}
+
+        {making.length > 0 && (
+          <section className="pj-section">
+            <SectionHead
+              index={next()}
+              eyebrow="Bastidores — como fizemos"
+              title="Do briefing"
+              accentWord="ao ar."
+              lead="O planejamento, cada etapa com os commits, as técnicas e as bibliotecas de projetos reais — do material que o cliente mandou ao domínio próprio."
+            />
+            <div className="pj-making">
+              {making.map((item) => (
+                <Link key={item.slug} to={casePath(item.slug)} className="pj-making__card" data-pj-in style={{ '--m': item.accent } as CSSProperties}>
+                  <img src={item.hero.image.src} alt="" loading="lazy" decoding="async" />
+                  <span className="tf-mono pj-making__kind">{item.kind}</span>
+                  <strong className="tf-display">{item.name}</strong>
+                  <span className="tf-mono pj-making__go">Como fizemos →</span>
+                </Link>
+              ))}
+            </div>
           </section>
         )}
 

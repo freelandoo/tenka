@@ -198,3 +198,13 @@
   .pj-case__inner, .pj-piece__inner { transform: none !important; }
   .pj-js [data-pj-in] { opacity: 1; }
 }
+
+/* Bastidores: atalhos para as páginas de construção (/projetos/:slug). */
+.pj-making { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+.pj-making__card { position: relative; display: grid; gap: 8px; padding: 0 0 18px; border: 1px solid var(--tf-faint); background: var(--tf-panel); color: inherit; text-decoration: none; transition: transform 220ms var(--tf-ease), box-shadow 220ms var(--tf-ease); }
+.pj-making__card:hover { transform: translate(-3px, -3px); box-shadow: 8px 8px 0 color-mix(in srgb, var(--m) 40%, transparent); }
+.pj-making__card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-bottom: 3px solid var(--m); }
+.pj-making__kind { padding: 6px 18px 0; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--m); }
+.pj-making__card strong { padding: 0 18px; font-size: 28px; line-height: 1; text-transform: uppercase; }
+.pj-making__go { padding: 0 18px; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--tf-dim); }
+.pj-making__card:hover .pj-making__go { color: var(--m); }

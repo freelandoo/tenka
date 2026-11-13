@@ -42,6 +42,8 @@ const DesenvolvimentoPage = lazyWithRetry(() => import('./pages/DesenvolvimentoP
 const MultimidiaPage = lazyWithRetry(() => import('./pages/MultimidiaPage'));
 // /precos carrega GSAP e (sob demanda, dentro dela) o three do holograma.
 const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
+// Páginas de construção ("como foi feito") — GSAP, só quando alguém abre uma.
+const CasePage = lazyWithRetry(() => import('./pages/CasePage'));
 
 // Área interna (autenticação + Kanban de projetos) — chunk independente,
 // nenhum custo para as experiências públicas.
@@ -149,6 +151,14 @@ export default function App() {
         ))}
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/projetos" element={<ProjetosPage />} />
+        <Route
+          path="/projetos/:slug"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <CasePage />
+            </Suspense>
+          }
+        />
         <Route path="/contato" element={<ContactPage />} />
         <Route
           path="/precos"
