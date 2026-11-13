@@ -13,6 +13,7 @@ import { lazyWithRetry } from './lib/lazyWithRetry';
 import { usePageviews } from './lib/usePageviews';
 import ConsentBanner from './components/site/ConsentBanner';
 import WhatsAppDrawer from './components/site/WhatsAppDrawer';
+import SiteParticles from './components/site-particles/SiteParticles';
 import { shouldTrack } from './lib/analytics';
 
 /**
@@ -97,6 +98,7 @@ export default function App() {
     <RouteErrorBoundary>
       <ConsentBanner />
       <SiteWhatsApp />
+      <SiteParticles />
       <Routes>
         <Route path="/" element={<HomePage />} />
         {/* A antiga área /admin era pública e sem autenticação. Ela virou

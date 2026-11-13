@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { setSiteAccent } from '../components/site-particles/SiteParticles';
 import TenkaHero from '../components/hero/TenkaHero';
 import HomePositioning from '../components/site/HomePositioning';
 import { useSeo } from '../seo/useSeo';
@@ -33,12 +34,14 @@ export default function HomePage() {
   useSeo('/');
   const [active, setActive] = useState({ accent: DIVISIONS.games.accent, label: 'Games', to: '/games' });
   const onActiveSlideChange = useCallback(
-    (slide: TenkaHeroSlide) =>
+    (slide: TenkaHeroSlide) => {
+      setSiteAccent(accentFor(slide));
       setActive({
         accent: accentFor(slide),
         label: slide.navLabel,
         to: slide.division === 'games' ? '/games' : slide.division === 'multimidia' ? '/studios' : slide.division === 'desenvolvimento' ? '/tech' : '',
-      }),
+      });
+    },
     [],
   );
 
