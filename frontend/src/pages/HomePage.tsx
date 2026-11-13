@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { setSiteAccent } from '../components/site-particles/SiteParticles';
+import { setSiteAccent, setSiteWord } from '../components/site-particles/SiteParticles';
 import TenkaHero from '../components/hero/TenkaHero';
 import HomePositioning from '../components/site/HomePositioning';
 import { useSeo } from '../seo/useSeo';
@@ -36,6 +36,8 @@ export default function HomePage() {
   const onActiveSlideChange = useCallback(
     (slide: TenkaHeroSlide) => {
       setSiteAccent(accentFor(slide));
+      // As partículas escrevem a divisão do card ativo em cima dele.
+      setSiteWord(slide.navLabel.toUpperCase());
       setActive({
         accent: accentFor(slide),
         label: slide.navLabel,
