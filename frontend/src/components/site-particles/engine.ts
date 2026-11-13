@@ -49,6 +49,7 @@ attribute vec3 aSeed;
 varying float vHot;
 varying float vAlpha;
 varying float vMix;
+varying float vRead;
 
 void main() {
   vec3 p = position;
@@ -85,6 +86,9 @@ void main() {
   gl_PointSize = size * uPixelRatio * (34.0 / -mv.z);
 
   vHot = f;
+  // Coluna de leitura: no miolo horizontal da tela o campo cai a 30% (o texto
+  // das páginas mora ali); nas bordas fica inteiro. O cursor reacende.
+  vRead = mix(0.3, 1.0, smoothstep(0.35, 0.9, abs(ndc.x)));
   vMix = aSeed.z;
   vAlpha = (0.45 + 0.55 * aSeed.y) * (0.5 + depth * 0.5);
 }
@@ -98,6 +102,7 @@ uniform vec3 uAccent;
 varying float vHot;
 varying float vAlpha;
 varying float vMix;
+varying float vRead;
 
 void main() {
   vec2 c = gl_PointCoord - 0.5;
@@ -106,7 +111,7 @@ void main() {
   float soft = (1.0 - smoothstep(0.0, 0.5, r));
   float core = (1.0 - smoothstep(0.0, 0.18, r));
   vec3 col = mix(uBase, uAccent, clamp(vMix * 0.55 + vHot, 0.0, 1.0));
-  float a = min(1.0, (soft * soft * 0.45 + core * 1.3) * vAlpha * 1.5 * (1.0 + vHot * 1.4));
+  float a = min(1.0, (soft * soft * 0.45 + core * 1.3) * vAlpha * 1.5 * max(vRead, vHot) * (1.0 + vHot * 1.4));
   gl_FragColor = vec4(col * a, a);
 }
 `;
