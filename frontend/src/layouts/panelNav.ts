@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Settings,
   ShieldCheck,
+  ShoppingBag,
   Users,
   Wallet,
   type LucideIcon,
@@ -43,6 +44,7 @@ export function panelNavFor(role: PanelRole | null): PanelNavGroup[] {
         items: [
           { to: '/painel/visao-geral', label: 'Visão geral', icon: LayoutDashboard },
           { to: '/painel/meus-projetos', label: 'Meus projetos', icon: FolderKanban },
+          { to: '/painel/pedidos', label: 'Pedidos e assinaturas', icon: ShoppingBag },
           { to: '/painel/suporte', label: 'Suporte', icon: LifeBuoy },
           { to: '/painel/configuracoes', label: 'Configurações', icon: Settings },
         ],

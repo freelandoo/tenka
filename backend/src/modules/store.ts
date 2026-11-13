@@ -5,6 +5,10 @@
  *  POST /store/checkout          carrinho → pedido → link do MP ($1/L2)
  *  GET  /store/orders/:id?t=     acompanhamento do pedido (link com segredo)
  *  POST /webhooks/mercadopago    aviso do MP (direto ou repassado pela Freelandoo)
+ *  GET  /store/invites/:token     convite do portal (M1)
+ *  POST /store/invites/:token/accept   define a senha e já entra
+ *  GET  /me/store/orders          pedidos e assinaturas no portal (cliente)
+ *  POST /me/store/subscriptions/:id/cancel   cancela no fim do ciclo
  *
  * Independente do financeiro do Asaas.
  */
@@ -18,6 +22,18 @@ import { checkout } from '../store/checkout';
 import { getOrder, getOrderCharges } from '../store/orders';
 import { processNotification, reconcile, type PaymentDeps } from '../store/payments';
 import { mercadoPago, mpConfig, setMercadoPagoLogger, verifyWebhookSignature } from '../payments/mercadopago';
+import {
+  acceptInvite,
+  linkBuyerToPortal,
+  listClientOrders,
+  portalAccessForOrder,
+  runDueCancels,
+  scheduleCancel,
+  verifyInvite,
+} from '../store/portal';
+import { clientOnly } from '../auth/middleware';
+import { AuthError, login } from '../auth/service';
+import { SITE_URL } from '../store/checkout';
 
 const checkoutSchema = z.object({
   items: z.array(z.string().trim().min(1).max(60)).min(1).max(8),
@@ -62,9 +78,16 @@ export function paymentDeps(app: FastifyInstance): PaymentDeps {
     db: getPool(),
     mp: mercadoPago,
     log: { info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m) },
-    onOrderPaid: (order) => {
-      // M1 liga aqui o convite do portal. Por ora, o log é a trilha da venda.
+    onOrderPaid: async (order) => {
       app.log.info({ order: order.id, total: order.total_cents }, 'loja.pedido.pago');
+      // Comprador vira cliente do portal. Falha aqui NÃO derruba o webhook (o
+      // pagamento já está gravado); a conciliação refaz o vínculo pendente.
+      try {
+        const link = await linkBuyerToPortal(getPool(), order);
+        app.log.info({ order: order.id, client: link.clientId, invite: Boolean(link.inviteId) }, 'loja.portal.vinculado');
+      } catch (err) {
+        app.log.error({ err, order: order.id }, 'loja.portal.vinculo_falhou');
+      }
     },
   };
 }
@@ -117,6 +140,7 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
       const order = await getOrder(db, id);
       if (!order || !sameSecret(order.public_token, String(t))) return reply.code(404).send({ error: 'pedido-nao-encontrado' });
       const charges = await getOrderCharges(db, id);
+      const portal = await portalAccessForOrder(db, id).catch(() => ({ invite: null, hasAccount: false }));
       reply.header('Cache-Control', 'no-store');
       return {
         id: order.id,
@@ -136,10 +160,63 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
           subscriptionStatus: c.subscription_status,
           checkoutUrl: c.status === 'pending' ? c.checkout_url : null,
         })),
+        portal: {
+          inviteUrl: portal.invite ? `${SITE_URL}/loja/convite/${portal.invite}` : null,
+          hasAccount: portal.hasAccount,
+        },
       };
     } catch (err) {
       req.log.error({ err }, 'loja.pedido.erro');
       return reply.code(503).send({ error: 'indisponivel' });
+    }
+  });
+
+  // ------------------------------------------------ convite do portal (M1)
+
+  app.get('/store/invites/:token', async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const info = await verifyInvite(getPool(), token).catch(() => null);
+    reply.header('Cache-Control', 'no-store');
+    if (!info) return reply.code(404).send({ error: 'convite-invalido' });
+    return { email: info.email, name: info.name };
+  });
+
+  app.post('/store/invites/:token/accept', async (req, reply) => {
+    const { token } = req.params as { token: string };
+    const parsed = z.object({ password: z.string().min(8).max(200) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'senha-curta' });
+    if (rateLimited(`convite:${clientIp(req)}`)) return reply.code(429).send({ error: 'muitas-tentativas' });
+    const email = await acceptInvite(getPool(), token, parsed.data.password);
+    if (!email) return reply.code(404).send({ error: 'convite-invalido' });
+    try {
+      // Mesmo formato do /auth/login: o front guarda os tokens e entra no portal.
+      return reply.send(await login(email, parsed.data.password, req.headers['user-agent']));
+    } catch (err) {
+      if (err instanceof AuthError) return reply.code(err.status).send({ error: err.code });
+      throw err;
+    }
+  });
+
+  // ------------------------------------------- pedidos no portal (cliente)
+
+  app.get('/me/store/orders', clientOnly, async (req) => {
+    return { orders: await listClientOrders(getPool(), req.profile!.client_id!) };
+  });
+
+  app.post('/me/store/subscriptions/:id/cancel', clientOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.code(404).send({ error: 'assinatura-nao-encontrada' });
+    try {
+      const at = await scheduleCancel(getPool(), req.profile!.client_id!, id, async (preId) => {
+        const pre = await mercadoPago.getPreapproval(preId);
+        const d = pre.next_payment_date ? new Date(pre.next_payment_date) : null;
+        return d && !Number.isNaN(d.getTime()) ? d : null;
+      });
+      if (!at) return reply.code(404).send({ error: 'assinatura-nao-encontrada' });
+      return { cancelAt: at.toISOString() };
+    } catch (err) {
+      req.log.error({ err }, 'loja.portal.cancelar_falhou');
+      return reply.code(502).send({ error: 'falha-no-mercado-pago' });
     }
   });
 
@@ -201,8 +278,17 @@ export const storeReconcileJob = {
       if (running) return;
       running = true;
       try {
-        const r = await reconcile(paymentDeps(app));
+        const deps = paymentDeps(app);
+        const r = await reconcile(deps);
         if (r.changed) app.log.info(r, 'loja.conciliacao');
+        const cancelled = await runDueCancels(getPool(), (preId) => mercadoPago.cancelPreapproval(preId));
+        if (cancelled) app.log.info({ cancelled }, 'loja.assinaturas.canceladas');
+        // Vínculo do portal que falhou no webhook: refaz aqui.
+        const { rows } = await getPool().query<Parameters<typeof linkBuyerToPortal>[1]>(
+          `select id, customer_name, customer_email, customer_phone from public.store_orders
+            where status = 'paid' and client_id is null limit 20`,
+        );
+        for (const order of rows) await linkBuyerToPortal(getPool(), order).catch((err) => app.log.error({ err }, 'loja.portal.vinculo_falhou'));
       } catch (err) {
         app.log.error({ err }, 'loja.conciliacao.erro');
       } finally {

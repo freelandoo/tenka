@@ -67,6 +67,7 @@ export interface OrderView {
   createdAt: string;
   paidAt: string | null;
   charges: OrderCharge[];
+  portal?: { inviteUrl: string | null; hasAccount: boolean };
 }
 
 export async function fetchOrder(id: string, token: string): Promise<OrderView | null> {

@@ -108,6 +108,18 @@ export default function LojaPedidoPage() {
               ))}
             </ul>
 
+            {order.status === 'paid' && order.portal?.inviteUrl && (
+              <a className="tf-btn" href={order.portal.inviteUrl} rel="noreferrer">
+                Criar meu acesso ao portal
+                <span className="tf-arrow" aria-hidden="true">↗</span>
+              </a>
+            )}
+            {order.status === 'paid' && order.portal?.hasAccount && (
+              <Link className="tf-btn tf-btn--ghost" to="/painel/pedidos">
+                Ver no portal do cliente
+                <span className="tf-arrow" aria-hidden="true">↗</span>
+              </Link>
+            )}
             {next && (
               <a className="tf-btn" href={next.checkoutUrl!} rel="noreferrer">
                 {next.kind === 'subscription' ? 'Autorizar a mensalidade no Mercado Pago' : 'Pagar no Mercado Pago'}

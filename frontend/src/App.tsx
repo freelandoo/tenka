@@ -45,6 +45,7 @@ const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
 // /loja: vitrine com cards 3D (o three só baixa no desktop, dentro dela).
 const LojaPage = lazyWithRetry(() => import('./pages/LojaPage'));
 const LojaPedidoPage = lazyWithRetry(() => import('./pages/LojaPedidoPage'));
+const LojaConvitePage = lazyWithRetry(() => import('./pages/LojaConvitePage'));
 // Páginas de construção ("como foi feito") — GSAP, só quando alguém abre uma.
 const CasePage = lazyWithRetry(() => import('./pages/CasePage'));
 
@@ -185,6 +186,14 @@ export default function App() {
           element={
             <Suspense fallback={<TechnologyFallback />}>
               <LojaPedidoPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/loja/convite/:token"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <LojaConvitePage />
             </Suspense>
           }
         />

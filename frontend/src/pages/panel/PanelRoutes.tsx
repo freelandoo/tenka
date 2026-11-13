@@ -18,6 +18,7 @@ import SettingsPage from './SettingsPage';
 import PortalOverviewPage from './portal/PortalOverviewPage';
 import PortalProjectsPage from './portal/PortalProjectsPage';
 import PortalSupportPage from './portal/PortalSupportPage';
+import PortalOrdersPage from './portal/PortalOrdersPage';
 import AdminHomePage from './admin/AdminHomePage';
 import AdminClientsPage from './admin/AdminClientsPage';
 import AdminUsersPage from './admin/AdminUsersPage';
@@ -89,6 +90,14 @@ export default function PanelRoutes() {
               element={
                 <RequireClient>
                   <PortalProjectsPage />
+                </RequireClient>
+              }
+            />
+            <Route
+              path="pedidos"
+              element={
+                <RequireClient>
+                  <PortalOrdersPage />
                 </RequireClient>
               }
             />
