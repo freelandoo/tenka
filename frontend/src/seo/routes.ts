@@ -253,6 +253,26 @@ const CORE_ROUTES: SeoRoute[] = [
     priority: 0.8,
     changefreq: 'monthly',
   },
+  {
+    path: '/loja',
+    title: 'Loja TENKA — sites, Google Meu Negócio e projetos sob medida',
+    description:
+      'Site com preço fechado a partir de R$ 300, hospedagem por R$ 60/mês e Google Meu Negócio por R$ 39,90/mês. Games, sistemas, AR e VR por briefing.',
+    h1: 'Loja TENKA: sites, Google Meu Negócio e projetos sob medida',
+    intro:
+      'Sites com preço fechado, o perfil no Google Meu Negócio cuidado todo mês e o primeiro passo dos projetos sob medida — games, sistemas, realidade aumentada e realidade virtual.',
+    highlights: [
+      'Site Essencial — R$ 300',
+      'Site Premium — R$ 650',
+      'Site Experiência — R$ 1.000',
+      'Hospedagem — R$ 60 por mês; com Google Meu Negócio — R$ 99,90 por mês',
+      'Google Meu Negócio avulso — R$ 39,90 por mês: relatório mensal no portal, posts e fotos, resposta às avaliações',
+      'Games, sistemas sob medida, realidade aumentada e realidade virtual — sinal de briefing e orçamento',
+    ],
+    ogImage: '/images/og/tenka-tech.jpg',
+    priority: 0.8,
+    changefreq: 'weekly',
+  },
 ];
 
 /**

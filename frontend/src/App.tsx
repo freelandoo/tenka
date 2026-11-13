@@ -42,6 +42,8 @@ const DesenvolvimentoPage = lazyWithRetry(() => import('./pages/DesenvolvimentoP
 const MultimidiaPage = lazyWithRetry(() => import('./pages/MultimidiaPage'));
 // /precos carrega GSAP e (sob demanda, dentro dela) o three do holograma.
 const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
+// /loja: vitrine com cards 3D (o three só baixa no desktop, dentro dela).
+const LojaPage = lazyWithRetry(() => import('./pages/LojaPage'));
 // Páginas de construção ("como foi feito") — GSAP, só quando alguém abre uma.
 const CasePage = lazyWithRetry(() => import('./pages/CasePage'));
 
@@ -165,6 +167,14 @@ export default function App() {
           element={
             <Suspense fallback={<TechnologyFallback />}>
               <PrecosPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/loja"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <LojaPage />
             </Suspense>
           }
         />

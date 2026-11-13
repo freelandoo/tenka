@@ -90,6 +90,10 @@
       "destination": "/precos/index.html"
     },
     {
+      "source": "/loja",
+      "destination": "/loja/index.html"
+    },
+    {
       "source": "/games/treinamento-em-realidade-virtual",
       "destination": "/games/treinamento-em-realidade-virtual/index.html"
     },

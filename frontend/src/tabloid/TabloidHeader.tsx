@@ -11,6 +11,7 @@ import { DIVISION_LIST } from './divisions';
  */
 const PAGES = [
   { to: '/precos', label: 'Preços' },
+  { to: '/loja', label: 'Loja' },
   { to: '/projetos', label: 'Projetos' },
 ];
 

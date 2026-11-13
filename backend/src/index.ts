@@ -19,6 +19,7 @@ import { webhookRoutes } from './modules/webhooks';
 import { meetingRoutes } from './modules/meetings';
 import { financeRoutes } from './modules/finance';
 import { cardAuthorizationRoutes } from './modules/cardAuthorizations';
+import { storeRoutes } from './modules/store';
 import { financeWorker } from './finance/worker';
 import { reconciliationJob } from './finance/reconciliationJob';
 import { realtimeBus } from './realtime/bus';
@@ -53,6 +54,8 @@ async function main(): Promise<void> {
   // Link publico de autorizacao financeira; rotas administrativas continuam
   // protegidas por JWT e a tokenizacao real fica bloqueada fora do Sandbox.
   await app.register(cardAuthorizationRoutes);
+  // Loja pública: catálogo (L1). Independente do financeiro do Asaas.
+  await app.register(storeRoutes);
   // Webhook da Evolution: não passa por auth de painel (valida x-webhook-secret).
   await app.register(webhookRoutes);
 
