@@ -14,6 +14,8 @@ import { usePageviews } from './lib/usePageviews';
 import ConsentBanner from './components/site/ConsentBanner';
 import WhatsAppDrawer from './components/site/WhatsAppDrawer';
 import SiteParticles from './components/site-particles/SiteParticles';
+import RouteTransition from './components/site-transition/RouteTransition';
+import SiteLenis from './components/site-transition/SiteLenis';
 import { shouldTrack } from './lib/analytics';
 
 /**
@@ -99,6 +101,8 @@ export default function App() {
       <ConsentBanner />
       <SiteWhatsApp />
       <SiteParticles />
+      <SiteLenis />
+      <RouteTransition />
       <Routes>
         <Route path="/" element={<HomePage />} />
         {/* A antiga área /admin era pública e sem autenticação. Ela virou
