@@ -154,6 +154,10 @@ Cada fatia = commit + push em `master`, deploy pela API da Vercel (nunca CLI), c
 ## Em aberto
 - **Taxa de configuração do GMN avulso** (valor). Proposta: cobrada só no avulso; junto do site, sem taxa.
 - Valores dos **sinais** de games, sistemas, AR e VR.
+- **X — Pix Automático (decidido 13/11):** a API de assinaturas do MP (`/preapproval`) só documenta cartão;
+  Pix Automático não tem endpoint público documentado. Pela regra do Alex, **não entra**. Reavaliar se o MP publicar.
+- **Loja no ar (13/11):** L1, $1, L2, M1 e o repasse $2 (Freelandoo `db8f991`) publicados; pagamento DORMENTE até
+  `MERCADOPAGO_ACCESS_TOKEN` + `MERCADOPAGO_WEBHOOK_SECRET` no Railway da TENKA e `TENKA_WEBHOOK_URL` no da Freelandoo.
 
 ## Frente H — hero vitrine e trabalhos reais (pedido do Alex, 13/11)
 
