@@ -205,6 +205,9 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
         toast('success', `Projeto "${values.name}" criado na coluna Início.`);
       } else {
         const dueDay = Number(values.dueDay);
+        const baselineDueDay = subscriptionBaseline?.dueDay ?? project.due_day;
+        const dueDayChanged = monthlyFeeCents > 0
+          && dueDay !== baselineDueDay;
         const atomicHostingEdit = Boolean(subscriptionBaseline?.exists
           && subscriptionBaseline.hostingStatus !== 'legacy'
           && !subscriptionBaseline.deliveryTriggered);
@@ -242,6 +245,12 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           // fazia nada e a recorrência seguia cobrando no Asaas; agora o backend
           // desliga a assinatura e zera o valor do projeto.
           await finance.clearSubscription(project.id);
+        }
+        if (dueDayChanged) {
+          await finance.configureProjectRecurringBilling(project.id, {
+            dueDay,
+            billingType: 'CREDIT_CARD',
+          });
         }
         // Sincroniza responsáveis: adiciona novos, remove ausentes.
         const current = new Set(project.assignees.map((a) => a.user_id));
@@ -502,7 +511,7 @@ export function ProjectFormModal({ project, profiles, onClose, onSaved }: Projec
           {hasMonthlyFee && isEdit && (
             <p className="project-form__finance-notice" role="status">
               {subscriptionHostingStatus && subscriptionHostingStatus !== 'legacy'
-                ? 'A hospedagem está contratada. O valor pode ser ajustado até a entrega; depois disso, o Checkout e a recorrência preservam o valor autorizado.'
+                ? 'A hospedagem está contratada. Valor e vencimento podem ser ajustados aqui até a entrega.'
                 : subscriptionIsActive
                 ? 'Esta mensalidade já está ativa. Para desativar ou reativar, use a área Financeiro.'
                 : 'A mensalidade será salva como inativa. Para começar a cobrar, acesse Financeiro e clique em Ativar.'}

@@ -213,6 +213,7 @@ export interface PaymentPlanInput {
     installmentNumber: number | null;
     installmentCount: number | null;
     groupLabel: string;
+    paid?: boolean;
   }>;
 }
 
@@ -227,6 +228,7 @@ export interface PaymentPlanDraftRow {
   installmentNumber: number | null;
   installmentCount: number | null;
   groupLabel: string;
+  paid?: boolean;
 }
 
 export interface PaymentPlanDraft {
@@ -314,6 +316,20 @@ export const registerProjectPaymentOutside = (paymentId: string, paymentDate: st
     { method: 'POST', body: { paymentDate } },
   );
 
+export const markCancelledProjectPaymentPaid = (
+  paymentId: string, paymentDate: string, reason: string,
+) => apiRequest<{ payment: ProjectPaymentRow }>(
+  `/project-payments/${paymentId}/cancelled/mark-paid`,
+  { method: 'POST', body: { paymentDate, reason } },
+);
+
+export const regenerateCancelledProjectCheckout = (
+  paymentId: string, dueDate: string, reason: string,
+) => apiRequest<{ queued: true; dueDate: string }>(
+  `/project-payments/${paymentId}/cancelled/regenerate-checkout`,
+  { method: 'POST', body: { dueDate, reason } },
+);
+
 export const setDefaultProjectPayment = (
   projectId: string, paid: boolean, dueDate?: string | null, paymentDate?: string,
 ) =>
@@ -332,6 +348,31 @@ export const createDefaultProjectCharge = (projectId: string) =>
 
 export type ServiceFrequency = 'once' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 export type ClientServiceStatus = 'draft' | 'active' | 'paused' | 'ended' | 'archived';
+
+/** Item enxuto usado nas previsões mensais do Financeiro. */
+export interface ClientServiceLite {
+  id?: string;
+  project_id: string;
+  name?: string;
+  amount_cents: number;
+  frequency: ServiceFrequency;
+  first_due_date: string;
+  status?: Extract<ClientServiceStatus, 'draft' | 'active'>;
+}
+
+const SERVICE_INTERVAL_MONTHS: Record<ServiceFrequency, number> = {
+  once: 0, monthly: 1, quarterly: 3, semiannual: 6, annual: 12,
+};
+
+export function serviceCountsInCompetence(service: ClientServiceLite, competence: string): boolean {
+  const firstMonth = service.first_due_date.slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(firstMonth) || firstMonth > competence) return false;
+  const [year, month] = competence.split('-').map(Number);
+  const [startYear, startMonth] = firstMonth.split('-').map(Number);
+  const elapsed = (year! - startYear!) * 12 + month! - startMonth!;
+  const interval = SERVICE_INTERVAL_MONTHS[service.frequency];
+  return interval === 0 ? elapsed === 0 : elapsed >= 0 && elapsed % interval === 0;
+}
 
 export interface ClientServiceRow {
   id: string;
@@ -355,6 +396,33 @@ export interface ClientRecurringBilling {
   billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX';
 }
 
+export interface CardAuthorizationSummary {
+  authorization: null | {
+    id: string;
+    status: 'authorized' | 'revoked' | 'replaced';
+    card_brand: string;
+    card_last_four: string;
+    authorized_at: string;
+    authorized_limit_cents: number;
+    term_version: string;
+    revoked_at: string | null;
+  };
+  authorizationCurrent: boolean;
+  linkRequired: boolean;
+  latestLink: null | {
+    id: string;
+    status: 'active' | 'used' | 'revoked';
+    state: 'active' | 'expired' | 'used' | 'revoked';
+    expires_at: string;
+    created_at: string;
+    url: string | null;
+  };
+  linkIssue: 'assinatura-fixa-existente' | 'cobranca-recorrente-nao-configurada'
+    | 'criptografia-de-token-nao-configurada' | null;
+  nextCharge: null | { due_date: string; amount_cents: number };
+  sandboxOnly: boolean;
+}
+
 export interface ClientServicePreview {
   billing: ClientRecurringBilling;
   dueDate: string;
@@ -375,13 +443,18 @@ export interface ClientServiceInput {
   activate?: boolean;
 }
 
-/** Serviços ativos de todos os projetos vivos — base da receita por cliente. */
-export const fetchActiveClientServices = () =>
-  apiRequest<{ services: Array<{ project_id: string; amount_cents: number; frequency: ServiceFrequency }> }>(
-    '/admin/finance/client-services').then((d) => d.services);
+/** Serviços dos projetos vivos usados na receita realizada ou prevista. */
+export const fetchActiveClientServices = (options: { includeDrafts?: boolean } = {}) =>
+  apiRequest<{ services: ClientServiceLite[] }>(
+    `/admin/finance/client-services${options.includeDrafts ? '?includeDrafts=true' : ''}`,
+  ).then((d) => d.services);
 
 export const fetchProjectServices = (projectId: string) =>
-  apiRequest<{ services: ClientServiceRow[]; billing: ClientRecurringBilling | null }>(`/projects/${projectId}/services`);
+  apiRequest<{
+    services: ClientServiceRow[];
+    billing: ClientRecurringBilling | null;
+    billingConfigured: boolean;
+  }>(`/projects/${projectId}/services`);
 
 export const createProjectService = (projectId: string, input: ClientServiceInput) =>
   apiRequest<{ id: string }>(`/projects/${projectId}/services`, { method: 'POST', body: input });
@@ -395,6 +468,19 @@ export const updateProjectService = (
 export const configureProjectRecurringBilling = (projectId: string, input: ClientRecurringBilling) =>
   apiRequest<{ billing: ClientRecurringBilling; rebasedServiceCount: number }>(`/projects/${projectId}/recurring-billing`, {
     method: 'PUT', body: input,
+  });
+
+export const fetchProjectCardAuthorization = (projectId: string) =>
+  apiRequest<CardAuthorizationSummary>(`/projects/${projectId}/card-authorization`);
+
+export const createProjectCardAuthorizationLink = (projectId: string) =>
+  apiRequest<{ url: string; expiresAt: string }>(`/projects/${projectId}/card-authorization-links`, {
+    method: 'POST',
+  });
+
+export const revokeProjectCardAuthorization = (projectId: string, reason: string) =>
+  apiRequest<{ revoked: true }>(`/projects/${projectId}/card-authorization/revoke`, {
+    method: 'POST', body: { reason },
   });
 
 export const previewProjectService = (

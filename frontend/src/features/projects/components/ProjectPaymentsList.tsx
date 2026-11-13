@@ -40,7 +40,9 @@ const STATUS_LABEL: Record<ProjectPaymentRow['status'], string> = {
 type PendingConfirm =
   | { kind: 'receipt'; item: ProjectPaymentRow }
   | { kind: 'localReceipt'; item: ProjectPaymentRow }
-  | { kind: 'reopen'; item: ProjectPaymentRow }
+  | { kind: 'cancelledReceipt'; item: ProjectPaymentRow }
+  | { kind: 'regenerate'; item: ProjectPaymentRow }
+  | { kind: 'split'; item: ProjectPaymentRow }
   | { kind: 'correct'; item: ProjectPaymentRow }
   | { kind: 'cancel'; item: ProjectPaymentRow };
 
@@ -74,6 +76,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const [pendingCorrection, setPendingCorrection] = useState<{
     paymentId: string;
     project: { id: string; name: string; value_cents: number };
+    splitAfterCancellation: boolean;
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -123,7 +126,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     if (item?.provider_status !== 'CORRECTION_REQUIRED' || item.sync_status !== 'local') return;
     setPlanEditor({
       project: pendingCorrection.project,
-      appendStage: false,
+      appendStage: pendingCorrection.splitAfterCancellation,
       correctionPaymentId: item.id,
     });
     setPendingCorrection(null);
@@ -152,6 +155,14 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   });
 
   const openPlan = (group: PaymentGroup) => {
+    const openProviderCharge = group.items.find((item) =>
+      ['pending', 'overdue', 'failed', 'awaiting_risk_analysis'].includes(item.status)
+      && Boolean(item.asaas_payment_id || item.external_reference?.includes(':checkout:')),
+    );
+    if (openProviderCharge) {
+      setConfirming({ kind: 'split', item: openProviderCharge });
+      return;
+    }
     setPlanEditor({
       project: { id: group.projectId, name: group.projectName, value_cents: group.totalCents },
       appendStage: true,
@@ -188,15 +199,31 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
     }
   };
 
-  const reopenLocal = async (item: ProjectPaymentRow) => {
+  const markCancelledPaid = async (
+    item: ProjectPaymentRow, paymentDate: string, reason: string,
+  ) => {
     setBusyId(item.id);
     try {
-      await finance.updateProjectPayment(item.id, { status: 'pending' });
-      toast('success', 'Pagamento local reaberto.');
+      await finance.markCancelledProjectPaymentPaid(item.id, paymentDate, reason);
+      toast('success', 'Pagamento marcado como pago na Tenka.');
       setConfirming(null);
       await load();
     } catch (caught) {
-      toast('error', caught instanceof Error ? caught.message : 'Não foi possível reabrir o pagamento.');
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível registrar o pagamento.');
+    } finally { setBusyId(null); }
+  };
+
+  const regenerateCheckout = async (
+    item: ProjectPaymentRow, dueDate: string, reason: string,
+  ) => {
+    setBusyId(item.id);
+    try {
+      await finance.regenerateCancelledProjectCheckout(item.id, dueDate, reason);
+      toast('success', 'Novo Checkout enviado para geração no Asaas.');
+      setConfirming(null);
+      await load();
+    } catch (caught) {
+      toast('error', caught instanceof Error ? caught.message : 'Não foi possível gerar o novo Checkout.');
     } finally { setBusyId(null); }
   };
 
@@ -273,6 +300,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
 
   const cancelCharge = async (
     item: ProjectPaymentRow, reason: string, prepareCorrection = false,
+    splitAfterCancellation = false,
   ) => {
     setBusyId(item.id);
     try {
@@ -292,6 +320,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
             name: item.project_name || 'Projeto',
             value_cents: cents(item.project_value_cents),
           },
+          splitAfterCancellation,
         });
         toast('success', 'Cancelamento enviado. O editor abre assim que o Asaas confirmar.');
       } else {
@@ -316,6 +345,24 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
   const renderPaymentActions = (item: ProjectPaymentRow, label: string) => {
     const busy = busyId === item.id;
     const integrated = item.sync_status !== 'local';
+    if (item.status === 'cancelled') {
+      return <span className="project-payments__actions">
+        <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Marcar cancelada como paga — ${label}`}
+          title="Marcar como pago na Tenka, com data e motivo"
+          disabled={!isAdmin || busy}
+          onClick={() => setConfirming({ kind: 'cancelledReceipt', item })}>
+          <Banknote size={14} />
+        </button>
+        {item.kind === 'stage' && <button type="button" className="panel-iconbtn fees__billing-icon"
+          aria-label={`Gerar novo Checkout — ${label}`}
+          title="Gerar um novo Checkout no Asaas"
+          disabled={!isAdmin || busy}
+          onClick={() => setConfirming({ kind: 'regenerate', item })}>
+          <RotateCcw size={14} />
+        </button>}
+      </span>;
+    }
     if (!integrated) {
       if (item.provider_status === 'CORRECTION_REQUIRED') {
         return <span className="project-payments__actions">
@@ -336,13 +383,9 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
           </button>
         )}
         {item.status === 'pending' && <button type="button" className="panel-iconbtn fees__billing-icon"
-          disabled={!isAdmin || busy} aria-label={`Registrar pagamento — ${label}`}
-          title="Registrar pagamento feito fora da Tenka; não altera nenhuma cobrança no Asaas."
+          disabled={!isAdmin || busy} aria-label={`Marcar como pago — ${label}`}
+          title="Marcar como pago na Tenka; não altera nenhuma cobrança no Asaas."
           onClick={() => setConfirming({ kind: 'localReceipt', item })}><Banknote size={14} /></button>}
-        {item.status === 'paid' && <button type="button" className="panel-iconbtn fees__billing-icon"
-          disabled={!isAdmin || busy} aria-label={`Reabrir pagamento — ${label}`}
-          title="Reabrir pagamento local"
-          onClick={() => setConfirming({ kind: 'reopen', item })}><RotateCcw size={14} /></button>}
       </span>;
     }
     return <span className="project-payments__actions">
@@ -442,7 +485,6 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
             const open = expanded.has(group.projectId);
             const onlyPayment = group.items[0];
             const allPaid = group.paidCount === group.items.length;
-            const hasPaid = group.paidCount > 0;
             return (
               <li key={group.projectId} className={`project-payments__group${allPaid ? ' is-paid' : ''}`}>
                 <div className="project-payments__row project-payments__header">
@@ -459,7 +501,7 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
                     : renderDate(onlyPayment)}
                   <span className="project-payments__total">
                     <span className="costs__amount">{formatCurrencyFromCents(group.totalCents)}</span>
-                    <button type="button" className="project-payments__quick-add" disabled={!isAdmin || hasPaid} aria-label={`${group.hasStages ? 'Adicionar etapa' : 'Dividir valor'} — ${group.projectName}`} title={hasPaid ? 'Reabra os pagamentos antes de alterar a divisão' : group.hasStages ? 'Adicionar outra etapa' : 'Dividir o valor do projeto'} onClick={() => openPlan(group)}><Plus size={13} /></button>
+                    <button type="button" className="project-payments__quick-add" disabled={!isAdmin} aria-label={`${group.hasStages ? 'Adicionar etapa' : 'Dividir valor'} — ${group.projectName}`} title={group.hasStages ? 'Abrir plano e adicionar outra etapa' : 'Dividir o valor do projeto'} onClick={() => openPlan(group)}><Plus size={13} /></button>
                   </span>
                   <span className={`project-payments__status is-${allPaid ? 'paid' : 'pending'}`}>
                     {allPaid ? 'Pago' : group.hasStages ? 'Em etapas'
@@ -632,8 +674,8 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
 
       {confirming?.kind === 'localReceipt' && (
         <ConfirmDialog
-          title="Registrar pagamento"
-          description="Registra uma baixa somente na Tenka. Esta opção não cria, paga nem cancela cobrança no Asaas e não envia aviso ao cliente."
+          title="Marcar como pago"
+          description="Marca esta etapa como paga somente na Tenka. Esta opção não cria, paga nem cancela cobrança no Asaas e não envia aviso ao cliente."
           details={[
             { label: 'Lançamento', value: confirming.item.name },
             { label: 'Projeto', value: confirming.item.project_name ?? '—' },
@@ -641,21 +683,70 @@ export function ProjectPaymentsList({ isAdmin }: ProjectPaymentsListProps) {
           ]}
           dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
           warning="Use esta opção apenas quando não existir cobrança sincronizada no Asaas. Seu nome e a data ficam no histórico do projeto."
-          confirmLabel="Registrar pagamento"
+          confirmLabel="Marcar como pago"
           busy={busyId === confirming.item.id}
           onConfirm={(date) => void registerLocal(confirming.item, date)}
           onCancel={() => setConfirming(null)}
         />
       )}
 
-      {confirming?.kind === 'reopen' && (
+      {confirming?.kind === 'cancelledReceipt' && (
         <ConfirmDialog
-          title="Reabrir pagamento local"
-          description="Remove a confirmação local e devolve o lançamento para pendente. Nenhuma cobrança do Asaas será alterada."
-          details={[{ label: 'Lançamento', value: confirming.item.name }]}
-          confirmLabel="Reabrir pagamento"
+          title="Marcar cobrança cancelada como paga"
+          description="Registra que o valor entrou por fora depois do cancelamento. A baixa fica somente na Tenka e não altera nada no Asaas."
+          details={[
+            { label: 'Etapa', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          dateField={{ label: 'Data em que o dinheiro entrou', value: localIsoDate(), max: localIsoDate() }}
+          textField={{ label: 'Motivo da baixa', placeholder: 'Ex.: cliente pagou por Pix após o cancelamento', minLength: 3 }}
+          warning="A data, o motivo e o responsável ficam registrados no histórico do projeto."
+          confirmLabel="Marcar como pago"
           busy={busyId === confirming.item.id}
-          onConfirm={() => void reopenLocal(confirming.item)}
+          onConfirm={(date, reason) => void markCancelledPaid(confirming.item, date, reason)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === 'regenerate' && (
+        <ConfirmDialog
+          title="Gerar novo Checkout"
+          description="O Checkout cancelado não pode ser reaberto no Asaas. A Tenka cria um novo link para esta mesma etapa."
+          details={[
+            { label: 'Etapa', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          dateField={{ label: 'Vencimento do novo Checkout', value: localIsoDate() }}
+          textField={{ label: 'Motivo da nova cobrança', placeholder: 'Ex.: cliente solicitou um novo link', minLength: 3 }}
+          warning="Será criado um novo Checkout. O link cancelado continua apenas no histórico."
+          confirmLabel="Gerar novo Checkout"
+          busy={busyId === confirming.item.id}
+          onConfirm={(date, reason) => void regenerateCheckout(confirming.item, date, reason)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === 'split' && (
+        <ConfirmDialog
+          title="Cancelar cobrança e dividir valor"
+          description={<>
+            Já existe uma cobrança aberta para este valor. Para dividir sem duplicar
+            a dívida, a Tenka cancela primeiro a cobrança atual no Asaas e só depois
+            libera as etapas para revisão.
+          </>}
+          details={[
+            { label: 'Cobrança atual', value: confirming.item.name },
+            { label: 'Projeto', value: confirming.item.project_name ?? '—' },
+            { label: 'Valor atual', value: formatCurrencyFromCents(confirming.item.amount_cents) },
+          ]}
+          tone="danger"
+          textField={{ label: 'Motivo da divisão', placeholder: 'Ex.: dividir em duas etapas', minLength: 3 }}
+          warning="O link atual deixa de funcionar. Nenhuma nova cobrança é criada até você revisar e salvar as etapas."
+          confirmLabel="Cancelar e dividir"
+          busy={busyId === confirming.item.id}
+          onConfirm={(_date, reason) => void cancelCharge(confirming.item, reason, true, true)}
           onCancel={() => setConfirming(null)}
         />
       )}

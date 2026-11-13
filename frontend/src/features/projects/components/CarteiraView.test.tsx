@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { CarteiraView } from './CarteiraView';
 import * as clientsService from '../../clients/clientsService';
+import * as financeService from '../../finance/financeService';
 import type { ProfileRow } from '../../../lib/supabase/database.types';
 import type { BoardProject } from '../services/projectsService';
 
@@ -16,7 +17,9 @@ vi.mock('../../clients/clientsService', () => ({
   deleteCost: vi.fn(),
   sumActiveCosts: vi.fn(() => 0),
 }));
-vi.mock('../../finance/financeService', () => ({
+vi.mock('../../finance/financeService', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../finance/financeService')>(),
+  fetchActiveClientServices: vi.fn(),
   fetchFinanceOverview: vi.fn().mockResolvedValue({
     configured: true,
     environment: 'production',
@@ -67,6 +70,7 @@ const profiles: ProfileRow[] = [];
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(clientsService).fetchCosts.mockResolvedValue([]);
+  vi.mocked(financeService.fetchActiveClientServices).mockResolvedValue([]);
 });
 
 describe('Extrato da Carteira', () => {
@@ -144,9 +148,37 @@ describe('Extrato da Carteira', () => {
     // ...mas a mensalidade continua visível e somando, no painel ao lado.
     const linhaFee = container.querySelector('.fees__row') as HTMLElement;
     expect(within(linhaFee).getByText('Braslar')).toBeInTheDocument();
-    // O "/mês" vive num <small>, e o Intl usa espaço não-quebrável no "R$ ".
-    expect(linhaFee.textContent?.replace(/ /g, ' ')).toContain('R$ 900,00/mês');
+    expect(linhaFee.textContent?.replace(/ /g, ' ')).toContain('R$ 900,00');
     expect(screen.getByText('Total ativo · 1 de 1')).toBeInTheDocument();
+  });
+
+  it('atualiza a previsão do card entre novembro e dezembro com o serviço devido', async () => {
+    vi.mocked(financeService.fetchActiveClientServices).mockResolvedValue([{
+      id: 'domain', project_id: 'p1', name: 'Domínio', amount_cents: 4000,
+      frequency: 'annual', first_due_date: '2026-12-26', status: 'draft',
+    }]);
+    const { container } = render(
+      <CarteiraView
+        projects={[makeProject({
+          monthly_fee_cents: 5000,
+          subscription_first_due_date: '2026-11-26',
+        })]}
+        profiles={profiles}
+        isAdmin
+        onProjectsChanged={vi.fn()}
+      />,
+    );
+    const prediction = () => screen.getByText('Recorrência prevista no mês').closest('.cart-kpi')!;
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Nov' }));
+    await waitFor(() => expect(prediction().textContent?.replace(/ /g, ' ')).toContain('R$ 50,00'));
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Dez' }));
+    await waitFor(() => expect(prediction().textContent?.replace(/ /g, ' ')).toContain('R$ 90,00'));
+    expect(container.querySelector('.fees__breakdown')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver composição — tenka' }));
+    expect(screen.getByRole('list', { name: 'Composição de tenka em Dezembro de 2026' }))
+      .toBeInTheDocument();
   });
 
   it('custos, mensalidades e pagamentos de projetos ficam na mesma faixa', async () => {

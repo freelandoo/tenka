@@ -1,5 +1,34 @@
 /** Regras civis da configuração recorrente central do cliente. */
 
+export type RecurringBillingType = 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+
+interface RecurringBillingSources {
+  centralDueDay: number | null;
+  centralBillingType: RecurringBillingType | null;
+  subscriptionDueDay: number | null;
+  projectDueDay: number | null;
+  hasSubscription: boolean;
+}
+
+/**
+ * Resolve a configuração exibida sem criar outro registro.
+ *
+ * A configuração central é a fonte principal. Enquanto um cliente legado ainda
+ * não a possui, a assinatura e, por último, o espelho histórico do projeto
+ * mantêm o vencimento visível. A modalidade desses contratos de hospedagem é
+ * cartão por definição do fluxo atual.
+ */
+export function resolveRecurringBilling(
+  sources: RecurringBillingSources,
+): { dueDay: number; billingType: RecurringBillingType } | null {
+  if (sources.centralDueDay && sources.centralBillingType) {
+    return { dueDay: sources.centralDueDay, billingType: sources.centralBillingType };
+  }
+  if (!sources.hasSubscription) return null;
+  const dueDay = sources.subscriptionDueDay ?? sources.projectDueDay;
+  return dueDay ? { dueDay, billingType: 'CREDIT_CARD' } : null;
+}
+
 function civil(value: string): { year: number; month: number; day: number } {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) throw new Error('Data inválida.');
@@ -33,4 +62,37 @@ export function followingCentralDueDate(dueDay: number, dueDate: string): string
   const current = civil(dueDate);
   const month = current.month === 12 ? 1 : current.month + 1;
   return dateForMonth(current.month === 12 ? current.year + 1 : current.year, month, dueDay);
+}
+
+export function isScheduledStartWithinMonths(
+  today: string,
+  startDate: string,
+  maxMonths = 3,
+): boolean {
+  const current = civil(today);
+  const start = civil(startDate);
+  const elapsed = (start.year - current.year) * 12 + start.month - current.month;
+  return elapsed >= 0 && elapsed <= maxMonths;
+}
+
+/** Mantém adicionais no mesmo calendário da hospedagem mensal do cliente. */
+export function serviceStartDueDate(input: {
+  dueDay: number;
+  startMode: 'current' | 'next' | 'scheduled';
+  today: string;
+  hostingDueDate?: string | null;
+  startDate?: string;
+}): string {
+  const hostingDueDate = input.hostingDueDate && input.hostingDueDate >= input.today
+    ? centralDueOnOrAfter(input.dueDay, input.hostingDueDate)
+    : centralDueOnOrAfter(input.dueDay, input.today);
+
+  if (input.startMode === 'current') return hostingDueDate;
+  if (input.startMode === 'next') return followingCentralDueDate(input.dueDay, hostingDueDate);
+  if (!input.startDate) throw new Error('Data de início obrigatória.');
+
+  return centralDueOnOrAfter(
+    input.dueDay,
+    input.startDate < input.today ? input.today : input.startDate,
+  );
 }

@@ -73,6 +73,23 @@ describe('cliente Asaas', () => {
       .toBe('https://api-sandbox.asaas.com/v3/installments/ins_1/payments');
   });
 
+  it('tokeniza o cartão sem criar cobrança', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      creditCardToken: 'token-sandbox',
+    }), { status: 200 }));
+
+    const result = await asaas.tokenizeCreditCard({
+      customer: 'cus_1', creditCard: { number: '4444444444444444' },
+      creditCardHolderInfo: { name: 'Cliente de teste' }, remoteIp: '203.0.113.10',
+    });
+
+    expect(result.creditCardToken).toBe('token-sandbox');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api-sandbox.asaas.com/v3/creditCard/tokenizeCreditCard',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('cancela um Checkout pelo endpoint oficial', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
       id: 'chk_1', status: 'CANCELED',

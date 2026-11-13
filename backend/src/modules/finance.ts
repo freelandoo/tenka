@@ -6,7 +6,7 @@ import { getPool, pingDb, withActor } from '../db/pool';
 import { env, hasAsaas, hasDatabase } from '../env';
 import { financeWorker } from '../finance/worker';
 import { sendDbError } from './dbError';
-import { followingMonthlyDueDate, nextMonthlyDueDate } from '../finance/dueDate';
+import { firstHostingDueDate, followingMonthlyDueDate, nextMonthlyDueDate } from '../finance/dueDate';
 import { projectPlanTotalError } from '../finance/projectPlan';
 import { integratedPlanUpdates, planDiff } from '../finance/planDiff';
 import {
@@ -15,7 +15,10 @@ import {
   validateNativeInstallmentSchedule,
 } from '../finance/installments';
 import { asaas, AsaasError } from '../finance/asaas';
-import { blocksDirectIntegratedPaymentChange } from '../finance/projectPaymentPolicy';
+import {
+  blocksDirectIntegratedPaymentChange,
+  blocksDirectPaidPaymentChange,
+} from '../finance/projectPaymentPolicy';
 import { runReconciliation } from '../finance/reconciliationRun';
 import {
   queueClientBillingBatchOperation,
@@ -28,7 +31,13 @@ import { subscriptionChangePreview } from '../finance/subscriptionPreview';
 import { asaasEventDate } from '../finance/asaasDate';
 import { financeReadiness } from '../finance/readiness';
 import { canTransitionClientService, type ClientServiceStatus } from '../finance/clientServiceStatus';
-import { centralDueOnOrAfter, followingCentralDueDate } from '../finance/clientRecurringBilling';
+import {
+  centralDueOnOrAfter,
+  followingCentralDueDate,
+  isScheduledStartWithinMonths,
+  resolveRecurringBilling,
+  serviceStartDueDate,
+} from '../finance/clientRecurringBilling';
 
 const subscriptionSchema = z.object({
   amountCents: z.number().int().positive(),
@@ -72,7 +81,7 @@ const clientServiceUpdateSchema = z.object({
 
 const clientRecurringBillingSchema = z.object({
   dueDay: z.number().int().min(1).max(31),
-  billingType: z.enum(['BOLETO', 'CREDIT_CARD', 'PIX']),
+  billingType: z.literal('CREDIT_CARD'),
 });
 
 const clientServiceTransitionSchema = z.object({
@@ -95,6 +104,7 @@ const planSchema = z.object({
     installmentNumber: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     installmentCount: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     groupLabel: z.string().trim().max(120).default(''),
+    paid: z.boolean().default(false),
   })).max(60),
 });
 
@@ -112,6 +122,7 @@ const paymentPlanDraftSchema = z.object({
     installmentNumber: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     installmentCount: z.number().int().min(1).max(MAX_ASAAS_INSTALLMENTS).nullable().default(null),
     groupLabel: z.string().max(120).default(''),
+    paid: z.boolean().default(false),
   })).max(60),
 });
 
@@ -149,6 +160,12 @@ const subscriptionCancelSchema = z.object({ confirmation: z.string().trim().min(
 const cancelChargeSchema = z.object({
   reason: z.string().trim().min(3).max(500),
   prepareCorrection: z.boolean().default(false),
+});
+
+const cancelledPaymentActionSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 const reconciliationSchema = z.object({
@@ -1339,8 +1356,23 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                     status = case
                       when (sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null))
                        and status not in ('paid','cancelled','refunded',
-                                          'refund_requested','chargeback') then $6
+                                          'refund_requested','chargeback')
+                        then case when $13 then 'paid' else $6 end
                       else status
+                    end,
+                    paid_at = case
+                      when (sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null))
+                       and status not in ('paid','cancelled','refunded','refund_requested','chargeback')
+                       and $13 then coalesce(paid_at,
+                         timezone('America/Sao_Paulo', current_timestamp)::date::timestamptz)
+                      else paid_at
+                    end,
+                    payment_date = case
+                      when (sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null))
+                       and status not in ('paid','cancelled','refunded','refund_requested','chargeback')
+                       and $13 then coalesce(payment_date,
+                         timezone('America/Sao_Paulo', current_timestamp)::date)
+                      else payment_date
                     end,
                     position = $7,
                     kind = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $8 else kind end,
@@ -1349,22 +1381,33 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                     installment_count = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $11 else installment_count end,
                     group_label = case when sync_status = 'local' or (sync_status = 'failed' and asaas_payment_id is null) then $12 else group_label end,
                     sync_status = case when sync_status = 'failed' and asaas_payment_id is null then 'local' else sync_status end,
-                    sync_error = case when sync_status = 'failed' and asaas_payment_id is null then null else sync_error end
+                    sync_error = case when sync_status = 'failed' and asaas_payment_id is null then null else sync_error end,
+                    provider_status = case
+                      when sync_status = 'local' and provider_status = 'CORRECTION_REQUIRED' then null
+                      else provider_status
+                    end,
+                    provider_event_at = case
+                      when sync_status = 'local' and provider_status = 'CORRECTION_REQUIRED' then null
+                      else provider_event_at
+                    end
               where id = $1`,
             [item.id, item.row.name, item.row.description, item.row.amountCents,
               item.row.dueDate, rowStatus, item.position, item.row.kind ?? 'stage',
               item.row.installmentGroupId ?? null, item.row.installmentNumber ?? null,
-              item.row.installmentCount ?? null, item.row.groupLabel ?? ''],
+              item.row.installmentCount ?? null, item.row.groupLabel ?? '', item.row.paid ?? false],
           );
         }
         for (const item of diff.create) {
           await client.query(
             `insert into public.project_payments
                (project_id,name,description,amount_cents,due_date,status,position,created_by,
-                kind,installment_group_id,installment_number,installment_count,group_label)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+                kind,installment_group_id,installment_number,installment_count,group_label,
+                paid_at,payment_date)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+                     case when $6 = 'paid' then timezone('America/Sao_Paulo', current_timestamp)::date::timestamptz end,
+                     case when $6 = 'paid' then timezone('America/Sao_Paulo', current_timestamp)::date end)`,
             [id, item.row.name, item.row.description, item.row.amountCents, item.row.dueDate,
-              rowStatus, item.position, req.userId, item.row.kind ?? 'stage',
+              item.row.paid ? 'paid' : rowStatus, item.position, req.userId, item.row.kind ?? 'stage',
               item.row.installmentGroupId ?? null, item.row.installmentNumber ?? null,
               item.row.installmentCount ?? null, item.row.groupLabel ?? ''],
           );
@@ -1503,6 +1546,13 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           && parsed.data.dueDate !== undefined) {
         return 'correction-required' as const;
       }
+      if (blocksDirectPaidPaymentChange({
+        status: previous.rows[0].status,
+        dueDate: previous.rows[0].due_date,
+        syncStatus: previous.rows[0].sync_status,
+      }, parsed.data)) {
+        return 'paid-payment' as const;
+      }
       if (blocksDirectIntegratedPaymentChange({
         status: previous.rows[0].status,
         dueDate: previous.rows[0].due_date,
@@ -1578,6 +1628,9 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     }
     if (result === 'correction-required') {
       return reply.code(409).send({ error: 'correcao-pendente-no-plano' });
+    }
+    if (result === 'paid-payment') {
+      return reply.code(409).send({ error: 'pagamento-pago-imutavel' });
     }
     if (result === 'archiving') return reply.code(409).send({ error: 'projeto-em-arquivamento' });
     if (!result.rows[0]) return reply.code(404).send({ error: 'pagamento-inexistente' });
@@ -1895,6 +1948,125 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ cancelled: true, readyForEdit: parsed.data.prepareCorrection });
   });
 
+  app.post('/project-payments/:id/cancelled/mark-paid', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = cancelledPaymentActionSchema.safeParse(req.body);
+    if (!parsed.success || !parsed.data.paymentDate) {
+      return reply.code(400).send({ error: 'data-e-motivo-obrigatorios' });
+    }
+    const result = await withActor(req.userId!, async (client) => {
+      const payment = await client.query<{
+        project_id: string; name: string; amount_cents: number; status: string;
+        asaas_payment_id: string | null; external_reference: string | null;
+      }>(
+        `select project_id, name, amount_cents, status, asaas_payment_id, external_reference
+           from public.project_payments where id = $1 for update`, [id]);
+      const row = payment.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.status !== 'cancelled') return 'not-cancelled' as const;
+      const updated = await client.query(
+        `update public.project_payments
+            set status = 'paid', paid_at = $2::date::timestamptz, payment_date = $2::date,
+                due_date = null, asaas_payment_id = null, asaas_installment_id = null,
+                external_reference = null, payment_url = '', bank_slip_url = '',
+                pix_payload = '', billing_type = 'UNDEFINED',
+                provider_status = 'CANCELLED_PAID_LOCALLY', provider_event_at = now(),
+                sync_status = 'local', sync_error = null, external_receipt_pending_at = null
+          where id = $1 returning *`,
+        [id, parsed.data.paymentDate],
+      );
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'pagamento_baixa_local',$3::jsonb)`,
+        [row.project_id, req.userId, JSON.stringify({
+          source: 'tenka-local-after-cancellation', paymentName: row.name,
+          amountCents: Number(row.amount_cents), from: 'cancelled', to: 'paid',
+          paymentDate: parsed.data.paymentDate, reason: parsed.data.reason,
+          previousAsaasPaymentId: row.asaas_payment_id,
+          previousExternalReference: row.external_reference,
+        })],
+      );
+      return updated.rows[0];
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'pagamento-inexistente' });
+    if (result === 'not-cancelled') {
+      return reply.code(409).send({ error: 'pagamento-nao-esta-cancelado' });
+    }
+    return reply.send({ payment: result });
+  });
+
+  app.post('/project-payments/:id/cancelled/regenerate-checkout', adminOnly, async (req, reply) => {
+    if (!hasAsaas) return reply.code(503).send({ error: 'asaas-nao-configurado' });
+    const { id } = req.params as { id: string };
+    const parsed = cancelledPaymentActionSchema.safeParse(req.body);
+    if (!parsed.success || !parsed.data.dueDate) {
+      return reply.code(400).send({ error: 'vencimento-e-motivo-obrigatorios' });
+    }
+    const result = await withActor(req.userId!, async (client) => {
+      const payment = await client.query<{
+        project_id: string; name: string; amount_cents: number; status: string;
+        kind: 'stage' | 'installment'; financial_plan_status: string;
+        client_id: string | null; cpf_cnpj: string | null; archive_requested_at: string | null;
+        asaas_payment_id: string | null; external_reference: string | null;
+      }>(
+        `select pp.project_id, pp.name, pp.amount_cents, pp.status, pp.kind,
+                pp.asaas_payment_id, pp.external_reference, p.financial_plan_status,
+                p.client_id, c.cpf_cnpj, p.archive_requested_at
+           from public.project_payments pp
+           join public.projects p on p.id = pp.project_id
+           left join public.clients c on c.id = p.client_id and c.archived_at is null
+          where pp.id = $1 for update of pp`, [id]);
+      const row = payment.rows[0];
+      if (!row) return 'missing' as const;
+      if (row.archive_requested_at) return 'archiving' as const;
+      if (row.status !== 'cancelled') return 'not-cancelled' as const;
+      if (row.kind !== 'stage') return 'installment' as const;
+      if (row.financial_plan_status !== 'active') return 'inactive-plan' as const;
+      if (!row.client_id) return 'client' as const;
+      if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) return 'document' as const;
+      await client.query(
+        `update public.project_payments
+            set status = 'pending', paid_at = null, payment_date = null, due_date = $2::date,
+                asaas_payment_id = null, asaas_installment_id = null, external_reference = null,
+                payment_url = '', bank_slip_url = '', pix_payload = '',
+                billing_type = 'UNDEFINED', provider_status = null, provider_event_at = null,
+                sync_status = 'local', sync_error = null, external_receipt_pending_at = null
+          where id = $1`,
+        [id, parsed.data.dueDate],
+      );
+      const queued = await queueProjectCheckoutOperation(
+        client, row.project_id, id, parsed.data.reason,
+      );
+      if (!queued) return 'duplicate' as const;
+      await client.query(
+        "update public.project_payments set sync_status = 'queued' where id = $1", [id]);
+      await client.query(
+        `insert into public.project_activity (project_id, actor_id, action, metadata)
+         values ($1,$2,'checkout_projeto_evento',$3::jsonb)`,
+        [row.project_id, req.userId, JSON.stringify({
+          eventType: 'CHECKOUT_REGENERATION_REQUESTED', paymentName: row.name,
+          amountCents: Number(row.amount_cents), dueDate: parsed.data.dueDate,
+          reason: parsed.data.reason, previousAsaasPaymentId: row.asaas_payment_id,
+          previousExternalReference: row.external_reference,
+        })],
+      );
+      return { dueDate: parsed.data.dueDate };
+    });
+    const errors: Record<string, [number, string]> = {
+      missing: [404, 'pagamento-inexistente'], archiving: [409, 'projeto-em-arquivamento'],
+      'not-cancelled': [409, 'pagamento-nao-esta-cancelado'],
+      installment: [409, 'parcelamento-asaas-exige-cancelamento-do-grupo'],
+      'inactive-plan': [409, 'plano-financeiro-inativo'], client: [409, 'cliente-obrigatorio'],
+      document: [409, 'cpf-cnpj-obrigatorio'], duplicate: [409, 'cobranca-ja-em-processamento'],
+    };
+    if (typeof result === 'string') {
+      const [status, error] = errors[result] ?? [409, 'checkout-nao-pode-ser-gerado'];
+      return reply.code(status).send({ error });
+    }
+    financeWorker.kick();
+    return reply.code(202).send({ queued: true, dueDate: result.dueDate });
+  });
+
   // A intenção e o ator são persistidos antes da chamada externa. O worker
   // consulta o Asaas antes de tentar/repetir; somente o webhook liquida a linha.
   app.post('/project-payments/:id/receive-in-cash', adminOnly, async (req, reply) => {
@@ -2097,13 +2269,21 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   // --- Serviços recorrentes do cliente (além da hospedagem) -----------------
   // CRUD isolado; a materialização na cobrança consolidada é etapa à parte.
 
-  // Serviços ativos de todos os projetos vivos — base da receita por cliente.
-  app.get('/admin/finance/client-services', adminOnly, async (_req, reply) => {
+  // Serviços dos projetos vivos. Rascunhos entram apenas na projeção solicitada
+  // pela Carteira; os demais indicadores continuam usando somente os ativos.
+  app.get('/admin/finance/client-services', adminOnly, async (req, reply) => {
+    const includeDrafts = (req.query as { includeDrafts?: string }).includeDrafts === 'true';
     const { rows } = await getPool().query(
-      `select cs.id, cs.project_id, cs.amount_cents, cs.frequency
+      `select cs.id, cs.project_id, cs.name, cs.amount_cents, cs.frequency, cs.status,
+              coalesce((
+                select min(sp.due_date) from public.subscription_payments sp
+                 where sp.client_service_id = cs.id
+              ), cs.next_due_date)::text as first_due_date
          from public.client_services cs
          join public.projects p on p.id = cs.project_id
-        where cs.status = 'active' and p.archived_at is null`,
+        where (cs.status = 'active' or ($1::boolean and cs.status = 'draft'))
+          and p.archived_at is null`,
+      [includeDrafts],
     );
     return reply.send({ services: rows });
   });
@@ -2111,11 +2291,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   app.get('/projects/:id/services', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const project = await getPool().query<{
-      client_id: string | null; due_day: number | null; billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null;
+      client_id: string | null;
+      central_due_day: number | null;
+      central_billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null;
+      subscription_due_day: number | null;
+      project_due_day: number | null;
+      has_subscription: boolean;
     }>(
-      `select p.client_id, bs.due_day, bs.billing_type
+      `select p.client_id, p.due_day as project_due_day,
+              bs.due_day as central_due_day, bs.billing_type as central_billing_type,
+              ps.due_day as subscription_due_day, (ps.id is not null) as has_subscription
          from public.projects p
          left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
+         left join public.project_subscriptions ps on ps.project_id = p.id
         where p.id = $1 and p.archived_at is null`, [id],
     );
     if (!project.rows[0]) return reply.code(404).send({ error: 'projeto-inexistente' });
@@ -2127,10 +2315,19 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
         order by (status = 'active') desc, next_due_date, lower(name)`,
       [id],
     );
-    const billing = project.rows[0].due_day && project.rows[0].billing_type
-      ? { dueDay: project.rows[0].due_day, billingType: project.rows[0].billing_type }
-      : null;
-    return reply.send({ services: rows, billing });
+    const source = project.rows[0];
+    const billing = resolveRecurringBilling({
+      centralDueDay: source.central_due_day,
+      centralBillingType: source.central_billing_type,
+      subscriptionDueDay: source.subscription_due_day,
+      projectDueDay: source.project_due_day,
+      hasSubscription: source.has_subscription,
+    });
+    return reply.send({
+      services: rows,
+      billing,
+      billingConfigured: Boolean(source.central_due_day && source.central_billing_type),
+    });
   });
 
   // Configuração financeira única do cliente. Ela é feita fora do formulário
@@ -2183,11 +2380,53 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             [service.id, data.dueDay, data.billingType, centralDueOnOrAfter(data.dueDay, base)],
           );
         }
+        const subscriptions = await client.query<{
+          id: string; next_due_date: string; delivery_date: string | null;
+        }>(
+          `select ps.id, ps.next_due_date::text,
+                  timezone('America/Sao_Paulo', p.finalized_at)::date::text as delivery_date
+             from public.project_subscriptions ps
+             join public.projects p on p.id = ps.project_id
+            where p.client_id = $1
+              and not exists (
+                select 1 from public.subscription_payments sp
+                 where sp.subscription_id = ps.id
+                   and sp.competence = date_trunc('month', ps.next_due_date)::date
+              )
+            for update of ps`, [clientId],
+        );
+        for (const subscription of subscriptions.rows) {
+          const eligibility = subscription.delivery_date
+            ? firstHostingDueDate(subscription.delivery_date)
+            : subscription.next_due_date;
+          const nextDueDate = centralDueOnOrAfter(data.dueDay, eligibility);
+          await client.query(
+            `update public.project_subscriptions
+                set due_day = $2, billing_type = 'CREDIT_CARD', next_due_date = $3::date,
+                    first_due_date = case when delivery_triggered_at is not null then $3::date else first_due_date end
+              where id = $1`,
+            [subscription.id, data.dueDay, nextDueDate],
+          );
+        }
+        // `projects.due_day` ainda alimenta telas e fluxos legados. Mantemos
+        // esse espelho alinhado, mas a configuração central continua sendo a
+        // única fonte editável e não é criado nenhum registro adicional.
+        const mirroredProjects = await client.query(
+          `update public.projects p
+              set due_day = $2
+            where p.client_id = $1
+              and exists (
+                select 1 from public.project_subscriptions ps where ps.project_id = p.id
+              )`,
+          [clientId, data.dueDay],
+        );
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)
            values ($1,$2,'configuracao_cobranca_recorrente',$3::jsonb)`,
           [id, req.userId, JSON.stringify({ dueDay: data.dueDay, billingType: data.billingType,
-            rebasedServiceCount: services.rows.length })],
+            rebasedServiceCount: services.rows.length,
+            rebasedSubscriptionCount: subscriptions.rows.length,
+            mirroredProjectCount: mirroredProjects.rowCount ?? 0 })],
         );
         return { rebasedServiceCount: services.rows.length };
       });
@@ -2201,7 +2440,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
   app.post('/projects/:id/services/preview', adminOnly, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = z.object({
-      amountCents: z.number().int().positive(), frequency: serviceFrequencyEnum,
+      amountCents: z.number().int().nonnegative(), frequency: serviceFrequencyEnum,
       startMode: z.enum(['next', 'current', 'scheduled']).default('next'),
       startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), serviceId: z.string().uuid().optional(),
     }).safeParse(req.body);
@@ -2210,26 +2449,59 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     }
     const data = parsed.data;
     const context = await getPool().query<{
-      client_id: string | null; due_day: number | null; billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null; today: string;
+      client_id: string | null; central_due_day: number | null;
+      central_billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null;
+      subscription_due_day: number | null; project_due_day: number | null;
+      subscription_next_due_date: string | null; has_subscription: boolean;
+      today: string; delivery_date: string | null;
     }>(
-      `select p.client_id, bs.due_day, bs.billing_type,
-              timezone('America/Sao_Paulo', current_timestamp)::date::text as today
+      `select p.client_id, bs.due_day as central_due_day,
+              bs.billing_type as central_billing_type,
+              ps.due_day as subscription_due_day, p.due_day as project_due_day,
+              ps.next_due_date::text as subscription_next_due_date,
+              (ps.id is not null) as has_subscription,
+              timezone('America/Sao_Paulo', current_timestamp)::date::text as today,
+              timezone('America/Sao_Paulo', p.finalized_at)::date::text as delivery_date
          from public.projects p
          left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
+         left join public.project_subscriptions ps on ps.project_id = p.id
         where p.id = $1 and p.archived_at is null`, [id],
     );
-    const billing = context.rows[0];
-    if (!billing) return reply.code(404).send({ error: 'projeto-inexistente' });
-    if (!billing.client_id || !billing.due_day || !billing.billing_type) {
+    const source = context.rows[0];
+    if (!source) return reply.code(404).send({ error: 'projeto-inexistente' });
+    const billing = resolveRecurringBilling({
+      centralDueDay: source.central_due_day,
+      centralBillingType: source.central_billing_type,
+      subscriptionDueDay: source.subscription_due_day,
+      projectDueDay: source.project_due_day,
+      hasSubscription: source.has_subscription,
+    });
+    if (!source.client_id || !billing) {
       return reply.code(409).send({ error: 'cobranca-recorrente-nao-configurada' });
     }
-    let dueDate = centralDueOnOrAfter(billing.due_day, data.startMode === 'scheduled' ? data.startDate! : billing.today);
-    const batch = await getPool().query<{ id: string; status: string }>(
-      `select id, status from public.client_billing_batches
-        where client_id = $1 and due_date = $2::date and status <> 'cancelled' limit 1`, [billing.client_id, dueDate],
+    if (data.startMode === 'scheduled'
+      && !isScheduledStartWithinMonths(source.today, data.startDate!, 3)) {
+      return reply.code(400).send({ error: 'inicio-fora-do-limite' });
+    }
+    const hostingDueDate = source.subscription_next_due_date
+      ?? (source.delivery_date ? centralDueOnOrAfter(billing.dueDay, firstHostingDueDate(source.delivery_date)) : null);
+    const currentDueDate = serviceStartDueDate({
+      dueDay: billing.dueDay, startMode: 'current', today: source.today, hostingDueDate,
+    });
+    let dueDate = serviceStartDueDate({
+      dueDay: billing.dueDay, startMode: data.startMode, today: source.today,
+      hostingDueDate, startDate: data.startDate,
+    });
+    const batches = await getPool().query<{ due_date: string }>(
+      `select due_date::text from public.client_billing_batches
+        where client_id = $1 and due_date = any($2::date[]) and status <> 'cancelled'`,
+      [source.client_id, [...new Set([currentDueDate, dueDate])]],
     );
-    const currentAvailable = batch.rows.length === 0;
-    if (data.startMode !== 'current' && !currentAvailable) dueDate = followingCentralDueDate(billing.due_day, dueDate);
+    const emittedDates = new Set(batches.rows.map((row) => row.due_date));
+    const currentAvailable = !emittedDates.has(currentDueDate);
+    if (data.startMode !== 'current' && emittedDates.has(dueDate)) {
+      dueDate = followingCentralDueDate(billing.dueDay, dueDate);
+    }
     const totals = await getPool().query<{ total: string }>(
       `select coalesce(sum(amount_cents), 0)::text as total from (
          select cs.amount_cents
@@ -2245,10 +2517,10 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
             and ps.app_managed and ps.status = 'active' and ps.next_due_date = $2::date
             and ps.due_day = $4 and ps.billing_type = $5
        ) eligible`,
-      [billing.client_id, dueDate, data.serviceId ?? null, billing.due_day, billing.billing_type],
+      [source.client_id, dueDate, data.serviceId ?? null, billing.dueDay, billing.billingType],
     );
     return reply.send({
-      billing: { dueDay: billing.due_day, billingType: billing.billing_type }, dueDate,
+      billing, dueDate,
       currentAmountCents: Number(totals.rows[0]?.total ?? 0), newServiceAmountCents: data.amountCents,
       totalAmountCents: Number(totals.rows[0]?.total ?? 0) + data.amountCents,
       currentAvailable, emitted: !currentAvailable,
@@ -2260,32 +2532,56 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
     const parsed = clientServiceCreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid-body' });
     const data = parsed.data;
-    const status = data.activate ? 'active' : 'draft';
     try {
       const service = await withActor(req.userId!, async (client) => {
         const project = await client.query<{
-          id: string; client_id: string | null; due_day: number | null;
-          billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null; today: string;
+          id: string; client_id: string | null; central_due_day: number | null;
+          central_billing_type: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | null;
+          subscription_due_day: number | null; project_due_day: number | null;
+          subscription_next_due_date: string | null; has_subscription: boolean;
+          today: string; delivery_date: string | null;
         }>(
-          `select p.id, p.client_id, bs.due_day, bs.billing_type,
+          `select p.id, p.client_id, bs.due_day as central_due_day,
+                  bs.billing_type as central_billing_type,
+                  ps.due_day as subscription_due_day, p.due_day as project_due_day,
+                  ps.next_due_date::text as subscription_next_due_date,
+                  (ps.id is not null) as has_subscription,
                   timezone('America/Sao_Paulo', current_timestamp)::date::text as today
+                  , timezone('America/Sao_Paulo', p.finalized_at)::date::text as delivery_date
              from public.projects p
              left join public.client_recurring_billing_settings bs on bs.client_id = p.client_id
+             left join public.project_subscriptions ps on ps.project_id = p.id
              where p.id = $1 and p.archived_at is null and p.archive_requested_at is null`, [id]);
-        const billing = project.rows[0];
-        if (!billing) return 'missing' as const;
-        if (!billing.client_id || !billing.due_day || !billing.billing_type) return 'unconfigured' as const;
-        let nextDueDate = centralDueOnOrAfter(billing.due_day,
-          data.startMode === 'scheduled' ? data.startDate! : billing.today);
+        const source = project.rows[0];
+        if (!source) return 'missing' as const;
+        if (data.startMode === 'scheduled'
+          && !isScheduledStartWithinMonths(source.today, data.startDate!, 3)) {
+          return 'scheduled-out-of-range' as const;
+        }
+        const billing = resolveRecurringBilling({
+          centralDueDay: source.central_due_day,
+          centralBillingType: source.central_billing_type,
+          subscriptionDueDay: source.subscription_due_day,
+          projectDueDay: source.project_due_day,
+          hasSubscription: source.has_subscription,
+        });
+        if (!source.client_id || !billing) return 'unconfigured' as const;
+        const hostingDueDate = source.subscription_next_due_date
+          ?? (source.delivery_date ? centralDueOnOrAfter(billing.dueDay, firstHostingDueDate(source.delivery_date)) : null);
+        let nextDueDate = serviceStartDueDate({
+          dueDay: billing.dueDay, startMode: data.startMode, today: source.today,
+          hostingDueDate, startDate: data.startDate,
+        });
         const batch = await client.query(
           `select 1 from public.client_billing_batches
             where client_id = $1 and due_date = $2::date and status <> 'cancelled' limit 1`,
-          [billing.client_id, nextDueDate],
+            [source.client_id, nextDueDate],
         );
         if (data.startMode === 'current' && batch.rows[0]) return 'current-locked' as const;
         if (data.startMode !== 'current' && batch.rows[0]) {
-          nextDueDate = followingCentralDueDate(billing.due_day, nextDueDate);
+          nextDueDate = followingCentralDueDate(billing.dueDay, nextDueDate);
         }
+        const effectiveStatus = 'draft';
         const inserted = await client.query<{ id: string }>(
           `insert into public.client_services
              (project_id, name, description, amount_cents, frequency, billing_type,
@@ -2294,7 +2590,7 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
                    case when $9 = 'active' then now() end,$10,$10)
            returning id`,
           [id, data.name, data.description, data.amountCents, data.frequency,
-            billing.billing_type, billing.due_day, nextDueDate, status, req.userId],
+            billing.billingType, billing.dueDay, nextDueDate, effectiveStatus, req.userId],
         );
         await client.query(
           `insert into public.project_activity (project_id, actor_id, action, metadata)
@@ -2302,13 +2598,14 @@ export async function financeRoutes(app: FastifyInstance): Promise<void> {
           [id, req.userId, JSON.stringify({
             serviceId: inserted.rows[0]!.id, name: data.name,
             amountCents: data.amountCents, frequency: data.frequency,
-            dueDay: billing.due_day, billingType: billing.billing_type, nextDueDate, status,
+            dueDay: billing.dueDay, billingType: billing.billingType, nextDueDate, status: effectiveStatus,
           })],
         );
         return inserted.rows[0]!;
       });
       if (service === 'missing') return reply.code(404).send({ error: 'projeto-inexistente' });
       if (service === 'unconfigured') return reply.code(409).send({ error: 'cobranca-recorrente-nao-configurada' });
+      if (service === 'scheduled-out-of-range') return reply.code(400).send({ error: 'inicio-fora-do-limite' });
       if (service === 'current-locked') return reply.code(409).send({ error: 'ciclo-atual-ja-emitido' });
       return reply.code(201).send({ id: service.id });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ListPlus, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Banknote, Check, ListPlus, Plus, Trash2, X } from 'lucide-react';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { useToast } from '../../panel/ToastContext';
 import { formatCurrencyFromCents, parseCurrencyToCents } from '../../panel/format';
@@ -30,6 +30,7 @@ interface DraftRow {
   installmentNumber: number | null;
   installmentCount: number | null;
   groupLabel: string;
+  lockedPaid: boolean;
 }
 
 interface InstallmentForm {
@@ -49,6 +50,7 @@ const emptyStage = (position: number, name = `Etapa ${position + 1}`): DraftRow 
   asaasPaymentId: null,
   kind: 'stage', installmentGroupId: null, installmentNumber: null,
   installmentCount: null, groupLabel: '',
+  lockedPaid: false,
 });
 
 const quickSplit = (valueCents: number, existing?: DraftRow): DraftRow[] => {
@@ -93,6 +95,7 @@ const draftPayload = (rows: DraftRow[]): finance.PaymentPlanDraftRow[] => rows.m
   installmentNumber: row.installmentNumber,
   installmentCount: row.installmentCount,
   groupLabel: row.groupLabel,
+  paid: row.status === 'paid',
 }));
 
 const serializedDraft = (rows: DraftRow[]) => JSON.stringify(draftPayload(rows));
@@ -134,6 +137,7 @@ export function ProjectPaymentPlanDrawer({
           kind: item.kind, installmentGroupId: item.installment_group_id,
           installmentNumber: item.installment_number, installmentCount: item.installment_count,
           groupLabel: item.group_label,
+          paid: item.status === 'paid',
         }));
         // Uma correção sempre parte do plano publicado. Restaurar um rascunho
         // antigo aqui poderia reintroduzir os dados da cobrança cancelada.
@@ -145,13 +149,15 @@ export function ProjectPaymentPlanDrawer({
           return {
             id: item.id, name: item.name, description: item.description,
             amount: item.amountCents === null ? '' : moneyInput(item.amountCents),
-            dueDate: item.dueDate ?? '', status: active?.status ?? 'draft',
+            dueDate: item.dueDate ?? '',
+            status: active?.status ?? (item.paid ? 'paid' : 'draft'),
             syncStatus: active?.sync_status ?? 'local',
             asaasPaymentId: active?.asaas_payment_id ?? null,
             kind: item.kind,
             installmentGroupId: item.installmentGroupId,
             installmentNumber: item.installmentNumber,
             installmentCount: item.installmentCount, groupLabel: item.groupLabel,
+            lockedPaid: active?.status === 'paid',
           };
         });
         if (correctionPaymentId) {
@@ -166,7 +172,10 @@ export function ProjectPaymentPlanDrawer({
             dueDate: '',
           } : row);
         }
-        const opened = correctionPaymentId ? loaded : appendStage
+        const splitCorrectedDefault = correctionPaymentId && appendStage
+          && loaded.length === 1 && isDefaultProjectPayment(loaded[0], project.value_cents);
+        const opened = splitCorrectedDefault ? quickSplit(project.value_cents, loaded[0])
+          : correctionPaymentId ? loaded : appendStage
           ? loaded.length === 0 || (loaded.length === 1
               && isDefaultProjectPayment(loaded[0], project.value_cents))
             ? quickSplit(project.value_cents, loaded[0])
@@ -295,6 +304,7 @@ export function ProjectPaymentPlanDrawer({
         status: 'draft', syncStatus: 'local', asaasPaymentId: null,
         kind: 'installment', installmentGroupId: groupId,
         installmentNumber: item.number, installmentCount: item.count, groupLabel,
+        lockedPaid: false,
       })),
     ]);
     setInstallmentOpen(false);
@@ -317,7 +327,7 @@ export function ProjectPaymentPlanDrawer({
           amountCents: parseCurrencyToCents(row.amount) ?? 0, dueDate: row.dueDate || null,
           kind: row.kind, installmentGroupId: row.installmentGroupId,
           installmentNumber: row.installmentNumber, installmentCount: row.installmentCount,
-          groupLabel: row.groupLabel,
+          groupLabel: row.groupLabel, paid: row.status === 'paid',
         })),
       });
       const hasIntegrated = rows.some((row) => row.syncStatus === 'synced');
@@ -385,7 +395,8 @@ export function ProjectPaymentPlanDrawer({
           // Espelha a regra do backend: onde o dinheiro se moveu a linha é
           // história e não se reescreve; cancelada também é história, mas sem
           // cobrança viva no Asaas — pode sair do plano e liberar o valor.
-          const settled = ['paid', 'refunded', 'refund_requested', 'chargeback'].includes(row.status);
+          const settled = row.lockedPaid
+            || ['refunded', 'refund_requested', 'chargeback'].includes(row.status);
           const cancelled = row.status === 'cancelled';
           const recoverableFailed = row.syncStatus === 'failed' && !row.asaasPaymentId;
           const locallyEditable = row.syncStatus === 'local' || recoverableFailed;
@@ -394,7 +405,8 @@ export function ProjectPaymentPlanDrawer({
           const financialImmutable = settled || cancelled || integratedInstallment
             || !(locallyEditable || row.syncStatus === 'synced');
           const itemLabel = row.kind === 'installment' ? 'parcela' : 'etapa';
-          const correcting = row.id === correctionPaymentId;
+          const correcting = Boolean(correctionPaymentId && row.id === correctionPaymentId);
+          const canTogglePaid = !row.lockedPaid && !cancelled && locallyEditable;
           return <div className={`finance-plan__row${row.kind === 'installment' ? ' is-installment' : ''}${correcting ? ' is-correction' : ''}`} key={row.id ?? `${row.installmentGroupId ?? 'stage'}-${index}`}>
             <span className="finance-plan__name">
               {row.kind === 'installment' && <small>{row.groupLabel || 'Parcelamento'}</small>}
@@ -407,7 +419,23 @@ export function ProjectPaymentPlanDrawer({
             </span>
             <input className="panel-input" aria-label={`Valor da ${itemLabel} ${index + 1}`} placeholder="Valor" inputMode="decimal" value={row.amount} disabled={financialImmutable} autoFocus={correcting} onChange={(event) => update(index, { amount: event.target.value })} />
             <input className="panel-input" aria-label={`Vencimento da ${itemLabel} ${index + 1}`} type="date" value={row.dueDate} disabled={financialImmutable} onChange={(event) => update(index, { dueDate: event.target.value })} />
-            <button type="button" className="panel-iconbtn" aria-label={`Remover ${itemLabel} ${index + 1}`} disabled={structuralImmutable} onClick={() => removeRow(index)}><Trash2 size={14} /></button>
+            <span className="finance-plan__row-actions">
+              <button type="button"
+                className={`finance-plan__paid-toggle${row.status === 'paid' ? ' is-paid' : ''}`}
+                aria-label={row.lockedPaid
+                  ? `${itemLabel} ${index + 1} paga`
+                  : `${row.status === 'paid' ? 'Desmarcar' : 'Marcar'} ${itemLabel} ${index + 1} como já paga`}
+                aria-pressed={row.status === 'paid'} disabled={!canTogglePaid}
+                title={row.lockedPaid
+                  ? 'Pagamento confirmado: esta etapa não pode mais ser alterada'
+                  : row.status === 'paid' ? 'Marcada como paga' : 'Marcar como paga'}
+                onClick={() => update(index, {
+                  status: row.status === 'paid' ? (row.id ? 'pending' : 'draft') : 'paid',
+                })}>
+                <Banknote size={15} aria-hidden="true" />
+              </button>
+              <button type="button" className="panel-iconbtn" aria-label={`Remover ${itemLabel} ${index + 1}`} disabled={structuralImmutable} onClick={() => removeRow(index)}><Trash2 size={14} /></button>
+            </span>
           </div>;
         })}
         <div className="finance-plan__buttons">

@@ -4,6 +4,8 @@ const state = vi.hoisted(() => ({
   markCount: 1,
   calls: [] as string[],
   create: vi.fn(),
+  billingType: 'UNDEFINED',
+  sourceKeys: ['subscription:subscription'],
 }));
 
 vi.mock('../env', () => ({ hasAsaas: true, env: {} }));
@@ -12,12 +14,13 @@ vi.mock('../db/pool', () => ({
     query: async (sql: string) => {
       if (sql.includes('string_agg(items.label')) return { rows: [{
         id: 'batch', client_id: 'client', anchor_project_id: 'project',
-        due_date: '2026-11-10', amount_cents: 5990, billing_type: 'UNDEFINED',
+        due_date: '2026-11-10', amount_cents: 5990, billing_type: state.billingType,
         external_reference: 'client-billing:batch', asaas_payment_id: null,
         client_name: 'Cliente', client_email: 'a@example.com', client_phone: '',
         cpf_cnpj: '12345678901', asaas_customer_id: 'customer', description: 'Mensalidade',
       }] };
       if (sql.includes('previous_asaas_payment_id')) return { rows: [] };
+      if (sql.includes('source_key')) return { rows: state.sourceKeys.map((source_key) => ({ source_key })) };
       if (sql.includes("set status = 'uncertain'")) {
         state.calls.push('mark');
         return { rowCount: state.markCount, rows: [] };
@@ -26,6 +29,13 @@ vi.mock('../db/pool', () => ({
     },
   }),
   withActor: vi.fn(),
+}));
+vi.mock('./cardAuthorization', () => ({
+  loadActiveCardAuthorization: vi.fn(async () => ({
+    id: 'authorization', clientId: 'client', creditCardToken: 'encrypted-token-opened',
+    payerIp: '203.0.113.10', authorizedLimitCents: 18000,
+    authorizedSourceKeys: ['subscription:subscription'],
+  })),
 }));
 vi.mock('./asaas', () => {
   class AsaasError extends Error {
@@ -61,6 +71,8 @@ describe('segurança da emissão consolidada', () => {
   beforeEach(() => {
     state.markCount = 1;
     state.calls = [];
+    state.billingType = 'UNDEFINED';
+    state.sourceKeys = ['subscription:subscription'];
     state.create.mockReset();
   });
 
@@ -90,5 +102,21 @@ describe('segurança da emissão consolidada', () => {
     state.create.mockRejectedValueOnce(new AsaasError('timeout', 408));
     await expect(executeOperation(timeout)).rejects.toThrow('timeout');
     expect(timeout.billingCreationStarted).toBe(true);
+  });
+
+  it('usa o token autorizado apenas para os itens aceitos pelo cliente', async () => {
+    state.billingType = 'CREDIT_CARD';
+    state.create.mockResolvedValue({
+      id: 'pay_card', status: 'CONFIRMED', billingType: 'CREDIT_CARD', invoiceUrl: '',
+    });
+    await executeOperation(operation());
+    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({
+      billingType: 'CREDIT_CARD',
+      creditCardToken: 'encrypted-token-opened',
+      remoteIp: '203.0.113.10',
+    }));
+
+    state.sourceKeys = ['service:not-authorized'];
+    await expect(executeOperation(operation())).rejects.toThrow('fora da autorizacao');
   });
 });

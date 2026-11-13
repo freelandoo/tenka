@@ -43,14 +43,28 @@ interface PaymentRow {
 
 interface ProjectPaymentWebhookRow {
   id: string;
+  project_id: string;
+  name: string;
   amount_cents: number;
   due_date: string | null;
   status: 'draft' | 'pending' | 'paid' | 'cancelled';
   asaas_payment_id: string | null;
+  asaas_installment_id: string | null;
   external_reference: string | null;
+  billing_type: string;
   provider_status: string | null;
   sync_status: 'local' | 'synced';
   payment_date: string | null;
+  provider_event_at: string | null;
+}
+
+interface ProjectCheckoutSessionRow {
+  id: string;
+  project_payment_id: string;
+  project_id: string;
+  external_reference: string;
+  asaas_checkout_id: string;
+  status: 'queued' | 'active' | 'paid' | 'cancelled' | 'expired';
   provider_event_at: string | null;
 }
 
@@ -96,6 +110,7 @@ class FakeDb {
   subscriptions: SubscriptionRow[] = [];
   payments: PaymentRow[] = [];
   projectPayments: ProjectPaymentWebhookRow[] = [];
+  projectCheckoutSessions: ProjectCheckoutSessionRow[] = [];
   events: EventRow[] = [];
   issued: IssuedQuery[] = [];
   readonly pool = {
@@ -153,9 +168,24 @@ class FakeDb {
 
   seedProjectPayment(id: string): void {
     this.projectPayments.push({
-      id, amount_cents: 100_000, due_date: '2026-09-20', status: 'pending',
-      asaas_payment_id: null, external_reference: null, provider_status: null,
+      id, project_id: 'project-1', name: 'Pagamento do projeto',
+      amount_cents: 100_000, due_date: '2026-09-20', status: 'pending',
+      asaas_payment_id: null, asaas_installment_id: null,
+      external_reference: null, billing_type: 'UNDEFINED', provider_status: null,
       sync_status: 'local', payment_date: null, provider_event_at: null,
+    });
+  }
+
+  seedProjectCheckout(projectPaymentId: string, checkoutId = 'chk_product_1'): void {
+    const externalReference = `project-payment:${projectPaymentId}:checkout:session-1`;
+    const payment = this.projectPayments.find((row) => row.id === projectPaymentId);
+    if (!payment) throw new Error('pagamento do projeto precisa existir antes do Checkout');
+    payment.external_reference = externalReference;
+    payment.sync_status = 'synced';
+    this.projectCheckoutSessions.push({
+      id: 'session-1', project_payment_id: projectPaymentId,
+      project_id: payment.project_id, external_reference: externalReference,
+      asaas_checkout_id: checkoutId, status: 'active', provider_event_at: null,
     });
   }
 
@@ -184,10 +214,18 @@ class FakeDb {
 
     // Fila de operações: vazia nestes testes (hasAsaas === false já corta antes).
     if (sql.includes('public.asaas_operations')) return { rows: [], rowCount: 0 };
+    if (sql.includes('from public.asaas_checkout_sessions')
+        && !sql.includes('from public.project_subscriptions')) {
+      return { rows: [], rowCount: 0 };
+    }
     if (sql.includes('public.client_billing_batch_items')) return { rows: [], rowCount: 0 };
     if (sql.includes('public.client_billing_batches')) return { rows: [], rowCount: 0 };
+    if (sql.includes('public.project_activity')) return { rows: [], rowCount: 1 };
 
     if (sql.includes('public.asaas_webhook_events')) return this.webhookQuery(sql, values);
+    if (sql.includes('public.project_payment_checkout_sessions')) {
+      return this.projectCheckoutQuery(sql, values);
+    }
     if (sql.includes('public.subscription_payments')) return this.paymentQuery(sql, values);
     if (sql.includes('public.project_payments')) return this.projectPaymentQuery(sql, values);
     if (sql.includes('public.project_subscriptions')) {
@@ -324,8 +362,26 @@ class FakeDb {
 
   private projectPaymentQuery(sql: string, values: unknown[]): { rows: unknown[]; rowCount: number } {
     const row = this.projectPayments.find((item) => item.id === values[0]);
-    if (sql.startsWith('select')) return { rows: row ? [{ id: row.id }] : [], rowCount: row ? 1 : 0 };
+    if (sql.startsWith('select')) {
+      return { rows: row ? [{ id: row.id, project_id: row.project_id, name: row.name }] : [], rowCount: row ? 1 : 0 };
+    }
     if (!row || !sql.startsWith('update')) return { rows: [], rowCount: 0 };
+    if (sql.includes('set asaas_payment_id = coalesce')) {
+      row.asaas_payment_id ??= String(values[1]);
+      row.asaas_installment_id ??= values[2] ? String(values[2]) : null;
+      row.billing_type = String(values[3] || row.billing_type);
+      row.provider_status = String(values[4]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (sql.includes('set status = case when $2 then')) {
+      if (values[1] === true) {
+        row.status = 'paid';
+        row.payment_date = String(values[2]).slice(0, 10);
+      }
+      row.provider_status = String(values[3]);
+      row.sync_status = values[4] === true ? 'local' : 'synced';
+      return { rows: [], rowCount: 1 };
+    }
     const eventAt = String(values[13]);
     if (row.provider_event_at && eventAt < row.provider_event_at) return { rows: [], rowCount: 0 };
     Object.assign(row, {
@@ -339,6 +395,30 @@ class FakeDb {
       payment_date: values[12] ?? values[11] ?? null,
       provider_event_at: eventAt,
     });
+    return { rows: [], rowCount: 1 };
+  }
+
+  private projectCheckoutQuery(sql: string, values: unknown[]): { rows: unknown[]; rowCount: number } {
+    if (sql.startsWith('select')) {
+      const byCheckout = this.projectCheckoutSessions.find(
+        (row) => row.asaas_checkout_id === values[0],
+      );
+      const byReference = this.projectCheckoutSessions.find(
+        (row) => row.external_reference === values[0],
+      );
+      const rows = [byCheckout ?? byReference].filter(Boolean);
+      return { rows, rowCount: rows.length };
+    }
+    if (!sql.startsWith('update')) return { rows: [], rowCount: 0 };
+    const row = this.projectCheckoutSessions.find((item) => item.id === values[0]);
+    if (!row) return { rows: [], rowCount: 0 };
+    const eventAt = String(values[2]);
+    if (row.provider_event_at && eventAt < row.provider_event_at) {
+      return { rows: [], rowCount: 0 };
+    }
+    row.status = String(values[1]) as ProjectCheckoutSessionRow['status'];
+    row.asaas_checkout_id ||= String(values[3]);
+    row.provider_event_at = eventAt;
     return { rows: [], rowCount: 1 };
   }
 }
@@ -456,6 +536,49 @@ describe('worker financeiro — caminho feliz', () => {
     await runFinanceWorker();
 
     expect(hoisted.db.event().status).toBe('needs_review');
+  });
+
+  it('confirma o pagamento do produto pelo Checkout e reflete a baixa na Tenka', async () => {
+    const paymentId = '77777777-7777-4777-8777-777777777777';
+    hoisted.db.seedProjectPayment(paymentId);
+    hoisted.db.seedProjectCheckout(paymentId);
+    hoisted.db.seedEvent({
+      id: 'evt_checkout_paid', event: 'CHECKOUT_PAID', dateCreated: PROCESSED_AT,
+      checkout: {
+        id: 'chk_product_1',
+        externalReference: `project-payment:${paymentId}:checkout:session-1`,
+      },
+    }, 'evt_checkout_paid');
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.projectCheckoutSessions[0]).toMatchObject({ status: 'paid' });
+    expect(hoisted.db.projectPayments[0]).toMatchObject({
+      status: 'paid', provider_status: 'CHECKOUT_PAID', sync_status: 'synced',
+      payment_date: '2026-09-08',
+    });
+    expect(hoisted.db.event('evt_checkout_paid').status).toBe('done');
+  });
+
+  it('vincula a cobrança parcelada do Checkout ao pagamento do produto', async () => {
+    const paymentId = '77777777-7777-4777-8777-777777777777';
+    hoisted.db.seedProjectPayment(paymentId);
+    hoisted.db.seedProjectCheckout(paymentId);
+    hoisted.db.seedEvent({
+      id: 'evt_card_confirmed', event: 'PAYMENT_CONFIRMED', dateCreated: PROCESSED_AT,
+      payment: {
+        id: 'pay_card_6x', checkoutSession: 'chk_product_1',
+        installment: 'ins_product_6x', billingType: 'CREDIT_CARD', status: 'CONFIRMED',
+      },
+    }, 'evt_card_confirmed');
+
+    await runFinanceWorker();
+
+    expect(hoisted.db.projectPayments[0]).toMatchObject({
+      asaas_payment_id: 'pay_card_6x', asaas_installment_id: 'ins_product_6x',
+      billing_type: 'CREDIT_CARD', provider_status: 'CONFIRMED',
+    });
+    expect(hoisted.db.event('evt_card_confirmed').status).toBe('done');
   });
 });
 

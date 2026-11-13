@@ -10,6 +10,11 @@ import { CostList } from '../../clients/CostList';
 import { SubscriptionList } from './SubscriptionList';
 import { ProjectPaymentsList } from './ProjectPaymentsList';
 import { subscribeRealtime } from '../../../lib/api/events';
+import {
+  fetchActiveClientServices,
+  serviceCountsInCompetence,
+  type ClientServiceLite,
+} from '../../finance/financeService';
 
 interface CarteiraViewProps {
   /** Board + histórico (todos os não-arquivados) — a receita completa. */
@@ -19,6 +24,8 @@ interface CarteiraViewProps {
   isAdmin: boolean;
   /** Recarrega o board depois de ligar/desligar uma mensalidade no extrato. */
   onProjectsChanged(): void;
+  /** Abre o mesmo drawer de detalhes usado no mural de projetos. */
+  onOpenProject?(project: BoardProject): void;
 }
 
 type Filtro = 'todos' | ProjectStatus;
@@ -42,7 +49,7 @@ function ymDe(iso: string): { y: number; m: number } {
  * (valor único de cada projeto) e a receita de mensalidade (soma das
  * mensalidades ativas). Sem notícias/cotações.
  */
-export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }: CarteiraViewProps) {
+export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged, onOpenProject }: CarteiraViewProps) {
   const hoje = useMemo(() => new Date(), []);
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth());
@@ -52,6 +59,7 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   const [costScope, setCostScope] = useState<CostScope>('all');
   const financeStripRef = useRef<HTMLDivElement>(null);
   const costRequestRef = useRef(0);
+  const servicesRequestRef = useRef(0);
 
   const moveFinanceStrip = (direction: -1 | 1) => {
     const strip = financeStripRef.current;
@@ -102,6 +110,8 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   // vigência.
   const [costs, setCosts] = useState<CostRow[]>([]);
   const [costStatus, setCostStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [services, setServices] = useState<ClientServiceLite[]>([]);
+  const [servicesStatus, setServicesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadCosts = useCallback(async () => {
     const requestId = ++costRequestRef.current;
     setCostStatus('loading');
@@ -126,6 +136,31 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
   }, [loadCosts]);
   useEffect(() => subscribeRealtime(['costs'], () => void loadCosts()), [loadCosts]);
 
+  const loadServices = useCallback(async () => {
+    const requestId = ++servicesRequestRef.current;
+    setServicesStatus('loading');
+    if (!isAdmin) {
+      setServices([]);
+      setServicesStatus('ready');
+      return;
+    }
+    try {
+      const nextServices = await fetchActiveClientServices({ includeDrafts: true });
+      if (requestId !== servicesRequestRef.current) return;
+      setServices(nextServices);
+      setServicesStatus('ready');
+    } catch {
+      if (requestId !== servicesRequestRef.current) return;
+      setServices([]);
+      setServicesStatus('error');
+    }
+  }, [isAdmin]);
+  useEffect(() => { void loadServices(); }, [loadServices]);
+  useEffect(
+    () => subscribeRealtime(['client_services'], () => void loadServices()),
+    [loadServices],
+  );
+
   const companyCosts = useMemo(() => costs.filter((c) => c.client_id === null), [costs]);
   const projectCosts = useMemo(() => costs.filter((c) => c.client_id !== null), [costs]);
   const custoTotal = useMemo(() => clientsService.sumActiveCosts(costs), [costs]);
@@ -145,18 +180,29 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
     let receitaProjetos = 0;
     for (const p of projetosDoMes) receitaProjetos += cents(p.value_cents);
 
-    // Mensalidade ativa acumulada: soma de TODAS as mensalidades ativas
-    // (independe do mês) — a receita recorrente total.
+    // Previsão recorrente da competência: mensalidades que já iniciaram mais
+    // os serviços adicionais que vencem no mês selecionado.
     let mensalidadeAcumulada = 0;
     let mensalidadesAtivas = 0;
     for (const p of projects) {
-      if (p.subscription_active && cents(p.monthly_fee_cents) > 0) {
+      const firstMonth = p.subscription_first_due_date?.slice(0, 7);
+      if (p.subscription_active && cents(p.monthly_fee_cents) > 0
+        && (!firstMonth || competencia >= firstMonth)) {
         mensalidadeAcumulada += cents(p.monthly_fee_cents);
         mensalidadesAtivas += 1;
       }
     }
-    return { receitaProjetos, mensalidadeAcumulada, mensalidadesAtivas };
-  }, [projetosDoMes, projects]);
+    const servicosPrevistos = services.filter((service) => serviceCountsInCompetence(service, competencia));
+    mensalidadeAcumulada += servicosPrevistos.reduce(
+      (sum, service) => sum + cents(service.amount_cents), 0,
+    );
+    return {
+      receitaProjetos,
+      mensalidadeAcumulada,
+      mensalidadesAtivas,
+      servicosPrevistos: servicosPrevistos.length,
+    };
+  }, [projetosDoMes, projects, services, competencia]);
 
   const extrato = useMemo(() => {
     const base =
@@ -210,9 +256,9 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
           accent
         />
         <Kpi
-          label="Mensalidade ativa acumulada"
-          value={`${formatCurrencyFromCents(resumo.mensalidadeAcumulada)}/mês`}
-          sub={`${resumo.mensalidadesAtivas} ativa${resumo.mensalidadesAtivas === 1 ? '' : 's'}`}
+          label="Recorrência prevista no mês"
+          value={formatCurrencyFromCents(resumo.mensalidadeAcumulada)}
+          sub={`${resumo.mensalidadesAtivas} mensalidade${resumo.mensalidadesAtivas === 1 ? '' : 's'} · ${resumo.servicosPrevistos} serviço${resumo.servicosPrevistos === 1 ? '' : 's'}`}
           icon={<Repeat size={13} aria-hidden="true" />}
         />
         <Kpi
@@ -331,16 +377,18 @@ export function CarteiraView({ projects, profiles, isAdmin, onProjectsChanged }:
             <h2 className="cart-panel__title">Mensalidades</h2>
           </header>
           <p className="cart-panel__hint">
-            Toda recorrência cadastrada, <strong>independente do mês selecionado</strong> — é a
-            composição do card <strong>Mensalidade ativa acumulada</strong>. Pagamentos referentes
-            a <strong>{MESES_LONGOS[mes]} de {ano}</strong>.
+            Composição prevista para <strong>{MESES_LONGOS[mes]} de {ano}</strong>: mensalidades
+            que já iniciaram e serviços adicionais que vencem nesta competência.
           </p>
           <SubscriptionList
             projects={projects}
             isAdmin={isAdmin}
             competence={`${ano}-${String(mes + 1).padStart(2, '0')}`}
             competenceLabel={`${MESES_LONGOS[mes]} de ${ano}`}
+            services={services}
+            servicesError={servicesStatus === 'error'}
             onChanged={onProjectsChanged}
+            onOpenProject={onOpenProject}
           />
         </section>
         <section className="cart-panel">

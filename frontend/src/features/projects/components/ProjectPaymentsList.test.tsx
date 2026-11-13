@@ -18,6 +18,8 @@ vi.mock('../../finance/financeService', () => ({
   cancelProjectCharge: vi.fn(),
   cancelProjectCheckout: vi.fn(),
   registerProjectPaymentOutside: vi.fn(),
+  markCancelledProjectPaymentPaid: vi.fn(),
+  regenerateCancelledProjectCheckout: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
@@ -31,6 +33,8 @@ const createDefaultCharge = vi.mocked(finance.createDefaultProjectCharge);
 const cancelCharge = vi.mocked(finance.cancelProjectCharge);
 const cancelCheckout = vi.mocked(finance.cancelProjectCheckout);
 const registerOutside = vi.mocked(finance.registerProjectPaymentOutside);
+const markCancelledPaid = vi.mocked(finance.markCancelledProjectPaymentPaid);
+const regenerateCancelled = vi.mocked(finance.regenerateCancelledProjectCheckout);
 
 const payment = (over: Partial<ProjectPaymentRow> = {}): ProjectPaymentRow => ({
   id: 'payment-1',
@@ -112,6 +116,8 @@ beforeEach(() => {
     queued: true, billingIssue: null, dueDate: '2026-09-09',
   });
   registerOutside.mockResolvedValue({ queued: true, intentId: 'intent-1', awaitingWebhook: true });
+  markCancelledPaid.mockResolvedValue({ payment: payment({ status: 'paid' }) });
+  regenerateCancelled.mockResolvedValue({ queued: true, dueDate: '2026-11-11' });
   cancelCharge.mockResolvedValue({ queued: true });
   cancelCheckout.mockResolvedValue({ cancelled: true, readyForEdit: false });
 });
@@ -122,7 +128,7 @@ describe('ProjectPaymentsList', () => {
     render(<ProjectPaymentsList isAdmin />);
 
     const button = await screen.findByRole('button', {
-      name: 'Registrar pagamento — Site Braslar',
+      name: 'Marcar como pago — Site Braslar',
     });
     const row = screen.getByText('Site Braslar').closest('li') as HTMLElement;
     expect(within(row).getByText('Pendente')).toBeInTheDocument();
@@ -131,14 +137,14 @@ describe('ProjectPaymentsList', () => {
     expect(within(row).getByRole('button', { name: 'Dividir valor — Site Braslar' })).toBeInTheDocument();
 
     fireEvent.click(button);
-    expect(await screen.findByRole('heading', { name: 'Registrar pagamento' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
+    expect(await screen.findByRole('heading', { name: 'Marcar como pago' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar como pago' }));
     await waitFor(() => expect(setDefaultPayment).toHaveBeenCalledWith(
       'project-1', true, undefined, expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     ));
   });
 
-  it('recolhe as etapas, não permite pagar o total e reabre cada etapa individualmente', async () => {
+  it('recolhe as etapas, permite adicionar outra e mantém a etapa paga imutável', async () => {
     fetchOverview.mockResolvedValue(overview([
       payment({ id: 'stage-1', name: 'Entrada', amount_cents: 100000, status: 'paid' }),
       payment({ id: 'stage-2', name: 'Entrega', amount_cents: 150000, position: 1 }),
@@ -146,17 +152,14 @@ describe('ProjectPaymentsList', () => {
     render(<ProjectPaymentsList isAdmin />);
 
     const expand = await screen.findByRole('button', { name: 'Ver etapas — Site Braslar' });
+    expect(screen.getByRole('button', { name: 'Adicionar etapa — Site Braslar' })).toBeEnabled();
     expect(screen.queryByText('Entrada')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Marcar como pago — Site Braslar' })).not.toBeInTheDocument();
     fireEvent.click(expand);
     expect(await screen.findByText('Entrada')).toBeInTheDocument();
     expect(screen.getByText('Entrega')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Reabrir pagamento — Site Braslar — Etapa 1 de 2 · Entrada',
-    }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Reabrir pagamento' }));
-    await waitFor(() => expect(updatePayment).toHaveBeenCalledWith('stage-1', { status: 'pending' }));
+    expect(screen.queryByRole('button', { name: /Reabrir pagamento/ })).toBeNull();
   });
 
   it('adiciona uma data sem marcar o pagamento como pago', async () => {
@@ -345,6 +348,81 @@ describe('ProjectPaymentsList', () => {
     await waitFor(() => expect(cancelCharge).toHaveBeenCalledWith(
       'payment-1', 'Pagamento renegociado em duas etapas', true,
     ));
+  });
+
+  it('pede para cancelar a cobrança existente antes de dividir o valor', async () => {
+    fetchOverview.mockResolvedValue(overview([
+      payment({
+        id: 'payment-1', project_name: 'Ecoluz', project_value_cents: 70_000,
+        amount_cents: 70_000, sync_status: 'failed', asaas_payment_id: 'pay_ecoluz',
+        provider_status: 'OVERDUE', sync_error: 'Falha temporária',
+      }),
+      payment({
+        id: 'payment-2', project_name: 'Ecoluz', project_value_cents: 70_000,
+        name: 'Etapa 2', amount_cents: 35_000, position: 1, due_date: null,
+        sync_status: 'local', asaas_payment_id: null, provider_status: null,
+      }),
+    ]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar etapa — Ecoluz' }));
+    expect(screen.getByRole('heading', { name: 'Cancelar cobrança e dividir valor' }))
+      .toBeInTheDocument();
+    expect(screen.getAllByText(/R\$ 700,00/)).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('Motivo da divisão'), {
+      target: { value: 'Dividir em duas etapas' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar e dividir' }));
+
+    await waitFor(() => expect(cancelCharge).toHaveBeenCalledWith(
+      'payment-1', 'Dividir em duas etapas', true,
+    ));
+  });
+
+  it('permite dar baixa local ou gerar novo Checkout para uma cobrança cancelada', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({
+      status: 'cancelled', sync_status: 'synced', provider_status: 'DELETED',
+      asaas_payment_id: 'pay_cancelled', project_name: 'Excelência Refrigeração',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Marcar cancelada como paga — Excelência Refrigeração',
+    }));
+    fireEvent.change(screen.getByLabelText('Motivo da baixa'), {
+      target: { value: 'Cliente pagou por Pix' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar como pago' }));
+    await waitFor(() => expect(markCancelledPaid).toHaveBeenCalledWith(
+      'payment-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), 'Cliente pagou por Pix',
+    ));
+
+    fetchOverview.mockResolvedValue(overview([payment({
+      status: 'cancelled', sync_status: 'synced', provider_status: 'DELETED',
+      asaas_payment_id: 'pay_cancelled', project_name: 'Excelência Refrigeração',
+    })]));
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Gerar novo Checkout — Excelência Refrigeração',
+    }));
+    fireEvent.change(screen.getByLabelText('Motivo da nova cobrança'), {
+      target: { value: 'Cliente solicitou novo link' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar novo Checkout' }));
+    await waitFor(() => expect(regenerateCancelled).toHaveBeenCalledWith(
+      'payment-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      'Cliente solicitou novo link',
+    ));
+  });
+
+  it('não oferece reabertura local para pagamento confirmado pelo Asaas', async () => {
+    fetchOverview.mockResolvedValue(overview([payment({
+      status: 'paid', sync_status: 'synced', provider_status: 'RECEIVED',
+      asaas_payment_id: 'pay_received',
+    })]));
+    render(<ProjectPaymentsList isAdmin />);
+
+    expect(await screen.findByText('Pago')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reabrir/ })).toBeNull();
   });
 
   it('retoma uma correção pendente sem permitir reemitir o valor antigo', async () => {

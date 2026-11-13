@@ -24,6 +24,7 @@ describe('Google Analytics', () => {
     expect(shouldTrack('/painel')).toBe(false);
     expect(shouldTrack('/painel/admin/clientes')).toBe(false);
     expect(shouldTrack('/admin')).toBe(false);
+    expect(shouldTrack('/autorizar-cobrancas/link-seguro')).toBe(false);
     // Não pode pegar rota que só começa com as mesmas letras.
     expect(shouldTrack('/paineis-solares')).toBe(true);
   });

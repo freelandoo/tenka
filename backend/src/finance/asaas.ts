@@ -97,6 +97,10 @@ export interface AsaasCheckout {
   link?: string;
 }
 
+export interface AsaasCardToken {
+  creditCardToken: string;
+}
+
 export interface AsaasPixQrCode {
   encodedImage: string;
   payload: string;
@@ -217,6 +221,11 @@ export const asaas = {
   },
   createPayment(input: Record<string, unknown>) {
     return request<AsaasPayment>('/payments', { method: 'POST', body: JSON.stringify(input) });
+  },
+  tokenizeCreditCard(input: Record<string, unknown>) {
+    return request<AsaasCardToken>('/creditCard/tokenizeCreditCard', {
+      method: 'POST', body: JSON.stringify(input),
+    });
   },
   createCheckout(input: Record<string, unknown>) {
     return request<AsaasCheckout>('/checkouts', { method: 'POST', body: JSON.stringify(input) });

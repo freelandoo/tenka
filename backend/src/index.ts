@@ -18,6 +18,7 @@ import { whatsappRoutes } from './modules/whatsapp';
 import { webhookRoutes } from './modules/webhooks';
 import { meetingRoutes } from './modules/meetings';
 import { financeRoutes } from './modules/finance';
+import { cardAuthorizationRoutes } from './modules/cardAuthorizations';
 import { financeWorker } from './finance/worker';
 import { reconciliationJob } from './finance/reconciliationJob';
 import { realtimeBus } from './realtime/bus';
@@ -49,6 +50,9 @@ async function main(): Promise<void> {
   await app.register(whatsappRoutes);
   await app.register(meetingRoutes);
   await app.register(financeRoutes);
+  // Link publico de autorizacao financeira; rotas administrativas continuam
+  // protegidas por JWT e a tokenizacao real fica bloqueada fora do Sandbox.
+  await app.register(cardAuthorizationRoutes);
   // Webhook da Evolution: não passa por auth de painel (valida x-webhook-secret).
   await app.register(webhookRoutes);
 

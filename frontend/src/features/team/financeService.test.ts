@@ -99,16 +99,28 @@ describe('summarizeByClient', () => {
       projects: [project({ id: 'p1', client_id: 'c1', client_name: 'Alfa', monthly_fee_cents: 100_000, subscription_active: true })],
       costs: [],
       services: [
-        { project_id: 'p1', amount_cents: 50_000, frequency: 'monthly' },   // entra no recorrente
-        { project_id: 'p1', amount_cents: 120_000, frequency: 'annual' },    // mensaliza em 10.000
-        { project_id: 'p1', amount_cents: 30_000, frequency: 'once' },       // não é recorrente: ignora
-        { project_id: 'desconhecido', amount_cents: 999, frequency: 'monthly' }, // sem cliente: ignora
+        { project_id: 'p1', amount_cents: 50_000, frequency: 'monthly', first_due_date: '2026-07-09' },
+        { project_id: 'p1', amount_cents: 120_000, frequency: 'annual', first_due_date: '2026-07-09' },
+        { project_id: 'p1', amount_cents: 30_000, frequency: 'once', first_due_date: '2026-08-09' },
+        { project_id: 'desconhecido', amount_cents: 999, frequency: 'monthly', first_due_date: '2026-07-09' },
       ],
     });
     const alfa = rows.find((r) => r.key === 'c1')!;
     expect(alfa.receitaRecorrenteCents).toBe(150_000); // 100k mensalidade + 50k serviço mensal
-    expect(alfa.receitaPeriodicaMensalCents).toBe(10_000); // 120k anual ÷ 12
-    expect(alfa.margemCents).toBe(160_000); // recorrente + periódico, sem custos
+    expect(alfa.receitaPeriodicaMensalCents).toBe(120_000); // anual entra inteiro no mês do vencimento
+    expect(alfa.margemCents).toBe(270_000); // recorrente + periódico devido, sem custos
+  });
+
+  it('não antecipa serviço agendado e respeita a frequência por competência', () => {
+    const service = { project_id: 'p1', amount_cents: 80_000, frequency: 'annual' as const, first_due_date: '2026-09-09' };
+    const projects = [project({ id: 'p1', client_id: 'c1', client_name: 'Alfa' })];
+
+    expect(summarizeByClient({ year: 2026, month: 8, projects, costs: [], services: [service] }))
+      .toHaveLength(0);
+    expect(summarizeByClient({ year: 2026, month: 9, projects, costs: [], services: [service] })[0]
+      ?.receitaPeriodicaMensalCents).toBe(80_000);
+    expect(summarizeByClient({ year: 2026, month: 10, projects, costs: [], services: [service] }))
+      .toHaveLength(0);
   });
 
   it('omite cliente sem receita recorrente nem custo atribuído', () => {
@@ -118,6 +130,24 @@ describe('summarizeByClient', () => {
       costs: [],
     });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('competência dos serviços adicionais', () => {
+  it('leva o valor integral ao Financeiro somente no mês em que o serviço vence', () => {
+    const projects = [project({ id: 'p1', due_date: '2025-01-10' })];
+    const services = [{
+      project_id: 'p1', amount_cents: 80_000, frequency: 'annual' as const,
+      first_due_date: '2026-09-09',
+    }];
+
+    const august = summarize({ ...base, month: 8, projects, costs: [], services });
+    const september = summarize({ ...base, month: 9, projects, costs: [], services });
+    const october = summarize({ ...base, month: 10, projects, costs: [], services });
+
+    expect(august.receitaTotal).toBe(0);
+    expect(september.receitaTotal).toBe(80_000);
+    expect(october.receitaTotal).toBe(0);
   });
 });
 

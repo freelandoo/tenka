@@ -13,9 +13,9 @@ import { COMPANY_LABELS } from '../companies';
 import { ProjectNotesSection } from './ProjectNotes';
 import { ProjectActivityList } from './ProjectActivity';
 import { ProjectPaymentPlanDrawer } from './ProjectPaymentPlanDrawer';
-import { ProjectServicesSection } from './ProjectServicesSection';
+import { ProjectServicesSection, RecurringBillingDueDay } from './ProjectServicesSection';
 import * as financeService from '../../finance/financeService';
-import type { ProjectFinance } from '../../finance/financeService';
+import type { ClientRecurringBilling, ProjectFinance } from '../../finance/financeService';
 import { subscribeRealtime } from '../../../lib/api/events';
 
 interface ProjectDrawerProps {
@@ -48,6 +48,7 @@ export function ProjectDrawer({
   const [activityRevision, setActivityRevision] = useState(0);
   const [lifecycleAction, setLifecycleAction] = useState<'finalize' | 'archive' | null>(null);
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
+  const [recurringBilling, setRecurringBilling] = useState<ClientRecurringBilling | null>(null);
 
   const loadFinance = useCallback(async () => {
     if (!isAdmin) return;
@@ -163,18 +164,10 @@ export function ProjectDrawer({
   };
 
   const hostingStatus = finance?.subscription?.hosting_status;
-  const hostingLabels: Record<string, string> = {
-    legacy: 'Fluxo anterior',
-    pending_delivery: 'Contratada · aguardando entrega',
-    checkout_pending: 'Aguardando autorização do cliente',
-    checkout_uncertain: 'Criação incerta · não gere outro Checkout',
-    authorized: 'Autorizada · aguardando início',
-    active: 'Recorrência ativa',
-    checkout_expired: 'Checkout expirado',
-    checkout_cancelled: 'Checkout cancelado',
-    cancelled: 'Hospedagem cancelada',
-    error: 'Atenção necessária',
-  };
+  const storedRecurringDueDay = finance?.subscription?.due_day ?? project.due_day;
+  const displayedRecurringBilling = recurringBilling ?? (storedRecurringDueDay
+    ? { dueDay: storedRecurringDueDay, billingType: 'CREDIT_CARD' as const }
+    : null);
   const canRegenerateCheckout = Boolean(project.finalized_at && hostingStatus
     && ['pending_delivery', 'checkout_expired', 'checkout_cancelled', 'cancelled', 'error']
       .includes(hostingStatus)
@@ -351,6 +344,9 @@ export function ProjectDrawer({
             fontSize: 14,
           }}
         >
+          <div style={{ gridColumn: '1 / -1' }}>
+            <span className="panel-eyebrow" style={{ fontSize: 10 }}>Dados principais</span>
+          </div>
           {isAdmin && (
             <div>
               <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>
@@ -366,19 +362,6 @@ export function ProjectDrawer({
             <div>
               <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Hospedagem mensal</dt>
               <dd><strong>{finance?.subscription ? formatCurrencyFromCents(finance.subscription.amount_cents) : 'Não configurada'}</strong></dd>
-            </div>
-          )}
-          {isAdmin && finance?.subscription && (
-            <div>
-              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Primeiro vencimento</dt>
-              <dd>
-                {hostingStatus && hostingStatus !== 'legacy'
-                  ? finance.subscription.delivery_triggered_at
-                    ? formatDate(finance.subscription.first_due_date ?? finance.subscription.next_due_date)
-                    : 'Um mês após a entrega real'
-                  : `Dia ${finance.subscription.due_day}${(finance.subscription.status === 'active' || finance.subscription.status === 'pending_activation')
-                    ? ` · próximo ${formatDate(finance.subscription.next_due_date)}` : ''}`}
-              </dd>
             </div>
           )}
           <div>
@@ -413,11 +396,11 @@ export function ProjectDrawer({
           )}
           <div>
             <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>
-              Entrega
+              {project.finalized_at ? 'Entregue em' : 'Previsão de entrega'}
             </dt>
             <dd style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <CalendarDays size={14} aria-hidden="true" />
-              {formatDate(project.due_date)}
+              {formatDate(project.finalized_at ?? project.due_date)}
             </dd>
           </div>
           <div>
@@ -432,18 +415,17 @@ export function ProjectDrawer({
             </dt>
             <dd>{formatDateTime(project.created_at)}</dd>
           </div>
+          {isAdmin && finance?.subscription && <>
+            <div style={{ textAlign: 'left' }}>
+              <dt className="panel-eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Previsão de vencimento</dt>
+              <dd style={{ textAlign: 'left' }}>{finance.subscription.delivery_triggered_at
+                ? formatDate(finance.subscription.first_due_date ?? finance.subscription.next_due_date)
+                : 'Disponível após a entrega'}</dd>
+            </div>
+            <RecurringBillingDueDay billing={displayedRecurringBilling} />
+          </>}
         </dl>
-        {isAdmin && finance?.subscription && <div className="project-drawer__subscription">
-          <span className={`finance-badge finance-badge--${finance.subscription.status}`}>
-            {hostingStatus && hostingStatus !== 'legacy'
-              ? hostingLabels[hostingStatus] ?? hostingStatus
-              : finance.subscription.status === 'active' ? 'Ativa'
-                : finance.subscription.status === 'pending_activation' ? 'Ativação pendente'
-                  : finance.subscription.status === 'cancelled' ? 'Cancelada' : 'Inativa'}
-          </span>
-          <small>{hostingStatus && hostingStatus !== 'legacy'
-            ? 'A autorização recorrente acontece no Checkout do Asaas depois da entrega.'
-            : 'Ative, desative ou reative esta mensalidade na área Financeiro.'}</small>
+        {isAdmin && finance?.subscription && (finance.hostingCheckout?.checkout_url || canRegenerateCheckout || finance.hostingCheckout?.sync_error) && <div className="project-drawer__subscription">
           {finance.hostingCheckout?.checkout_url && ['active', 'paid'].includes(finance.hostingCheckout.status) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <a className="panel-btn panel-btn--sm" href={finance.hostingCheckout.checkout_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir Checkout</a>
             <button type="button" className="panel-btn panel-btn--ghost panel-btn--sm" onClick={() => void copyCheckoutLink()}><Copy size={14} /> Copiar link</button>
@@ -456,7 +438,9 @@ export function ProjectDrawer({
         </div>}
       </section>
 
-      {isAdmin && <ProjectServicesSection projectId={project.id} reloadKey={activityRevision} onModalVisibilityChange={setServiceModalOpen} />}
+      {isAdmin && <ProjectServicesSection projectId={project.id} reloadKey={activityRevision}
+        fallbackBilling={displayedRecurringBilling} onModalVisibilityChange={setServiceModalOpen}
+        onBillingChange={setRecurringBilling} />}
 
       <section className="panel-drawer__section" aria-labelledby="drawer-assignees">
         <h3 id="drawer-assignees" className="panel-eyebrow">

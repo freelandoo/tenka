@@ -12,6 +12,7 @@ import {
   linkSubscriptionFromCheckoutPayment,
   parseProjectSubscriptionReference,
 } from './hostingCheckout';
+import { loadActiveCardAuthorization } from './cardAuthorization';
 
 export interface Operation {
   id: string;
@@ -748,7 +749,9 @@ async function billingBatchContext(operation: Operation, db: PoolClient | Return
        join (
          select bi.batch_id, bi.amount_cents, sp.due_date,
                 p.name || ' - ' || coalesce(cs.name,
-                  'mensalidade ' || to_char(sp.competence, 'MM/YYYY')) as label
+                  'mensalidade ' || to_char(sp.competence, 'MM/YYYY')) ||
+                  ' - R$ ' || (bi.amount_cents / 100)::text || ',' ||
+                  lpad((bi.amount_cents % 100)::text, 2, '0') as label
            from public.client_billing_batch_items bi
            join public.subscription_payments sp on sp.id = bi.subscription_payment_id
            join public.projects p on p.id = bi.project_id
@@ -756,7 +759,9 @@ async function billingBatchContext(operation: Operation, db: PoolClient | Return
           where bi.kind = 'subscription' and bi.status = 'active'
          union all
          select bi.batch_id, bi.amount_cents, pp.due_date,
-                p.name || ' - ' || pp.name as label
+                p.name || ' - ' || pp.name || ' - R$ ' ||
+                  (bi.amount_cents / 100)::text || ',' ||
+                  lpad((bi.amount_cents % 100)::text, 2, '0') as label
            from public.client_billing_batch_items bi
            join public.project_payments pp on pp.id = bi.project_payment_id
            join public.projects p on p.id = bi.project_id
@@ -804,6 +809,36 @@ async function executeBillingBatchOperation(operation: Operation, db: PoolClient
     asaas_customer_id: ctx.asaas_customer_id,
   } as SubscriptionContext, db);
   await cancelPreviousBatchItemCharges(ctx.id, db);
+  const cardAuthorization = ctx.billing_type === 'CREDIT_CARD'
+    ? await loadActiveCardAuthorization(db, ctx.client_id)
+    : null;
+  if (ctx.billing_type === 'CREDIT_CARD' && !cardAuthorization) {
+    throw new Error('Cliente sem autorizacao ativa para cobranca automatica no cartao.');
+  }
+  if (cardAuthorization && ctx.amount_cents > cardAuthorization.authorizedLimitCents) {
+    throw new Error('Valor da cobranca excede o limite aceito pelo cliente. Exija novo aceite.');
+  }
+  if (cardAuthorization) {
+    const { rows } = await db.query<{ source_key: string }>(
+      `select case
+          when sp.client_service_id is not null then 'service:' || sp.client_service_id::text
+          when sp.subscription_id is not null then 'subscription:' || sp.subscription_id::text
+          else 'unscoped:' || sp.id::text
+        end as source_key
+         from public.client_billing_batch_items bi
+         join public.subscription_payments sp on sp.id = bi.subscription_payment_id
+        where bi.batch_id = $1 and bi.status = 'active'
+       union all
+       select 'project_payment:' || bi.project_payment_id::text
+         from public.client_billing_batch_items bi
+        where bi.batch_id = $1 and bi.status = 'active' and bi.project_payment_id is not null`,
+      [ctx.id],
+    );
+    const allowed = new Set(cardAuthorization.authorizedSourceKeys);
+    if (rows.some((row) => !allowed.has(row.source_key))) {
+      throw new Error('A cobranca inclui item fora da autorizacao vigente. Exija novo aceite.');
+    }
+  }
   const input = {
     customer: customerId,
     billingType: ctx.billing_type || 'UNDEFINED',
@@ -811,6 +846,10 @@ async function executeBillingBatchOperation(operation: Operation, db: PoolClient
     dueDate: ctx.due_date,
     externalReference: ctx.external_reference,
     description: `TENKA - cobranca consolidada: ${ctx.description}`.slice(0, 500),
+    ...(cardAuthorization ? {
+      creditCardToken: cardAuthorization.creditCardToken,
+      remoteIp: cardAuthorization.payerIp,
+    } : {}),
   };
   const existing = ctx.asaas_payment_id
     ? await asaas.getPayment(ctx.asaas_payment_id)
@@ -1387,19 +1426,18 @@ async function processProjectPaymentWebhook(
   if (!existing.rows[0]) {
     throw new WebhookNeedsReviewError(`Pagamento de projeto não encontrado: ${externalReference}.`);
   }
-  const cancelledForCorrection = await getPool().query(
+  const cancelledProviderPayment = await getPool().query(
     `select 1 from public.asaas_operations
       where project_payment_id = $1 and kind = 'cancel_project_charge'
         and status = 'succeeded' and response_external_id = $2
-        and request_payload ->> 'prepareCorrection' = 'true'
       limit 1`,
     [projectPaymentId, String(payment.id)],
   );
-  if (cancelledForCorrection.rows[0]) {
+  if (cancelledProviderPayment.rows[0]) {
     await recordPaymentWebhookActivity(event, existing.rows[0].project_id, {
       scope: 'projeto', paymentName: existing.rows[0].name,
       asaasPaymentId: String(payment.id), providerStatus,
-      ignoredBecause: 'cancelled_for_correction',
+      ignoredBecause: 'cancelled_provider_payment',
     });
     return;
   }

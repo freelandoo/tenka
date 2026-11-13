@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Banknote, Copy, ExternalLink, LoaderCircle, Trash2 } from 'lucide-react';
+import { Banknote, ChevronDown, Copy, ExternalLink, LoaderCircle, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 import { cents, formatCurrencyFromCents } from '../../panel/format';
@@ -14,7 +14,13 @@ import { subscribeRealtime } from '../../../lib/api/events';
 import { PanelOverlay } from '../../panel/PanelOverlay';
 import { ConfirmDialog } from '../../panel/ConfirmDialog';
 import * as financeService from '../../finance/financeService';
-import type { ProjectFinance } from '../../finance/financeService';
+import {
+  serviceCountsInCompetence,
+  type CardAuthorizationSummary,
+  type ClientServiceLite,
+  type ProjectFinance,
+  type ServiceFrequency,
+} from '../../finance/financeService';
 
 interface SubscriptionListProps {
   /** TODOS os projetos não-arquivados — board e histórico. */
@@ -24,8 +30,15 @@ interface SubscriptionListProps {
   /** Competência financeira selecionada na Carteira, no formato YYYY-MM. */
   competence: string;
   competenceLabel: string;
+  services?: ClientServiceLite[];
+  servicesError?: boolean;
   onChanged(): void;
+  onOpenProject?(project: BoardProject): void;
 }
+
+const SERVICE_FREQUENCY: Record<ServiceFrequency, string> = {
+  once: 'Único', monthly: 'Mensal', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual',
+};
 
 const PAYMENT_STATUS: Record<SubscriptionPaymentRow['status'], string> = {
   pending: 'Pendente',
@@ -35,7 +48,7 @@ const PAYMENT_STATUS: Record<SubscriptionPaymentRow['status'], string> = {
   cancelled: 'Cancelado',
   refunded: 'Estornado',
   chargeback: 'Chargeback',
-  failed: 'Falha',
+  failed: 'Recusado',
   legacy_paid: 'Pago manual',
   refund_requested: 'Estorno solicitado',
   dunning: 'Em recuperação',
@@ -108,7 +121,10 @@ export function SubscriptionList({
   isAdmin,
   competence,
   competenceLabel,
+  services = [],
+  servicesError = false,
   onChanged,
+  onOpenProject,
 }: SubscriptionListProps) {
   const { toast } = useToast();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
@@ -128,7 +144,11 @@ export function SubscriptionList({
   const [manageLoading, setManageLoading] = useState(false);
   const [manageBusy, setManageBusy] = useState(false);
   const [activationDueDate, setActivationDueDate] = useState('');
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [authorizationByClient, setAuthorizationByClient] = useState<Record<string, CardAuthorizationSummary | 'error'>>({});
+  const [authorizationLoading, setAuthorizationLoading] = useState(true);
   const paymentsRequest = useRef(0);
+  const authorizationRequest = useRef(0);
   const currentCompetence = useRef(competence);
   currentCompetence.current = competence;
 
@@ -176,34 +196,94 @@ export function SubscriptionList({
       && payment.status !== 'cancelled');
   };
 
-  // Só projetos COM mensalidade cadastrada; maior valor primeiro, e as ativas
-  // antes das desligadas para o que está rendendo ficar no topo.
+  const servicesByProject = useMemo(() => {
+    const grouped = new Map<string, ClientServiceLite[]>();
+    for (const service of services) {
+      if (!serviceCountsInCompetence(service, competence)) continue;
+      const current = grouped.get(service.project_id) ?? [];
+      current.push(service);
+      grouped.set(service.project_id, current);
+    }
+    return grouped;
+  }, [services, competence]);
+
+  const expectedAmount = (project: BoardProject) => (
+    (activeInCompetence(project) ? cents(project.monthly_fee_cents) : 0)
+    + (servicesByProject.get(project.id) ?? []).reduce(
+      (sum, service) => sum + cents(service.amount_cents), 0,
+    )
+  );
+
+  // Projetos com mensalidade ou serviço previsto; maior valor esperado primeiro.
   const linhas = useMemo(
     () =>
       projects
-        .filter((p) => cents(p.monthly_fee_cents) > 0)
+        .filter((p) => cents(p.monthly_fee_cents) > 0 || servicesByProject.has(p.id))
         .sort(
           (a, b) =>
-            Number(activeInCompetence(b)) - Number(activeInCompetence(a)) ||
-            cents(b.monthly_fee_cents) - cents(a.monthly_fee_cents),
+            Number(expectedAmount(b) > 0) - Number(expectedAmount(a) > 0)
+            || expectedAmount(b) - expectedAmount(a),
         ),
-    [projects, competence, payments],
+    [projects, competence, payments, servicesByProject],
   );
+
+  const authorizationProjects = useMemo(() => {
+    const unique = new Map<string, BoardProject>();
+    for (const project of projects) {
+      if (cents(project.monthly_fee_cents) <= 0) continue;
+      if (project.client_id && !unique.has(project.client_id)) unique.set(project.client_id, project);
+    }
+    return [...unique.entries()];
+  }, [projects]);
+
+  const loadAuthorizations = useCallback(async () => {
+    const request = ++authorizationRequest.current;
+    setAuthorizationLoading(true);
+    const entries = await Promise.all(authorizationProjects.map(async ([clientId, project]) => {
+      try {
+        let summary = await financeService.fetchProjectCardAuthorization(project.id);
+        if (isAdmin && project.subscription_active && project.due_day
+          && summary.linkIssue === 'cobranca-recorrente-nao-configurada') {
+          await financeService.configureProjectRecurringBilling(project.id, {
+            dueDay: project.due_day,
+            billingType: 'CREDIT_CARD',
+          });
+          summary = await financeService.fetchProjectCardAuthorization(project.id);
+        }
+        const hasCurrentLink = summary.latestLink?.state === 'active' && Boolean(summary.latestLink.url);
+        if (isAdmin && summary.linkRequired && !hasCurrentLink && !summary.linkIssue) {
+          try {
+            await financeService.createProjectCardAuthorizationLink(project.id);
+            summary = await financeService.fetchProjectCardAuthorization(project.id);
+          } catch { /* Mantém o diagnóstico consultado; não confunde falha do link com falta de cadastro. */ }
+        }
+        return [clientId, summary] as const;
+      } catch {
+        return [clientId, 'error'] as const;
+      }
+    }));
+    if (request !== authorizationRequest.current) return;
+    setAuthorizationByClient(Object.fromEntries(entries));
+    setAuthorizationLoading(false);
+  }, [authorizationProjects, isAdmin]);
+
+  useEffect(() => { void loadAuthorizations(); }, [loadAuthorizations]);
 
   const { total, ativas, parada } = useMemo(() => {
     let total = 0;
     let ativas = 0;
     let parada = 0;
     for (const p of linhas) {
-      if (activeInCompetence(p)) {
-        total += cents(p.monthly_fee_cents);
+      const amount = expectedAmount(p);
+      if (amount > 0) {
+        total += amount;
         ativas += 1;
       } else {
         parada += cents(p.monthly_fee_cents);
       }
     }
     return { total, ativas, parada };
-  }, [linhas, competence, payments]);
+  }, [linhas, competence, payments, servicesByProject]);
 
   const paymentsByProject = useMemo(
     () => {
@@ -238,6 +318,15 @@ export function SubscriptionList({
       toast('success', 'Link da cobrança copiado.');
     } catch {
       toast('error', 'Não foi possível copiar o link da cobrança.');
+    }
+  };
+
+  const copyAuthorizationLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('success', 'Link de autorização copiado.');
+    } catch {
+      toast('error', 'Não foi possível copiar o link de autorização.');
     }
   };
 
@@ -353,9 +442,18 @@ export function SubscriptionList({
           Não foi possível consultar os pagamentos de {competenceLabel}.
         </p>
       )}
+      {servicesError && (
+        <p className="fees__payment-error" role="alert">
+          Não foi possível incluir os serviços previstos de {competenceLabel}.
+        </p>
+      )}
       <ul className="costs__list">
         {linhas.map((p) => {
           const activeForMonth = activeInCompetence(p);
+          const projectServices = servicesByProject.get(p.id) ?? [];
+          const amountForMonth = expectedAmount(p);
+          const expectedForMonth = amountForMonth > 0;
+          const expanded = expandedProjects.has(p.id);
           const projectPayments = paymentsByProject.get(p.id) ?? [];
           const hasSettledPayment = projectPayments.some((payment) =>
             ['confirmed', 'received', 'legacy_paid'].includes(payment.status),
@@ -366,33 +464,63 @@ export function SubscriptionList({
             && ['pending', 'overdue', 'failed'].includes(payment.status),
           );
           const canRegisterManual = Boolean(isAdmin && !hasSettledPayment && !hasOpenAsaasPayment);
+          const authorizationState = p.client_id ? authorizationByClient[p.client_id] : undefined;
+          const authorization = typeof authorizationState === 'object' ? authorizationState : null;
+          const authorizationError = authorizationState === 'error';
+          const authorizationReady = Boolean(authorization?.authorizationCurrent);
+          const authorizationLink = authorization?.latestLink?.state === 'active'
+            ? authorization.latestLink.url
+            : null;
+          const authorizationPending = Boolean(authorization?.linkRequired && authorizationLink);
           return (
-            <li key={p.id} className={`fees__row${activeForMonth ? '' : ' is-off'}`}>
+            <li key={p.id} className={`fees__row${expectedForMonth ? '' : ' is-off'}`}>
               <span className="fees__main">
-                <span className="fees__name">{p.name}</span>
-                {p.client_name && <small className="fees__client">{p.client_name}</small>}
+                <span className="fees__project-line">
+                  {projectServices.length > 0 && <button type="button"
+                    className={`fees__expand${expanded ? ' is-open' : ''}`}
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? 'Ocultar' : 'Ver'} composição — ${p.name}`}
+                    onClick={() => setExpandedProjects((current) => {
+                      const next = new Set(current);
+                      if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                      return next;
+                    })}>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </button>}
+                  <button type="button" className="fees__entity-link fees__name"
+                    onClick={() => onOpenProject?.(p)}>{p.name}</button>
+                </span>
+                {p.client_name && <button type="button" className="fees__entity-link fees__client"
+                  onClick={() => onOpenProject?.(p)}>{p.client_name}</button>}
               </span>
               <span className="fees__due">{p.due_day ? `dia ${p.due_day}` : '—'}</span>
               <span className="costs__amount">
-                {formatCurrencyFromCents(p.monthly_fee_cents)}
-                <small>/mês</small>
+                {formatCurrencyFromCents(amountForMonth)}
               </span>
               <span className="fees__billing">
-                {projectPayments.length > 0 ? projectPayments.map((currentPayment, index) => {
+                {authorizationLoading ? <span className="finance-badge finance-badge--not-issued">
+                  Consultando cartão
+                </span> : !authorizationReady ? <span className="fees__authorization">
+                  {authorizationPending && authorizationLink ? <button type="button"
+                    className="panel-btn panel-btn--ghost panel-btn--sm fees__authorization-link"
+                    onClick={() => void copyAuthorizationLink(authorizationLink)}>
+                    <Copy size={13} aria-hidden="true" /> Copiar autorização
+                  </button> : null}
+                  <span className={`finance-badge finance-badge--${authorizationPending ? 'pending' : 'not-issued'}`}>
+                    <ShieldOff size={12} aria-hidden="true" />
+                    {authorizationPending ? 'Aguardando autorização' : authorizationError
+                      ? 'Consulta indisponível' : authorization?.linkIssue === 'assinatura-fixa-existente'
+                      ? 'Migração necessária' : authorization?.linkIssue === 'cobranca-recorrente-nao-configurada'
+                        ? 'Cartão não autorizado' : authorization?.linkRequired ? 'Link indisponível'
+                          : authorization ? 'Autorização indisponível' : 'Não configurado'}
+                  </span>
+                </span> : projectPayments.length > 0 ? projectPayments.map((currentPayment, index) => {
                   const canRegisterOutside = Boolean(
                     isAdmin && currentPayment.asaas_payment_id && currentPayment.source === 'asaas'
                     && ['pending', 'overdue', 'failed'].includes(currentPayment.status),
                   );
                   return <span className="fees__billing-actions" key={currentPayment.id}>
                     {projectPayments.length > 1 && <small>Cobrança {index + 1}</small>}
-                    {currentPayment.payment_url && <>
-                      <a className="panel-iconbtn fees__billing-icon" href={currentPayment.payment_url}
-                        target="_blank" rel="noreferrer" aria-label="Abrir cobrança"
-                        title="Abrir cobrança"><ExternalLink size={14} /></a>
-                      <button type="button" className="panel-iconbtn fees__billing-icon"
-                        aria-label="Copiar link" title="Copiar link"
-                        onClick={() => void copyLink(currentPayment.payment_url!)}><Copy size={14} /></button>
-                    </>}
                     {canRegisterOutside && <button type="button" className="panel-iconbtn fees__billing-icon"
                       aria-label="Registrar pagamento por fora" title="Registrar pagamento por fora"
                       disabled={busyPaymentId === currentPayment.id}
@@ -409,8 +537,11 @@ export function SubscriptionList({
                       {PAYMENT_STATUS[currentPayment.status]}
                     </span>
                   </span>;
-                }) : <span className="finance-badge finance-badge--not-issued">
-                  {paymentsLoading ? 'Consultando' : activeForMonth ? 'Não emitida' : 'Sem cobrança'}
+                }) : <span className="fees__authorization">
+                  <span className="finance-badge finance-badge--active"><ShieldCheck size={12} aria-hidden="true" /> Cartão autorizado</span>
+                  <span className="finance-badge finance-badge--not-issued">
+                    {paymentsLoading ? 'Consultando' : activeForMonth ? 'Não emitida' : 'Sem cobrança'}
+                  </span>
                 </span>}
                 {canRegisterManual && (
                   <button type="button" className="panel-iconbtn fees__billing-icon"
@@ -437,6 +568,25 @@ export function SubscriptionList({
                   {activeForMonth ? 'Ativa' : 'Inativa'}
                 </span>
               )}
+              {projectServices.length > 0 && expanded && (
+                <ul className="fees__breakdown" aria-label={`Composição de ${p.name} em ${competenceLabel}`}>
+                  {activeForMonth && cents(p.monthly_fee_cents) > 0 && (
+                    <li>
+                      <span><strong>Hospedagem mensal</strong><small>Mensal</small></span>
+                      <strong>{formatCurrencyFromCents(p.monthly_fee_cents)}</strong>
+                    </li>
+                  )}
+                  {projectServices.map((service) => (
+                    <li key={service.id ?? `${service.project_id}:${service.name}:${service.first_due_date}`}>
+                      <span>
+                        <strong>{service.name || 'Serviço recorrente'}</strong>
+                        <small>{SERVICE_FREQUENCY[service.frequency]}{service.status === 'draft' ? ' · Aguardando autorização' : ''}</small>
+                      </span>
+                      <strong>{formatCurrencyFromCents(service.amount_cents)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}
@@ -452,7 +602,7 @@ export function SubscriptionList({
             </small>
           )}
         </span>
-        <strong>{formatCurrencyFromCents(total)}/mês</strong>
+        <strong>{formatCurrencyFromCents(total)}</strong>
       </div>
 
       {manageProject && (

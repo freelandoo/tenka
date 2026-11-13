@@ -90,8 +90,8 @@ export function FinanceView({ projects, profiles, year, month }: FinanceViewProp
   const [view, setView] = useState<'geral' | 'cliente'>('geral');
 
   const s = useMemo(
-    () => finance.summarize({ projects, costs, headcount, year, month, today }),
-    [projects, costs, headcount, year, month, today],
+    () => finance.summarize({ projects, costs, services, headcount, year, month, today }),
+    [projects, costs, services, headcount, year, month, today],
   );
 
   const porCliente = useMemo(

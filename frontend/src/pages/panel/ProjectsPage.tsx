@@ -326,6 +326,7 @@ export default function ProjectsPage() {
           profiles={profiles}
           isAdmin={isAdmin}
           onProjectsChanged={() => void refresh()}
+          onOpenProject={(project) => setDetailsId(project.id)}
         />
       )}
 

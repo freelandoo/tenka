@@ -1,5 +1,9 @@
 import type { CostRow, ProjectRow } from '../../lib/supabase/database.types';
 import { cents } from '../panel/format';
+import { serviceCountsInCompetence } from '../finance/financeService';
+import type { ClientServiceLite } from '../finance/financeService';
+export { serviceCountsInCompetence } from '../finance/financeService';
+export type { ClientServiceLite } from '../finance/financeService';
 
 /**
  * Indicadores financeiros de gestão da agência.
@@ -22,6 +26,8 @@ export interface FinanceInput {
   projects: ProjectRow[];
   /** Custos visíveis ao usuário: empresa (`project_id` null) e de projeto. */
   costs: CostRow[];
+  /** Serviços adicionais e a primeira competência em que cada um vence. */
+  services?: ClientServiceLite[];
   /** Colaboradores ativos: divisor da receita por pessoa. */
   headcount: number;
   year: number;
@@ -178,7 +184,7 @@ function concentracaoAnual(projects: ProjectRow[], year: number): Concentracao {
 }
 
 export function summarize(input: FinanceInput): FinanceSummary {
-  const { projects, costs, headcount, year, month, today } = input;
+  const { projects, costs, services = [], headcount, year, month, today } = input;
   const mesAtual = mesKey(year, month);
   const mesAnt = mesAnterior(mesAtual);
   const anoStr = String(year);
@@ -236,14 +242,23 @@ export function summarize(input: FinanceInput): FinanceSummary {
     else custoVariavel += cents(cost.amount_cents);
   }
 
-  const receitaTotal = receitaProjetos + mrr;
+  const serviceRevenue = (competence: string) => services.reduce((total, service) =>
+    total + (serviceCountsInCompetence(service, competence) ? cents(service.amount_cents) : 0), 0);
+  const monthlyServiceRevenue = services.reduce((total, service) =>
+    total + (service.frequency === 'monthly' && serviceCountsInCompetence(service, mesAtual)
+      ? cents(service.amount_cents) : 0), 0);
+  const currentServiceRevenue = serviceRevenue(mesAtual);
+  const previousServiceRevenue = serviceRevenue(mesAnt);
+  mrr += monthlyServiceRevenue;
+
+  const receitaTotal = receitaProjetos + mrr + currentServiceRevenue - monthlyServiceRevenue;
   const custoTotal = custoFixo + custoVariavel;
 
   return {
     receitaProjetos,
     mrr,
     receitaTotal,
-    receitaTotalAnterior: receitaAnterior + mrr,
+    receitaTotalAnterior: receitaAnterior + mrr - monthlyServiceRevenue + previousServiceRevenue,
     entregas,
     custoFixo,
     custoVariavel,
@@ -275,20 +290,6 @@ export function summarize(input: FinanceInput): FinanceSummary {
 // agência e NÃO é rateado por cliente aqui — apareceria como custo fantasma.
 // ---------------------------------------------------------------------------
 
-export type ServiceFrequency = 'once' | 'monthly' | 'quarterly' | 'semiannual' | 'annual';
-
-/** Serviço recorrente ativo, como vem de /admin/finance/client-services. */
-export interface ClientServiceLite {
-  project_id: string;
-  amount_cents: number;
-  frequency: ServiceFrequency;
-}
-
-/** Meses entre cobranças; `once` não é recorrente. */
-const SERVICE_INTERVAL_MONTHS: Record<ServiceFrequency, number> = {
-  once: 0, monthly: 1, quarterly: 3, semiannual: 6, annual: 12,
-};
-
 export interface ClienteFinanceiro {
   key: string;
   nome: string;
@@ -296,8 +297,7 @@ export interface ClienteFinanceiro {
   projetosComMensalidade: number;
   /** Mensalidades ativas + serviços MENSAIS — receita recorrente mensal real. */
   receitaRecorrenteCents: number;
-  /** Serviços periódicos (anual/trimestral/semestral) mensalizados (valor ÷ intervalo).
-   *  Separado de propósito: um contrato anual não é receita mensal recorrente (§13). */
+  /** Serviços periódicos devidos na competência selecionada, pelo valor integral. */
   receitaPeriodicaMensalCents: number;
   /** Custos mensais ativos atribuídos a projetos do cliente. */
   custoMensalCents: number;
@@ -346,12 +346,12 @@ export function summarizeByClient(input: {
   }
 
   for (const service of input.services ?? []) {
+    if (!serviceCountsInCompetence(service, mesAtual)) continue;
     const key = projetoParaCliente.get(service.project_id);
     if (!key) continue;
     const row = clientes.get(key)!;
-    const interval = SERVICE_INTERVAL_MONTHS[service.frequency] ?? 0;
-    if (interval === 1) row.receitaRecorrenteCents += cents(service.amount_cents);
-    else if (interval > 1) row.receitaPeriodicaMensalCents += Math.round(cents(service.amount_cents) / interval);
+    if (service.frequency === 'monthly') row.receitaRecorrenteCents += cents(service.amount_cents);
+    else row.receitaPeriodicaMensalCents += cents(service.amount_cents);
   }
 
   for (const c of input.costs) {

@@ -43,6 +43,7 @@ const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
 // Área interna (autenticação + Kanban de projetos) — chunk independente,
 // nenhum custo para as experiências públicas.
 const PanelRoutes = lazyWithRetry(() => import('./pages/panel/PanelRoutes'));
+const CardAuthorizationPage = lazyWithRetry(() => import('./pages/CardAuthorizationPage'));
 
 function PanelFallback() {
   return (
@@ -152,6 +153,10 @@ export default function App() {
           }
         />
         <Route path="/politica-de-privacidade" element={<PoliticaPrivacidadePage />} />
+        <Route
+          path="/autorizar-cobrancas/:token"
+          element={<Suspense fallback={<PanelFallback />}><CardAuthorizationPage /></Suspense>}
+        />
         <Route
           path="/painel/*"
           element={

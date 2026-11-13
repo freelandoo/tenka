@@ -16,6 +16,7 @@ import { contactStatusForProject } from '../whatsapp/repo';
 import { hasAsaas } from '../env';
 import { financeWorker } from '../finance/worker';
 import { firstHostingDueDate } from '../finance/dueDate';
+import { centralDueOnOrAfter } from '../finance/clientRecurringBilling';
 import { hostingCheckoutReference } from '../finance/hostingCheckout';
 import { blocksClientChange, clientChangeMessage } from '../finance/clientChange';
 import { projectValueChangeError } from '../finance/projectValueChange';
@@ -1106,16 +1107,24 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       let checkoutIssue: string | null = null;
       let checkoutSessionId: string | null = null;
       if (deliveryFlow && row.subscription_id && row.amount_cents) {
-        const firstDueDate = firstHostingDueDate(deliveryDate);
+        const deliveryEligibilityDate = firstHostingDueDate(deliveryDate);
+        const recurringConfig = row.client_id ? await client.query<{ due_day: number }>(
+          `select due_day from public.client_recurring_billing_settings
+            where client_id = $1 and billing_type = 'CREDIT_CARD'`, [row.client_id],
+        ) : { rows: [] as Array<{ due_day: number }> };
+        const centralDueDay = recurringConfig.rows[0]?.due_day ?? null;
+        const firstDueDate = centralDueDay
+          ? centralDueOnOrAfter(centralDueDay, deliveryEligibilityDate)
+          : deliveryEligibilityDate;
         await client.query(
           `update public.project_subscriptions
-              set due_day = extract(day from $3::date)::int,
+              set due_day = $4,
                   next_due_date = $2::date, first_due_date = $2::date,
                   delivery_triggered_at = now(), hosting_status = 'pending_delivery',
                   status = 'inactive', app_managed = false,
                   billing_type = 'CREDIT_CARD', sync_error = null
             where id = $1`,
-          [row.subscription_id, firstDueDate, deliveryDate],
+          [row.subscription_id, firstDueDate, deliveryDate, centralDueDay ?? Number(deliveryEligibilityDate.slice(-2))],
         );
         await client.query(
           `update public.projects
@@ -1124,6 +1133,21 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
             where id = $1`,
           [id, deliveryDate],
         );
+        if (centralDueDay) {
+          // Serviços cadastrados antes da entrega tornam-se elegíveis agora;
+          // nunca altera itens já materializados ou cobranças históricas.
+          await client.query(
+            `update public.client_services
+                set status = 'active', started_at = coalesce(started_at, now()),
+                    due_day = $2, billing_type = 'CREDIT_CARD', next_due_date = $3::date
+              where project_id = $1 and status = 'draft'
+                and not exists (
+                  select 1 from public.subscription_payments sp
+                   where sp.client_service_id = public.client_services.id
+                )`,
+            [id, centralDueDay, firstDueDate],
+          );
+        }
         if (!hasAsaas) checkoutIssue = 'asaas-nao-configurado';
         else if (!row.client_id) checkoutIssue = 'cliente-obrigatorio';
         else if (!(row.cpf_cnpj ?? '').replace(/\D/g, '')) checkoutIssue = 'cpf-cnpj-obrigatorio';

@@ -24,3 +24,13 @@ export function blocksDirectIntegratedPaymentChange(
     patch.dueDate !== undefined && patch.dueDate !== previous.dueDate
   );
 }
+
+/** Uma baixa concluída vira histórico financeiro e não volta a ser pendência. */
+export function blocksDirectPaidPaymentChange(
+  previous: ProjectPaymentFinancialState,
+  patch: ProjectPaymentFinancialPatch,
+): boolean {
+  if (previous.status !== 'paid') return false;
+  return patch.dueDate !== undefined
+    || (patch.status !== undefined && patch.status !== 'paid');
+}

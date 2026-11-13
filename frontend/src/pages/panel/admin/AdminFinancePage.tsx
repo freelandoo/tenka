@@ -4,6 +4,11 @@ import { CarteiraView } from '../../../features/projects/components/CarteiraView
 import { useAdminBoardData } from '../../../features/admin/useAdminBoardData';
 import { AdminBillingView } from '../../../features/finance/AdminBillingView';
 import { FinanceQueueAlert } from '../../../features/finance/FinanceQueueAlert';
+import { ProjectDrawer } from '../../../features/projects/components/ProjectDrawer';
+import { ProjectFormModal } from '../../../features/projects/components/ProjectFormModal';
+import type { BoardProject } from '../../../features/projects/services/projectsService';
+
+type FormState = { mode: 'closed' } | { mode: 'edit'; project: BoardProject };
 
 /**
  * Financeiro — a Carteira como seção da Administração.
@@ -17,7 +22,12 @@ export default function AdminFinancePage() {
   // O painel técnico continua recolhido por padrão; o alerta é que passou a
   // conseguir abri-lo, porque é dentro dele que estão os botões de resolver.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>({ mode: 'closed' });
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  const selectedProject = selectedProjectId
+    ? projects.find((project) => project.id === selectedProjectId) ?? null
+    : null;
 
   return (
     <>
@@ -62,6 +72,7 @@ export default function AdminFinancePage() {
             profiles={profiles}
             isAdmin
             onProjectsChanged={() => void refresh()}
+            onOpenProject={(project) => setSelectedProjectId(project.id)}
           />
           <details
             ref={detailsRef}
@@ -72,6 +83,26 @@ export default function AdminFinancePage() {
             <summary>Integração, assinaturas e últimas mensalidades</summary>
             <AdminBillingView />
           </details>
+          {selectedProject && (
+            <ProjectDrawer
+              project={selectedProject}
+              profiles={profiles}
+              onClose={() => setSelectedProjectId(null)}
+              onEdit={(project) => {
+                setSelectedProjectId(null);
+                setForm({ mode: 'edit', project });
+              }}
+              onChanged={() => void refresh()}
+            />
+          )}
+          {form.mode === 'edit' && (
+            <ProjectFormModal
+              project={form.project}
+              profiles={profiles}
+              onClose={() => setForm({ mode: 'closed' })}
+              onSaved={() => void refresh()}
+            />
+          )}
         </>
       )}
     </>

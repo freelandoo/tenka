@@ -78,6 +78,12 @@ export const env = {
   /** Token definido no webhook do Asaas e recebido em `asaas-access-token`. */
   asaasWebhookToken: (process.env.ASAAS_WEBHOOK_TOKEN ?? '').trim(),
   asaasTimeoutMs: Math.max(1_000, Number(process.env.ASAAS_TIMEOUT_MS ?? 60_000)),
+  /** Chave base64 de 32 bytes para proteger tokens reutilizaveis em repouso. */
+  cardTokenEncryptionKey: (process.env.CARD_TOKEN_ENCRYPTION_KEY ?? '').trim(),
+  /** Links de autorizacao expiram por padrao em 72 horas. */
+  cardAuthorizationLinkHours: Math.min(
+    168, Math.max(1, Number(process.env.CARD_AUTHORIZATION_LINK_HOURS ?? 24)),
+  ),
   /** Intervalo da conciliação automática, em horas. Zero desliga o job. */
   financeReconciliationHours: Math.max(
     0, Number(process.env.FINANCE_RECONCILIATION_HOURS ?? 6),

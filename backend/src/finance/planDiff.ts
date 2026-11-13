@@ -23,6 +23,8 @@ export interface PlanRowInput {
   installmentNumber?: number | null;
   installmentCount?: number | null;
   groupLabel?: string;
+  /** Baixa local escolhida antes da primeira publicação da etapa. */
+  paid?: boolean;
 }
 
 export interface PlanRowCurrent {

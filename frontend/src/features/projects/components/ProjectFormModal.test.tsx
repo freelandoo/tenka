@@ -28,6 +28,7 @@ vi.mock('../../finance/financeService', () => ({
   fetchProjectFinance: vi.fn(),
   saveSubscription: vi.fn(),
   clearSubscription: vi.fn(),
+  configureProjectRecurringBilling: vi.fn(),
 }));
 
 const existingClient = {
@@ -102,6 +103,10 @@ beforeEach(() => {
   vi.mocked(finance.fetchProjectFinance).mockResolvedValue(financeDetail());
   vi.mocked(finance.saveSubscription).mockResolvedValue(undefined as never);
   vi.mocked(finance.clearSubscription).mockResolvedValue({ cleared: true, queued: false });
+  vi.mocked(finance.configureProjectRecurringBilling).mockResolvedValue({
+    billing: { dueDay: 10, billingType: 'CREDIT_CARD' },
+    rebasedServiceCount: 0,
+  });
 });
 
 describe('ProjectFormModal — contato do cliente', () => {
@@ -261,14 +266,22 @@ describe('ProjectFormModal — mensalidade simplificada', () => {
 
     const fee = await screen.findByLabelText('Valor mensal (R$)');
     await waitFor(() => expect(fee).toHaveValue(formatCurrencyFromCents(30_000)));
+    const dueDay = screen.getByLabelText('Dia do vencimento');
+    expect(dueDay).toHaveValue(10);
     await user.clear(fee);
     await user.type(fee, '350,00');
+    await user.clear(dueDay);
+    await user.type(dueDay, '9');
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(projectsService.updateProject).toHaveBeenCalledWith(
-      'project-1', expect.objectContaining({ monthly_fee_cents: 35_000, due_day: 10 }),
+      'project-1', expect.objectContaining({ monthly_fee_cents: 35_000, due_day: 9 }),
     ));
     expect(finance.saveSubscription).not.toHaveBeenCalled();
+    expect(finance.configureProjectRecurringBilling).toHaveBeenCalledWith('project-1', {
+      dueDay: 9,
+      billingType: 'CREDIT_CARD',
+    });
   });
 
   it('aceita valor zero e remove a mensalidade em vez de deixar a recorrência cobrando', async () => {

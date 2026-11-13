@@ -35,7 +35,15 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
             and ps.asaas_subscription_id is null and p.archived_at is null
             and p.archive_requested_at is null and p.client_id is not null
             and (bs.client_id is null or (ps.due_day = bs.due_day and ps.billing_type = bs.billing_type))
-            and ps.next_due_date <= ${WINDOW}
+            and ps.next_due_date <= case
+              when coalesce(bs.billing_type, ps.billing_type) = 'CREDIT_CARD'
+                then timezone('America/Sao_Paulo', now())::date
+              else ${WINDOW}
+            end
+            and (coalesce(bs.billing_type, ps.billing_type) <> 'CREDIT_CARD' or exists (
+              select 1 from public.card_authorizations ca
+               where ca.client_id = p.client_id and ca.status = 'authorized'
+            ))
          union all
          select p.client_id, cs.next_due_date,
                 coalesce(bs.billing_type, cs.billing_type) as billing_type
@@ -45,7 +53,15 @@ export async function scheduleMonthlyCharge(): Promise<boolean> {
           where cs.status = 'active' and p.archived_at is null
             and p.archive_requested_at is null and p.client_id is not null
             and (bs.client_id is null or (cs.due_day = bs.due_day and cs.billing_type = bs.billing_type))
-            and cs.next_due_date <= ${WINDOW}
+            and cs.next_due_date <= case
+              when coalesce(bs.billing_type, cs.billing_type) = 'CREDIT_CARD'
+                then timezone('America/Sao_Paulo', now())::date
+              else ${WINDOW}
+            end
+            and (coalesce(bs.billing_type, cs.billing_type) <> 'CREDIT_CARD' or exists (
+              select 1 from public.card_authorizations ca
+               where ca.client_id = p.client_id and ca.status = 'authorized'
+            ))
        ) candidates
        order by next_due_date, client_id, billing_type
        limit 1`,

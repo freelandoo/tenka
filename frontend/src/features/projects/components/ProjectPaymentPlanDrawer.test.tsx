@@ -171,6 +171,68 @@ describe('ProjectPaymentPlanDrawer', () => {
     }));
   });
 
+  it('permite criar uma etapa já paga e envia a baixa junto com o plano', async () => {
+    render(
+      <ProjectPaymentPlanDrawer
+        project={{ id: 'project-1', name: 'GS Refrigeração', value_cents: 100_000 }}
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar etapa' }));
+    fireEvent.change(screen.getByLabelText('Nome da etapa 1'), { target: { value: 'Bônus' } });
+    fireEvent.change(screen.getByLabelText('Valor da etapa 1'), { target: { value: '300,00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar etapa 1 como já paga' }));
+
+    expect(screen.getByRole('button', { name: 'Desmarcar etapa 1 como já paga' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e ativar' }));
+
+    await waitFor(() => expect(finance.savePaymentPlan).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({
+        payments: [expect.objectContaining({
+          name: 'Bônus', amountCents: 30_000, paid: true,
+        })],
+      }),
+    ));
+  });
+
+  it('trava uma etapa paga existente e permite adicionar a próxima pelo mesmo plano', async () => {
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true,
+      environment: 'sandbox',
+      project: { id: 'project-1', name: 'GS Refrigeração', value_cents: 100_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: '11111111-1111-4111-8111-111111111111', project_id: 'project-1', name: 'Bônus',
+        description: '', amount_cents: 30_000, due_date: null, paid_at: '2026-11-11T12:00:00.000Z',
+        status: 'paid', position: 0, notes: '', receipt_url: '', kind: 'stage',
+        installment_group_id: null, installment_number: null, installment_count: null,
+        group_label: '', asaas_payment_id: null, external_reference: null, payment_url: '',
+        bank_slip_url: '', pix_payload: '', billing_type: 'UNDEFINED', provider_status: null,
+        sync_status: 'local', sync_error: null, payment_date: '2026-11-11', provider_event_at: null,
+      }],
+      subscriptionPayments: [],
+      paymentPlanDraft: null,
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'GS Refrigeração', value_cents: 100_000 }}
+      appendStage
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(await screen.findByLabelText('Nome da etapa 1')).toBeDisabled();
+    expect(screen.getByLabelText('Valor da etapa 1')).toBeDisabled();
+    expect(screen.getByLabelText('Vencimento da etapa 1')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'etapa 1 paga' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remover etapa 1' })).toBeDisabled();
+    expect(screen.getByLabelText('Nome da etapa 2')).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Marcar etapa 2 como já paga' })).toBeEnabled();
+  });
+
   it('preserva entrada parcial existente ao adicionar outra etapa', async () => {
     vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
       configured: true,
@@ -291,6 +353,35 @@ describe('ProjectPaymentPlanDrawer', () => {
     expect(screen.getByLabelText('Valor da etapa 1')).toHaveValue('350,00');
     expect(screen.getByLabelText('Valor da etapa 2')).toHaveValue('350,00');
     expect(screen.getByLabelText('Vencimento da etapa 1')).toHaveValue('');
+    expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 0,00');
+  });
+
+  it('divide em duas etapas depois que a cobrança única foi cancelada', async () => {
+    const correctionId = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(finance.fetchProjectFinance).mockResolvedValue({
+      configured: true, environment: 'sandbox',
+      project: { id: 'project-1', name: 'Ecoluz', value_cents: 70_000 } as finance.ProjectFinance['project'],
+      subscription: null,
+      projectPayments: [{
+        id: correctionId, project_id: 'project-1', name: 'Pagamento do projeto',
+        description: '', amount_cents: 70_000, due_date: null, paid_at: null,
+        status: 'pending', position: 0, notes: '', receipt_url: '', kind: 'stage',
+        installment_group_id: null, installment_number: null, installment_count: null,
+        group_label: '', asaas_payment_id: null, external_reference: null, payment_url: '',
+        bank_slip_url: '', pix_payload: '', billing_type: 'UNDEFINED',
+        provider_status: 'CORRECTION_REQUIRED', sync_status: 'local', sync_error: null,
+        payment_date: null, provider_event_at: null,
+      }],
+      subscriptionPayments: [], paymentPlanDraft: null,
+    });
+
+    render(<ProjectPaymentPlanDrawer
+      project={{ id: 'project-1', name: 'Ecoluz', value_cents: 70_000 }}
+      correctionPaymentId={correctionId} appendStage
+      onBack={vi.fn()} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(await screen.findByLabelText('Valor da etapa 1')).toHaveValue('350,00');
+    expect(screen.getByLabelText('Valor da etapa 2')).toHaveValue('350,00');
     expect(screen.getByText('Restante a combinar').parentElement).toHaveTextContent('R$ 0,00');
   });
 

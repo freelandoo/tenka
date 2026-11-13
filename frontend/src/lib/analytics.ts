@@ -29,7 +29,7 @@ declare global {
 export const GA_MEASUREMENT_ID = 'G-XWSJ1D2BXZ';
 
 /** Caminhos que não entram no relatório — ver `shouldTrack`. */
-const EXCLUDED_PREFIXES = ['/painel', '/admin'];
+const EXCLUDED_PREFIXES = ['/painel', '/admin', '/autorizar-cobrancas'];
 
 /**
  * A área interna fica de fora do relatório.

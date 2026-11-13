@@ -10,7 +10,7 @@ import {
 import type { BoardProject } from '../services/projectsService';
 import type { SubscriptionPaymentRow } from '../../../lib/supabase/database.types';
 import * as financeService from '../../finance/financeService';
-import type { ProjectFinance } from '../../finance/financeService';
+import type { CardAuthorizationSummary, ProjectFinance } from '../../finance/financeService';
 
 vi.mock('../services/projectsService', () => ({
   fetchSubscriptionPayments: vi.fn(),
@@ -18,10 +18,14 @@ vi.mock('../services/projectsService', () => ({
   registerSubscriptionPaymentManual: vi.fn(),
   cancelSubscriptionPayment: vi.fn(),
 }));
-vi.mock('../../finance/financeService', () => ({
+vi.mock('../../finance/financeService', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../finance/financeService')>(),
   fetchProjectFinance: vi.fn(),
   saveSubscription: vi.fn(),
   subscriptionAction: vi.fn(),
+  fetchProjectCardAuthorization: vi.fn(),
+  createProjectCardAuthorizationLink: vi.fn(),
+  configureProjectRecurringBilling: vi.fn(),
 }));
 vi.mock('../../panel/ToastContext', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
@@ -32,6 +36,9 @@ const mockedCancelPayment = vi.mocked(cancelSubscriptionPayment);
 const mockedFetchFinance = vi.mocked(financeService.fetchProjectFinance);
 const mockedSaveSubscription = vi.mocked(financeService.saveSubscription);
 const mockedSubscriptionAction = vi.mocked(financeService.subscriptionAction);
+const mockedFetchAuthorization = vi.mocked(financeService.fetchProjectCardAuthorization);
+const mockedCreateAuthorizationLink = vi.mocked(financeService.createProjectCardAuthorizationLink);
+const mockedConfigureRecurringBilling = vi.mocked(financeService.configureProjectRecurringBilling);
 
 const defaultProps = {
   competence: '2026-08',
@@ -114,6 +121,23 @@ function makeFinance(
   } as ProjectFinance;
 }
 
+function makeAuthorization(over: Partial<CardAuthorizationSummary> = {}): CardAuthorizationSummary {
+  return {
+    authorization: {
+      id: 'authorization-1', status: 'authorized', card_brand: 'VISA', card_last_four: '4242',
+      authorized_at: '2026-08-01T00:00:00Z', authorized_limit_cents: 29990,
+      term_version: 'v1', revoked_at: null,
+    },
+    authorizationCurrent: true,
+    linkRequired: false,
+    latestLink: null,
+    linkIssue: null,
+    nextCharge: null,
+    sandboxOnly: true,
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedFetchPayments.mockResolvedValue([]);
@@ -121,6 +145,14 @@ beforeEach(() => {
   mockedFetchFinance.mockResolvedValue(makeFinance(makeProject()));
   mockedSaveSubscription.mockResolvedValue({ subscriptionId: 'subscription-1', queued: true });
   mockedSubscriptionAction.mockResolvedValue({ queued: true });
+  mockedFetchAuthorization.mockResolvedValue(makeAuthorization());
+  mockedCreateAuthorizationLink.mockResolvedValue({
+    url: 'https://painel.tenka.com/autorizar-cobrancas/link-seguro',
+    expiresAt: '2026-08-02T00:00:00Z',
+  });
+  mockedConfigureRecurringBilling.mockResolvedValue({
+    billing: { dueDay: 10, billingType: 'CREDIT_CARD' }, rebasedServiceCount: 0,
+  });
 });
 
 describe('SubscriptionList', () => {
@@ -141,7 +173,7 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('Braslar')).toBeInTheDocument();
     expect(screen.getByText('Cida')).toBeInTheDocument();
     expect(screen.getByText('Total ativo · 2 de 2')).toBeInTheDocument();
-    expect(screen.getByText('R$ 359,80/mês')).toBeInTheDocument();
+    expect(screen.getByText('R$ 359,80')).toBeInTheDocument();
   });
 
   it('ignora projeto sem mensalidade cadastrada', () => {
@@ -178,7 +210,7 @@ describe('SubscriptionList', () => {
     expect(screen.getByText('Parada')).toBeInTheDocument();
     expect(screen.getByText('Total ativo · 1 de 2')).toBeInTheDocument();
     // Soma só a ativa; a desligada aparece como receita parada.
-    expect(screen.getByText('R$ 299,90/mês')).toBeInTheDocument();
+    expect(screen.getAllByText('R$ 299,90')).toHaveLength(2);
     expect(screen.getByText(/R\$ 299,90\/mês inativo nesta competência/)).toBeInTheDocument();
   });
 
@@ -211,7 +243,7 @@ describe('SubscriptionList', () => {
       />,
     );
 
-    expect(screen.getByText('R$ 359,80/mês')).toBeInTheDocument();
+    expect(screen.getByText('R$ 359,80')).toBeInTheDocument();
   });
 
   it('admin confirma a desativação e vê que cobranças emitidas serão preservadas', async () => {
@@ -234,7 +266,7 @@ describe('SubscriptionList', () => {
   it('admin ativa uma mensalidade inativa somente após a confirmação', async () => {
     const project = makeProject({ id: 'b', subscription_active: false });
     const finance = makeFinance(project, 'inactive');
-    finance.subscription!.next_due_date = '2026-11-10';
+    finance.subscription!.next_due_date = '2026-12-10';
     mockedFetchFinance.mockResolvedValue(finance);
     render(
       <SubscriptionList {...defaultProps} projects={[project]} isAdmin onChanged={vi.fn()} />,
@@ -248,7 +280,7 @@ describe('SubscriptionList', () => {
     await waitFor(() => expect(mockedSaveSubscription).toHaveBeenCalledWith('b', {
       amountCents: 29_990,
       dueDay: 10,
-      nextDueDate: '2026-11-10',
+      nextDueDate: '2026-12-10',
       activate: true,
     }));
   });
@@ -264,11 +296,13 @@ describe('SubscriptionList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Gerenciar mensalidade inativa/i }));
     expect(await screen.findByRole('heading', { name: 'Reativar mensalidade?' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Mês de início'), { target: { value: '2026-11' } });
+    await waitFor(() => expect(screen.getByLabelText('Mês de início')).toHaveValue('2026-10'));
+    fireEvent.change(screen.getByLabelText('Mês de início'), { target: { value: '2026-12' } });
+    expect(screen.getByLabelText('Mês de início')).toHaveValue('2026-12');
     fireEvent.click(screen.getByRole('button', { name: 'Sim, reativar' }));
 
     await waitFor(() => expect(mockedSaveSubscription).toHaveBeenCalledWith('b', expect.objectContaining({
-      nextDueDate: '2026-11-10',
+      nextDueDate: '2026-12-10',
       activate: true,
     })));
   });
@@ -320,7 +354,104 @@ describe('SubscriptionList', () => {
     expect(within(linha).getByText('André Marcolino')).toBeInTheDocument();
   });
 
-  it('mostra pendência como status e oferece acesso à cobrança sem baixa local', async () => {
+  it('abre o mesmo projeto ao clicar no nome do projeto ou do cliente', () => {
+    const project = makeProject({ id: 'a', name: 'Refribrás', client_name: 'Enzo Cortes' });
+    const onOpenProject = vi.fn();
+    render(<SubscriptionList {...defaultProps} projects={[project]} isAdmin
+      onChanged={vi.fn()} onOpenProject={onOpenProject} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refribrás' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enzo Cortes' }));
+    expect(onOpenProject).toHaveBeenNthCalledWith(1, project);
+    expect(onOpenProject).toHaveBeenNthCalledWith(2, project);
+  });
+
+  it('muda o valor previsto por competência e detalha a composição do mês', async () => {
+    const project = makeProject({
+      id: 'enzo', name: 'Enzo Cortes', monthly_fee_cents: 5000,
+      subscription_first_due_date: '2026-11-26',
+    });
+    const services = [{
+      id: 'domain', project_id: 'enzo', name: 'Domínio', amount_cents: 4000,
+      frequency: 'annual' as const, first_due_date: '2026-12-26', status: 'draft' as const,
+    }];
+    const { rerender } = render(<SubscriptionList projects={[project]} services={services} isAdmin
+      competence="2026-11" competenceLabel="Novembro de 2026" onChanged={vi.fn()} />);
+
+    const november = screen.getByRole('button', { name: 'Enzo Cortes' }).closest('li')!;
+    expect(november.textContent?.replace(/ /g, ' ')).toContain('R$ 50,00');
+    expect(screen.queryByRole('button', { name: 'Ver composição — Enzo Cortes' })).toBeNull();
+
+    rerender(<SubscriptionList projects={[project]} services={services} isAdmin
+      competence="2026-12" competenceLabel="Dezembro de 2026" onChanged={vi.fn()} />);
+    const december = screen.getByRole('button', { name: 'Enzo Cortes' }).closest('li')!;
+    expect(december.textContent?.replace(/ /g, ' ')).toContain('R$ 90,00');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver composição — Enzo Cortes' }));
+    const breakdown = screen.getByRole('list', { name: 'Composição de Enzo Cortes em Dezembro de 2026' });
+    expect(within(breakdown).getByText('Hospedagem mensal')).toBeInTheDocument();
+    expect(within(breakdown).getByText('Domínio')).toBeInTheDocument();
+    expect(within(breakdown).getByText(/Anual · Aguardando autorização/i)).toBeInTheDocument();
+  });
+
+  it('prepara automaticamente o link quando o cartão ainda não foi autorizado', async () => {
+    mockedFetchAuthorization
+      .mockResolvedValueOnce(makeAuthorization({
+        authorization: null, authorizationCurrent: false, linkRequired: true,
+      }))
+      .mockResolvedValueOnce(makeAuthorization({
+        authorization: null, authorizationCurrent: false, linkRequired: true,
+        latestLink: {
+          id: 'link-1', status: 'active', state: 'active',
+          expires_at: '2026-08-02T00:00:00Z', created_at: '2026-08-01T00:00:00Z',
+          url: 'https://painel.tenka.com/autorizar-cobrancas/link-seguro',
+        },
+      }));
+    render(<SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a' })]}
+      isAdmin onChanged={vi.fn()} />);
+
+    expect(await screen.findByText('Aguardando autorização')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar autorização' })).toBeInTheDocument();
+    expect(mockedCreateAuthorizationLink).toHaveBeenCalledWith('a');
+  });
+
+  it('aproveita o vencimento da mensalidade ativa para completar a configuração do cartão', async () => {
+    mockedFetchAuthorization
+      .mockResolvedValueOnce(makeAuthorization({
+        authorization: null, authorizationCurrent: false, linkRequired: false,
+        linkIssue: 'cobranca-recorrente-nao-configurada',
+      }))
+      .mockResolvedValueOnce(makeAuthorization({
+        authorization: null, authorizationCurrent: false, linkRequired: true,
+      }))
+      .mockResolvedValueOnce(makeAuthorization({
+        authorization: null, authorizationCurrent: false, linkRequired: true,
+        latestLink: {
+          id: 'link-1', status: 'active', state: 'active',
+          expires_at: '2026-08-02T00:00:00Z', created_at: '2026-08-01T00:00:00Z',
+          url: 'https://painel.tenka.com/autorizar-cobrancas/link-seguro',
+        },
+      }));
+    render(<SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a', due_day: 10 })]}
+      isAdmin onChanged={vi.fn()} />);
+
+    expect(await screen.findByText('Aguardando autorização')).toBeInTheDocument();
+    expect(mockedConfigureRecurringBilling).toHaveBeenCalledWith('a', {
+      dueDay: 10, billingType: 'CREDIT_CARD',
+    });
+    expect(mockedCreateAuthorizationLink).toHaveBeenCalledWith('a');
+  });
+
+  it('não chama falha de consulta de cartão de não configurado', async () => {
+    mockedFetchAuthorization.mockRejectedValueOnce(new Error('offline'));
+    render(<SubscriptionList {...defaultProps} projects={[makeProject({ id: 'a' })]}
+      isAdmin onChanged={vi.fn()} />);
+
+    expect(await screen.findByText('Consulta indisponível')).toBeInTheDocument();
+    expect(screen.queryByText('Não configurado')).toBeNull();
+  });
+
+  it('depois da autorização mostra o status da cobrança sem repetir link de pagamento', async () => {
     mockedFetchPayments.mockResolvedValue([makePayment()]);
     render(
       <SubscriptionList
@@ -333,10 +464,8 @@ describe('SubscriptionList', () => {
 
     expect(await screen.findByText('Pendente')).toBeInTheDocument();
     expect(mockedFetchPayments).toHaveBeenCalledWith('2026-08');
-    expect(screen.getByRole('link', { name: 'Abrir cobrança' })).toHaveAttribute(
-      'href', 'https://sandbox.asaas.com/i/pay_123',
-    );
-    expect(screen.getByRole('button', { name: 'Copiar link' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Abrir cobrança' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copiar link' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Marcar como pago/ })).toBeNull();
   });
 
@@ -416,7 +545,7 @@ describe('SubscriptionList', () => {
     render(<SubscriptionList {...defaultProps}
       projects={[makeProject({ id: 'a', name: 'Refibras' })]} isAdmin onChanged={vi.fn()} />);
 
-    expect(await screen.findAllByRole('link', { name: 'Abrir cobrança' })).toHaveLength(2);
+    expect(await screen.findAllByText(/Cobrança [12]/)).toHaveLength(2);
     const cancelButtons = screen.getAllByRole('button', { name: 'Cancelar cobrança mensal' });
     fireEvent.click(cancelButtons[1]);
     fireEvent.change(await screen.findByLabelText('Motivo do cancelamento'), {

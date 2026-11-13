@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { blocksDirectIntegratedPaymentChange } from './projectPaymentPolicy';
+import {
+  blocksDirectIntegratedPaymentChange,
+  blocksDirectPaidPaymentChange,
+} from './projectPaymentPolicy';
 
 describe('política de edição dos pagamentos de projeto', () => {
   const integrated = { status: 'pending', dueDate: '2026-10-20', syncStatus: 'synced' };
@@ -21,5 +24,12 @@ describe('política de edição dos pagamentos de projeto', () => {
       { ...integrated, syncStatus: 'local' },
       { status: 'paid', dueDate: '2026-10-21' },
     )).toBe(false);
+  });
+
+  it('não permite reabrir nem trocar o vencimento depois que a etapa foi paga', () => {
+    const paid = { status: 'paid', dueDate: null, syncStatus: 'local' };
+    expect(blocksDirectPaidPaymentChange(paid, { status: 'pending' })).toBe(true);
+    expect(blocksDirectPaidPaymentChange(paid, { dueDate: '2026-11-11' })).toBe(true);
+    expect(blocksDirectPaidPaymentChange(paid, {})).toBe(false);
   });
 });
