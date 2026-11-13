@@ -186,6 +186,22 @@
       "destination": "/projetos/gs-refrigeracao/index.html"
     },
     {
+      "source": "/projetos/hidrovap",
+      "destination": "/projetos/hidrovap/index.html"
+    },
+    {
+      "source": "/projetos/excelencia-refrigeracao",
+      "destination": "/projetos/excelencia-refrigeracao/index.html"
+    },
+    {
+      "source": "/projetos/rh-climatizacao",
+      "destination": "/projetos/rh-climatizacao/index.html"
+    },
+    {
+      "source": "/projetos/vivaar-climatizacao",
+      "destination": "/projetos/vivaar-climatizacao/index.html"
+    },
+    {
       "source": "/innovation-week/api/:path*",
       "destination": "https://inoovation-production-f1d5.up.railway.app/api/:path*"
     },

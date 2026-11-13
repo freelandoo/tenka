@@ -1,8 +1,12 @@
 import { GS_REFRIGERACAO } from './gs-refrigeracao';
+import { HIDROVAP } from './hidrovap';
+import { EXCELENCIA } from './excelencia';
+import { RH_CLIMATIZACAO } from './rh-climatizacao';
+import { VIVAAR } from './vivaar';
 import type { CaseStudy } from './types';
 
 /** Páginas de construção, na ordem em que aparecem. */
-export const CASE_STUDIES: CaseStudy[] = [GS_REFRIGERACAO];
+export const CASE_STUDIES: CaseStudy[] = [GS_REFRIGERACAO, HIDROVAP, EXCELENCIA, RH_CLIMATIZACAO, VIVAAR];
 
 export const casePath = (slug: string) => `/projetos/${slug}`;
 
