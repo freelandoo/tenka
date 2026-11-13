@@ -154,3 +154,43 @@ Cada fatia = commit + push em `master`, deploy pela API da Vercel (nunca CLI), c
 ## Em aberto
 - **Taxa de configuração do GMN avulso** (valor). Proposta: cobrada só no avulso; junto do site, sem taxa.
 - Valores dos **sinais** de games, sistemas, AR e VR.
+
+## Frente H — hero vitrine e trabalhos reais (pedido do Alex, 13/11)
+
+**Pedido:** trocar o hero de todas as páginas por uma vitrine de cards — o maior na frente, os
+outros atrás e um pouco de lado — com os projetos online renderizados, borda transparente e
+"VISITAR" embaixo; fundo do hero = o trabalho mais relevante do tópico. Todo mockup sai e entra
+trabalho real (Studios e Games principalmente).
+
+**Inventário do que é mockup hoje:** `tech/data/projects.ts` (FINLAND, GYM CONTROL, FLOW CRM,
+BOOK NOW, DATA VIEW — "Fake production URL"), `multimedia/data/projects.ts` (PULSE SOCIAL,
+NIGHT SHIFT… — "placeholder"), `games/data/projects.ts` (Eclipse Primordial, Fronteira
+Silenciada, Corações de Ferro — universos inventados).
+
+**Trabalhos reais por divisão (lista do Alex):**
+- **Tech:** os sites de cliente (GS, Hidrovap, Excelência, RH, VivaAr, EcoLuz, Enzo, Ricardo…),
+  a Freelandoo e o sistema Coliseu.
+- **Studios:** RA (Innovation Week), coleção da Casa Views, embalagem/rótulo da Innovation,
+  apresentações (Innovation e Casa Views), criação de personagens.
+- **Games:** o Meu Mundo (com criação de personagens), os dois jogos (EVO/Cat demon e o
+  Astronauta Jetpack), os minijogos do Meu Mundo e a comunidade games da Freelandoo.
+
+**Arquitetura:**
+- `src/works/` — catálogo único de trabalhos reais (divisão, tópicos, link no ar, página de
+  bastidores, pôster, vídeo, se aceita iframe). Alimenta heros, hubs, serviços e /projetos.
+- `ShowroomHero` — palco em perspectiva: card da frente com o projeto **ao vivo** (iframe só
+  no da frente e só no desktop; o resto pôster/vídeo — mesma regra do hero da home), cards de
+  trás deslocados e girados; clicar num de trás traz para a frente (GSAP). Embaixo de cada card,
+  pílula de borda transparente "VISITAR ↗" (site no ar; o que não é público vai para os
+  bastidores). Fundo: pôster/vídeo do trabalho mais relevante, escurecido; partículas por cima.
+- O que não está público (Meu Mundo, EVO) entra só com print/vídeo e leva aos bastidores —
+  nunca build jogável (exceção: o Astronauta, que já é jogável em /innovation-week/jogo).
+
+**Fatias:**
+| # | Fatia | Pronto quando |
+|---|---|---|
+| H0 | Catálogo `src/works` + `ShowroomHero` | componente numa página de teste, iframe só na frente |
+| H1 | Hub Tech: hero vitrine + portfólio real (sai FINLAND & cia.) | /tech sem mockup |
+| H2 | Hub Studios: RA, Casa Views, Innovation, apresentações, personagens | /studios sem mockup |
+| H3 | Hub Games: Meu Mundo, EVO, Astronauta, minijogos, comunidade | /games sem universo inventado |
+| H4 | 16 páginas de serviço com a vitrine filtrada pelo tópico | todas com hero vitrine |
