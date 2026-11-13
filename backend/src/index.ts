@@ -19,7 +19,7 @@ import { webhookRoutes } from './modules/webhooks';
 import { meetingRoutes } from './modules/meetings';
 import { financeRoutes } from './modules/finance';
 import { cardAuthorizationRoutes } from './modules/cardAuthorizations';
-import { storeRoutes } from './modules/store';
+import { storeReconcileJob, storeRoutes } from './modules/store';
 import { financeWorker } from './finance/worker';
 import { reconciliationJob } from './finance/reconciliationJob';
 import { realtimeBus } from './realtime/bus';
@@ -87,6 +87,8 @@ async function main(): Promise<void> {
 
   const startFinanceJobs = () => {
     financeWorker.start();
+    // Loja (Mercado Pago): independente do Asaas; só liga com o MP configurado.
+    storeReconcileJob.start(app);
     reconciliationJob.start((err) => {
       app.log.error({ err }, 'Falha na conciliação automática do Asaas');
     });
@@ -123,6 +125,7 @@ for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     await realtimeBus.stop().catch(() => {});
     financeWorker.stop();
     reconciliationJob.stop();
+    storeReconcileJob.stop();
     await app.close().catch(() => {});
     await closeDb().catch(() => {});
     process.exit(0);
