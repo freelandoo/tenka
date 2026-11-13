@@ -92,3 +92,83 @@
 @media (prefers-reduced-motion: reduce) {
   .lj-card, .lj-card:hover { transition: none; transform: none; }
 }
+
+/* ------------------------------------------------------------- carrinho */
+.lj-card__picked { margin-top: 24px; color: var(--tf-acc); }
+
+.lj-cart-fab {
+  position: fixed;
+  left: 16px;
+  bottom: 20px;
+  z-index: 80; /* acima do WhatsApp (75), abaixo do aviso de cookies (90) */
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border: 0;
+  background: var(--tf-acc);
+  color: #000;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 6px 6px 0 rgba(var(--tf-acc-rgb), 0.3);
+}
+.lj-cart-fab b { display: inline-grid; place-items: center; min-width: 22px; height: 22px; background: #000; color: var(--tf-acc); }
+
+.lj-cart { position: fixed; inset: 0; z-index: 120; } /* acima do aviso de cookies (90) e do WhatsApp */
+.lj-cart__scrim { position: absolute; inset: 0; border: 0; background: rgba(0, 0, 0, 0.6); cursor: pointer; }
+.lj-cart__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 100vw);
+  overflow-y: auto;
+  padding: 24px 24px 32px;
+  background: var(--tf-panel);
+  border-left: 1px solid rgba(var(--tf-acc-rgb), 0.4);
+  outline: none;
+  animation: lj-slide 260ms var(--tf-ease);
+}
+@keyframes lj-slide { from { transform: translateX(40px); opacity: 0; } }
+.lj-cart__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.lj-cart__head .tf-mono { color: var(--tf-acc); letter-spacing: 0.2em; text-transform: uppercase; font-size: 12px; }
+.lj-cart__close { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--tf-faint); background: transparent; color: var(--tf-ink); cursor: pointer; }
+.lj-cart__empty { color: var(--tf-dim); }
+.lj-cart__items { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--tf-faint); }
+.lj-cart__items li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--tf-faint); }
+.lj-cart__items strong { display: block; font-size: 15px; }
+.lj-cart__items small { color: var(--tf-dim); font-size: 12px; }
+.lj-cart__remove { border: 0; background: none; color: var(--tf-dim); font-size: 11px; cursor: pointer; text-decoration: underline; }
+.lj-cart__subs { display: grid; gap: 10px; margin: 18px 0 0; padding: 14px; border: 1px solid var(--tf-faint); }
+.lj-cart__subs legend { padding: 0 6px; color: var(--tf-acc); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
+.lj-cart__subs label { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.lj-cart__subs input { accent-color: var(--tf-acc); }
+.lj-cart__totals { display: grid; gap: 8px; margin: 20px 0 0; }
+.lj-cart__totals div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lj-cart__totals dt { color: var(--tf-dim); font-size: 13px; }
+.lj-cart__totals dd { margin: 0; font-family: var(--tf-display); font-size: 22px; font-weight: 800; text-align: right; }
+.lj-cart__totals small { display: block; color: var(--tf-dim); font-size: 10px; font-weight: 400; }
+.lj-cart__form { display: grid; gap: 14px; margin-top: 24px; }
+.lj-cart__form label { display: grid; gap: 6px; }
+.lj-cart__form label span { color: var(--tf-dim); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+.lj-cart__form input { width: 100%; padding: 12px; border: 1px solid var(--tf-faint); background: var(--tf-bg); color: var(--tf-ink); font: inherit; font-size: 16px; }
+.lj-cart__form input:focus { outline: 2px solid var(--tf-acc); outline-offset: 1px; }
+.lj-cart__hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.lj-cart__hint { margin: 0; color: var(--tf-dim); font-size: 13px; line-height: 1.5; }
+.lj-cart__error { margin: 0; padding: 10px 12px; border: 1px solid #ff5a5a; color: #ffb3b3; font-size: 14px; }
+.lj-cart__pay { justify-content: center; }
+.lj-cart__pay:disabled { opacity: 0.6; cursor: progress; }
+
+/* ---------------------------------------------------------------- pedido */
+.lj-order { min-height: 70vh; padding-bottom: 80px; }
+.lj-order__title { margin: 22px 0 0; font-size: clamp(40px, 7vw, 96px); line-height: 0.95; }
+.lj-order__charges { display: grid; gap: 0; max-width: 680px; margin: 32px 0 28px; padding: 0; list-style: none; border-top: 1px solid var(--tf-faint); }
+.lj-order__charges li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--tf-faint); }
+.lj-order__charges strong { display: block; }
+.lj-order__charges small { color: var(--tf-dim); }
+.lj-order__status { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tf-dim); text-align: right; }
+.lj-order__charges li[data-status='paid'] .lj-order__status { color: var(--tf-acc); }
+.lj-order__help { margin-top: 28px; color: var(--tf-dim); font-size: 12px; }
+.lj-order__help a, .lj-order .lj-hero__lead a { color: var(--tf-acc); }

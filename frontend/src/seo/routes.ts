@@ -303,7 +303,7 @@ export const TOP_LEVEL_ROUTES = CORE_ROUTES;
 export const LEGAL_NAV_ROUTES = LEGAL_ROUTES;
 
 /** Rotas que existem mas nunca devem ser indexadas (área interna). */
-export const NOINDEX_PREFIXES = ['/painel', '/admin'];
+export const NOINDEX_PREFIXES = ['/painel', '/admin', '/loja/pedido'];
 
 /**
  * Redirecionamentos 301 — rotas duplicadas que serviam conteúdo idêntico.
