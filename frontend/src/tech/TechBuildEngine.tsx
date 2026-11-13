@@ -11,9 +11,11 @@ import BriefModal from '../components/brief/BriefModal';
 import { TECH_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import { useHashScroll } from '../hooks/useHashScroll';
-import TechLabs from './portfolio/TechLabs';
-import TenkaHologram from '../tabloid/hologram/TenkaHologram';
 import { DIVISIONS } from '../tabloid/divisions';
+import { ShowroomBackdrop, ShowroomStage } from '../components/showroom/ShowroomHero';
+import WorksGrid from '../components/showroom/WorksGrid';
+import { HERO_BACKDROP, WORKS, worksOf } from '../works';
+import '../components/showroom/hubs.css';
 import './tech.css';
 
 const SERVICES = [
@@ -100,18 +102,27 @@ function DigitalEnvironment() {
           <circle cx="833" cy="143" r="5" /><circle cx="1282" cy="138" r="5" />
         </g>
       </svg>
-      {/* A marca TENKA em holograma (a mesma de /precos). Grande no herói,
-          encolhe no scroll e percorre a página pela linha do tempo do GSAP. */}
-      <div className="tt-core">
-        <TenkaHologram accent={DIVISIONS.tech.accent} className="h-full w-full" />
-      </div>
       <div className="tt-packets"><i /><i /><i /><i /><i /></div>
       <div className="tt-environment-shade" />
     </div>
   );
 }
 
-function ServiceVisual({ type }: { type: string }) {
+/** Trabalho real de cada frente (no lugar da interface desenhada em CSS). */
+const SERVICE_WORK: Record<string, string> = { browser: 'gs', saas: 'freelandoo', automation: 'freelandoo', app: 'coliseu' };
+
+function ServiceWork({ type }: { type: string }) {
+  const work = WORKS.find((w) => w.id === SERVICE_WORK[type]);
+  if (!work) return null;
+  return (
+    <a className="tt-service-visual sr-service-work" href={work.href} target="_blank" rel="noopener noreferrer">
+      <img src={work.poster} alt={`${work.name} — ${work.kind}`} loading="lazy" decoding="async" />
+      <span className="tt-mono">{work.name} ↗</span>
+    </a>
+  );
+}
+
+export function ServiceVisual({ type }: { type: string }) {
   return (
     <div className={`tt-service-visual tt-service-visual--${type}`} aria-hidden="true">
       <div className="tt-ui-bar"><i /><i /><i /><span /></div>
@@ -149,13 +160,8 @@ export default function TechBuildEngine() {
     gsap.timeline({ defaults: { ease: 'power3.out' } })
       .from('.tt-header', { yPercent: -100, opacity: 0, duration: 0.8 })
       .from('.tt-hero-copy > *', { y: 38, opacity: 0, duration: 0.78, stagger: 0.09 }, '-=.4')
-      .from('.tt-core', { scale: 0.8, opacity: 0, duration: 1.2 }, '-=.85');
+      .from('.sr-slot', { opacity: 0, y: 40, duration: 1.1 }, '-=.6');
 
-    // herói → serviços: a marca encolhe e começa a andar
-    gsap.to('.tt-core', {
-      scale: 0.42, x: '-8vw', y: '6vh', ease: 'none',
-      scrollTrigger: { trigger: '.tt-hero', start: 'top top', end: 'bottom top', scrub: 1 },
-    });
 
     gsap.to('.tt-network-plane--back', {
       yPercent: 12, xPercent: -4, ease: 'none',
@@ -165,13 +171,6 @@ export default function TechBuildEngine() {
       yPercent: -16, xPercent: 5, ease: 'none',
       scrollTrigger: { trigger: rootRef.current, start: 'top top', end: 'bottom bottom', scrub: 1.1 },
     });
-    gsap.timeline({
-      scrollTrigger: { trigger: '.tt-services', start: 'top bottom', end: 'bottom top', scrub: 1.3 },
-    })
-      // sem rotate 2D: a marca tem que continuar de pé e legível (o giro é o do holograma)
-      .to('.tt-core', { x: '-24vw', y: '12vh', scale: 0.32, duration: 1 })
-      .to('.tt-core', { x: '16vw', y: '31vh', scale: 0.46, duration: 1 })
-      .to('.tt-core', { x: '-12vw', y: '52vh', scale: 0.3, duration: 1 });
 
     gsap.utils.toArray<HTMLElement>('.tt-reveal').forEach((element) => {
       gsap.from(element, {
@@ -217,7 +216,8 @@ export default function TechBuildEngine() {
       </header>
 
       <main>
-        <section id="inicio" className="tt-hero" aria-labelledby="tech-title">
+        <section id="inicio" className="tt-hero sr-hub-hero" aria-labelledby="tech-title">
+          <ShowroomBackdrop {...HERO_BACKDROP.tech} />
           <div className="tt-hero-copy">
             <p className="tt-eyebrow tt-mono"><i /> ENGENHARIA DIGITAL / SISTEMAS VIVOS</p>
             {/* O slogan segue sendo o display. A linha `sr-only` entra no texto
@@ -234,9 +234,9 @@ export default function TechBuildEngine() {
               <p className="tt-mono">SITES <b>·</b> SAAS <b>·</b> AUTOMAÇÕES <b>·</b> APLICATIVOS</p>
             </div>
           </div>
-          <aside className="tt-system-data tt-mono" aria-label="Status do sistema">
-            <p>SYS_ARCH_V3.1</p><p>NETWORK <b>ONLINE</b></p><p>NODES 04 / 04</p>
-          </aside>
+          <div className="sr-slot">
+            <ShowroomStage works={worksOf('tech')} accent={DIVISIONS.tech.accent} />
+          </div>
           <p className="tt-scroll tt-mono">ROLE PARA CONSTRUIR <i /></p>
         </section>
 
@@ -251,13 +251,20 @@ export default function TechBuildEngine() {
               <article className={`tt-service tt-service--${index + 1} tt-reveal`} key={service.id}>
                 <div className="tt-service-index tt-mono"><b>{service.id}</b><span>{service.label}</span></div>
                 <div className="tt-service-copy"><h3>{service.name}</h3><p>{service.description}</p><small className="tt-mono">{service.output}</small></div>
-                <ServiceVisual type={service.visual} />
+                <ServiceWork type={service.visual} />
               </article>
             ))}
           </div>
         </section>
 
-        <TechLabs />
+        <section id="produtos" className="tt-labs sr-hub-works" aria-labelledby="products-title">
+          <div className="tt-section-intro tt-reveal">
+            <p className="tt-kicker tt-mono">02 / NO AR AGORA</p>
+            <h2 id="products-title">TRABALHOS<br />REAIS.</h2>
+            <p>Sites, plataforma e sistema que a TENKA construiu e mantém no ar. Passe o mouse para ver rodando; cada um abre de verdade.</p>
+          </div>
+          <WorksGrid works={worksOf('tech')} accent={DIVISIONS.tech.accent} />
+        </section>
 
         <section id="metodo" className="tt-method" aria-labelledby="method-title">
           <div className="tt-method-copy tt-reveal">

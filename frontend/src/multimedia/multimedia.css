@@ -127,7 +127,7 @@
 .ts-process-steps p { margin: 0; color: var(--ts-muted); line-height: 1.65; }
 
 .ts-contact { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 82dvh; overflow: hidden; padding: 110px 5vw; border-top: 1px solid var(--ts-line); text-align: center; isolation: isolate; }
-.ts-contact-art { position: absolute; z-index: -3; inset: -12% -8%; background: linear-gradient(rgba(11,11,13,.72),rgba(11,11,13,.92)), url('/images/studios/project-branding-1600.webp') center / cover; will-change: transform; }
+.ts-contact-art { position: absolute; z-index: -3; inset: -12% -8%; background: linear-gradient(rgba(11,11,13,.72),rgba(11,11,13,.92)), url('/portfolio/works/studios/casaviews.webp') center / cover; will-change: transform; }
 .ts-contact-orbits { position: absolute; z-index: -2; display: grid; place-items: center; width: min(68vw,920px); aspect-ratio: 1; will-change: transform, opacity; }
 .ts-contact-scan, .ts-contact-orbit-secondary { position: absolute; inset: 0; border: 1px solid rgba(217,35,46,.46); border-radius: 50%; animation: ts-rotate 30s linear infinite; }
 .ts-contact-scan::before, .ts-contact-scan::after { content: ''; position: absolute; inset: 16%; border: 1px dashed rgba(217,35,46,.3); border-radius: inherit; }

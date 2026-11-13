@@ -12,32 +12,37 @@ import { STUDIOS_BRIEF } from '../components/brief/briefConfig';
 import { useSeo } from '../seo/useSeo';
 import { useHashScroll } from '../hooks/useHashScroll';
 import StudioSection from './portfolio/StudioSection';
+import { ShowroomBackdrop, ShowroomStage } from '../components/showroom/ShowroomHero';
+import WorksGrid from '../components/showroom/WorksGrid';
+import { HERO_BACKDROP, worksOf } from '../works';
+import { DIVISIONS } from '../tabloid/divisions';
+import '../components/showroom/hubs.css';
 import './multimedia.css';
 
 const PROJECTS = [
   {
     id: 'PRJ_001',
-    title: 'Matéria em movimento',
-    category: 'Animação 3D',
-    description: 'Formas, materiais e luz dirigidos quadro a quadro para apresentar ideias com impacto.',
-    image: '/images/studios/project-animation-1600.webp',
-    alt: 'Forma escultural cromada entre tecidos vermelhos em uma composição de animação 3D',
+    title: 'Innovation Week',
+    category: 'Embalagem · rótulo 3D · RA',
+    description: 'QR único por unidade, rótulo em 3D com luz rasante, realidade aumentada, jogo e ranking ao vivo.',
+    image: '/portfolio/works/studios/innovation.webp',
+    alt: 'Página da Innovation Week com o rótulo 3D da embalagem dentro de um anel vermelho',
   },
   {
     id: 'PRJ_002',
-    title: 'Objeto de desejo',
-    category: 'Mockup digital',
-    description: 'Produto virtual com acabamento publicitário antes mesmo de existir fisicamente.',
-    image: '/images/studios/project-product-1600.webp',
-    alt: 'Mockup digital de um frasco preto com placa metálica e iluminação vermelha',
+    title: 'Casa Views × Indemetal',
+    category: 'Apresentação · coleção',
+    description: 'A apresentação do reality com o produto girando em 3D e a coleção ao vivo.',
+    image: '/portfolio/works/studios/casaviews.webp',
+    alt: 'Apresentação Casa Views e Indemetal com o produto em 3D sob um anel rosa',
   },
   {
     id: 'PRJ_003',
-    title: 'Sistema de presença',
-    category: 'Branding',
-    description: 'Identidades que conectam estratégia, forma e aplicação em um sistema reconhecível.',
-    image: '/images/studios/project-branding-1600.webp',
-    alt: 'Sistema de identidade visual aplicado em papelaria preta, prata e acrílico vermelho',
+    title: 'Criação de personagens',
+    category: 'Personagem · folha de modelo',
+    description: 'Do retrato à folha de modelo e ao 3D: os personagens do Meu Mundo e do EVO Brazil.',
+    image: '/portfolio/games/lab/sheet-full.webp',
+    alt: 'Folha de modelo de personagem com vistas de frente e de lado',
   },
 ];
 
@@ -142,8 +147,8 @@ export default function CultureMachine() {
         .from('.ts-header', { yPercent: -100, opacity: 0, duration: 0.85 })
         .from('.ts-hero-copy > *', { y: 34, opacity: 0, duration: 0.8, stagger: 0.1 }, '-=0.45');
 
-      gsap.to('.ts-hero-art', {
-        yPercent: 18,
+      gsap.to('.ts-hero .sr-backdrop', {
+        yPercent: 12,
         ease: 'none',
         scrollTrigger: { trigger: '.ts-hero', start: 'top top', end: 'bottom top', scrub: 1.1 },
       });
@@ -431,9 +436,9 @@ export default function CultureMachine() {
           data-ts-frame="OBJECT 04 / MATERIALIZAÇÃO"
           data-ts-focus-pad="7"
         >
-          <img src="/images/studios/hero-maquete-1600.webp" alt="" />
+          <img src="/portfolio/studios/rotulo-camadas.webp" alt="" />
           <span className="ts-promoter-shade" />
-          <b className="ts-promoter-label ts-mono">OBJ_04 / MAQUETE</b>
+          <b className="ts-promoter-label ts-mono">OBJ_04 / RÓTULO</b>
         </div>
       </div>
       <div ref={focusFrameRef} className="ts-focus-tracker" aria-hidden="true">
@@ -464,8 +469,8 @@ export default function CultureMachine() {
       </header>
 
       <main>
-        <section id="inicio" className="ts-hero" aria-labelledby="studios-title">
-          <div className="ts-hero-art" aria-hidden="true" />
+        <section id="inicio" className="ts-hero sr-hub-hero" aria-labelledby="studios-title">
+          <ShowroomBackdrop {...HERO_BACKDROP.studios} />
           <div className="ts-hero-shade" aria-hidden="true" />
           <div className="ts-hero-grid" aria-hidden="true" />
           <div className="ts-light ts-light--one" aria-hidden="true" />
@@ -483,8 +488,9 @@ export default function CultureMachine() {
               VER PROJETOS <span>↘</span>
             </button>
           </div>
-          <div className="ts-hero-frame-target" data-ts-focus data-ts-frame="FRAME 024 / HERO" data-ts-focus-pad="0" aria-hidden="true" />
-          <p className="ts-frame-data ts-mono">FRAME 024<br />35MM / F2.8<br />ISO 800</p>
+          <div className="sr-slot" data-ts-focus data-ts-frame="FRAME 024 / VITRINE" data-ts-focus-pad="6">
+            <ShowroomStage works={worksOf('studios')} accent={DIVISIONS.studios.accent} />
+          </div>
           <p className="ts-scroll-hint ts-mono">ROLE PARA EXPLORAR <span /></p>
         </section>
 
@@ -511,6 +517,10 @@ export default function CultureMachine() {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="ts-section sr-hub-works" aria-label="Trabalhos reais da TENKA Studios">
+          <WorksGrid works={worksOf('studios')} accent={DIVISIONS.studios.accent} />
         </section>
 
         <StudioSection />
@@ -540,7 +550,7 @@ export default function CultureMachine() {
 
         <section id="processo" className="ts-section ts-process" aria-labelledby="process-title">
           <div className="ts-process-visual ts-reveal" data-ts-focus data-ts-frame="FRAME 086 / OBJETO" data-ts-focus-pad="6">
-            <img src="/images/studios/hero-maquete-1600.webp" alt="Maquete arquitetônica iluminada em vermelho no estúdio Tenka" />
+            <img src="/portfolio/studios/rotulo-camadas.webp" alt="Rótulo da Innovation Week aberto em camadas" />
             <div className="ts-focus-frame" aria-hidden="true"><i /><i /><i /><i /></div>
             <p className="ts-mono">FOCO / DETALHE / PRESENÇA</p>
           </div>

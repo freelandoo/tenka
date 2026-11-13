@@ -8,13 +8,17 @@ import { useLenis } from './hooks/useLenis';
 import BriefModal from '../components/brief/BriefModal';
 import { GAMES_BRIEF } from '../components/brief/briefConfig';
 import { WorldEngineBackground } from './components/WorldEngineBackground';
-import { WORLD_PROJECTS, type WorldProject } from './data/projects';
 import { GAME_SERVICES, PRODUCTION_STEPS } from './data/services';
 import TenkaSymbol from '../components/TenkaSymbol';
 import DivisionServiceLinks from '../components/site/DivisionServiceLinks';
 import { useSeo } from '../seo/useSeo';
 import { useHashScroll } from '../hooks/useHashScroll';
 import PortfolioSection from './portfolio/PortfolioSection';
+import { ShowroomBackdrop, ShowroomStage } from '../components/showroom/ShowroomHero';
+import WorksGrid from '../components/showroom/WorksGrid';
+import { HERO_BACKDROP, worksOf } from '../works';
+import { DIVISIONS } from '../tabloid/divisions';
+import '../components/showroom/hubs.css';
 import './games.css';
 
 const EMBERS = Array.from({ length: 18 }, (_, index) => ({
@@ -40,61 +44,6 @@ function BrandMark({ official = false }: { official?: boolean }) {
         </>
       )}
     </Link>
-  );
-}
-
-function ProjectCard({ project, index }: { project: WorldProject; index: number }) {
-  const cardRef = useRef<HTMLElement>(null);
-  const reducedMotion = useReducedMotion();
-
-  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (reducedMotion || event.pointerType === 'touch' || !cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width - 0.5;
-    const y = (event.clientY - rect.top) / rect.height - 0.5;
-    gsap.to(cardRef.current, {
-      rotateY: x * 3.5,
-      rotateX: y * -3.5,
-      y: -5,
-      transformPerspective: 900,
-      duration: 0.55,
-      ease: 'power3.out',
-      overwrite: true,
-    });
-  };
-
-  const resetTilt = () => {
-    if (!cardRef.current) return;
-    gsap.to(cardRef.current, {
-      rotateX: 0,
-      rotateY: 0,
-      y: 0,
-      duration: 0.7,
-      ease: 'power3.out',
-      overwrite: true,
-    });
-  };
-
-  return (
-    <article
-      ref={cardRef}
-      className={`tg-project-card tg-project-card--${index + 1}`}
-      onPointerMove={onPointerMove}
-      onPointerLeave={resetTilt}
-    >
-      <div className="tg-project-media">
-        <img src={project.image.src} alt={project.image.alt} loading={index === 0 ? 'eager' : 'lazy'} />
-        <span className="tg-project-vignette" aria-hidden="true" />
-        <span className="tg-project-index tg-mono">0{index + 1}</span>
-        <span className="tg-project-type tg-mono">ORIGINAL</span>
-      </div>
-      <div className="tg-project-copy">
-        <p className="tg-mono">{project.category}</p>
-        <h3>{project.title}</h3>
-        <p>{project.description}</p>
-        <span className="tg-project-action tg-mono">EXPLORAR UNIVERSO <b aria-hidden="true">↗</b></span>
-      </div>
-    </article>
   );
 }
 
@@ -251,8 +200,8 @@ export default function WorldForge() {
       </header>
 
       <main>
-        <section id="inicio" className="tg-hero" aria-labelledby="games-title">
-          <div className="tg-hero-art" aria-hidden="true" />
+        <section id="inicio" className="tg-hero sr-hub-hero" aria-labelledby="games-title">
+          <ShowroomBackdrop {...HERO_BACKDROP.games} />
           <div className="tg-hero-shade" aria-hidden="true" />
           <div className="tg-orbit-layer" aria-hidden="true">
             <span className="tg-orbit tg-orbit--one" />
@@ -288,32 +237,26 @@ export default function WorldForge() {
                 <b className="tg-mono">[ MISSÃO ]</b>
                 <p>JOGOS, ATIVAÇÕES E TREINAMENTOS<br />EM REALIDADE VIRTUAL.</p>
               </div>
-              <div className="tg-mono">
-                <p>23.5505° S, 46.6333° W</p>
-                <b>TXK_GMS_2026</b>
-              </div>
             </div>
             <button type="button" className="tg-primary-button tg-mono" onClick={() => scrollTo('projetos')}>
               EXPLORAR PROJETOS <span aria-hidden="true">↘</span>
             </button>
           </div>
 
-          <div className="tg-hero-status tg-mono" aria-hidden="true">
-            <span>GRD<br />8X</span><span>ANG<br />45°</span><span>RAD<br />1X</span>
+          <div className="sr-slot">
+            <ShowroomStage works={worksOf('games')} accent={DIVISIONS.games.accent} />
           </div>
           <p className="tg-scroll-hint tg-mono">ROLE PARA EXPLORAR <span /></p>
         </section>
 
         <section id="projetos" className="tg-section tg-projects" aria-labelledby="projects-title">
           <div className="tg-section-heading tg-reveal">
-            <p className="tg-kicker tg-mono">01 / UNIVERSOS EM DESTAQUE</p>
-            <h2 id="projects-title">Ideias que se tornam<br />lugares para viver.</h2>
-            <p>Cada projeto nasce com linguagem própria, mas todos compartilham a mesma obsessão: fazer o jogador sentir presença.</p>
+            <p className="tg-kicker tg-mono">01 / JOGOS DE VERDADE</p>
+            <h2 id="projects-title">Mundos que já<br />estão rodando.</h2>
+            <p>O Meu Mundo com os seus Domínios e minijogos, a criação de personagens, o EVO Brazil, o Astronauta da Innovation Week e a comunidade games da Freelandoo.</p>
           </div>
-          <div className="tg-project-grid tg-reveal">
-            {WORLD_PROJECTS.map((project, index) => (
-              <ProjectCard key={project.id} project={project} index={index} />
-            ))}
+          <div className="tg-reveal">
+            <WorksGrid works={worksOf('games')} accent={DIVISIONS.games.accent} />
           </div>
         </section>
 
