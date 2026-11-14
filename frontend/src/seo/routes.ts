@@ -16,6 +16,7 @@ import { HEADLINE, LEAD } from '../data/positioning';
 import { LEGAL_ROUTES } from './legal';
 import { SERVICE_ROUTES } from './services';
 import { CASE_STUDIES, casePath } from '../cases';
+import { GUIDE_ROUTES } from '../guides';
 
 export const SITE_URL = 'https://www.tenkagroup.com.br';
 
@@ -291,7 +292,10 @@ export const CASE_ROUTES: SeoRoute[] = CASE_STUDIES.map((item) => ({
   changefreq: 'monthly' as const,
 }));
 
-export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES, ...CASE_ROUTES, ...LEGAL_ROUTES];
+/** Guias de SEO (frente S): /guias, /guias/<tema> e /guias/<tema>/<pergunta>. */
+const GUIDE_SEO_ROUTES: SeoRoute[] = GUIDE_ROUTES.map((r) => ({ ...r, priority: r.path === '/guias' ? 0.6 : 0.5, changefreq: 'monthly' as const }));
+
+export const ROUTES: SeoRoute[] = [...CORE_ROUTES, ...SERVICE_ROUTES, ...CASE_ROUTES, ...GUIDE_SEO_ROUTES, ...LEGAL_ROUTES];
 
 /**
  * Só home, divisões e institucionais — o que cabe num menu ou rodapé.

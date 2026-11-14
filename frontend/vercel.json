@@ -234,6 +234,106 @@
       "destination": "/projetos/astronaut-jetpack/index.html"
     },
     {
+      "source": "/guias",
+      "destination": "/guias/index.html"
+    },
+    {
+      "source": "/guias/sites",
+      "destination": "/guias/sites/index.html"
+    },
+    {
+      "source": "/guias/sites/quanto-custa-um-site",
+      "destination": "/guias/sites/quanto-custa-um-site/index.html"
+    },
+    {
+      "source": "/guias/sites/landing-page-ou-site-institucional",
+      "destination": "/guias/sites/landing-page-ou-site-institucional/index.html"
+    },
+    {
+      "source": "/guias/sites/site-com-3d-vale-a-pena",
+      "destination": "/guias/sites/site-com-3d-vale-a-pena/index.html"
+    },
+    {
+      "source": "/guias/google",
+      "destination": "/guias/google/index.html"
+    },
+    {
+      "source": "/guias/google/como-aparecer-no-google",
+      "destination": "/guias/google/como-aparecer-no-google/index.html"
+    },
+    {
+      "source": "/guias/google/google-meu-negocio-como-funciona",
+      "destination": "/guias/google/google-meu-negocio-como-funciona/index.html"
+    },
+    {
+      "source": "/guias/google/quanto-custa-gerenciar-o-google-meu-negocio",
+      "destination": "/guias/google/quanto-custa-gerenciar-o-google-meu-negocio/index.html"
+    },
+    {
+      "source": "/guias/google/search-console-e-analytics",
+      "destination": "/guias/google/search-console-e-analytics/index.html"
+    },
+    {
+      "source": "/guias/games",
+      "destination": "/guias/games/index.html"
+    },
+    {
+      "source": "/guias/games/o-que-e-advergame",
+      "destination": "/guias/games/o-que-e-advergame/index.html"
+    },
+    {
+      "source": "/guias/games/jogo-para-evento-com-ranking",
+      "destination": "/guias/games/jogo-para-evento-com-ranking/index.html"
+    },
+    {
+      "source": "/guias/games/jogo-no-navegador-ou-aplicativo",
+      "destination": "/guias/games/jogo-no-navegador-ou-aplicativo/index.html"
+    },
+    {
+      "source": "/guias/realidade-aumentada-e-virtual",
+      "destination": "/guias/realidade-aumentada-e-virtual/index.html"
+    },
+    {
+      "source": "/guias/realidade-aumentada-e-virtual/realidade-aumentada-na-embalagem",
+      "destination": "/guias/realidade-aumentada-e-virtual/realidade-aumentada-na-embalagem/index.html"
+    },
+    {
+      "source": "/guias/realidade-aumentada-e-virtual/qr-code-na-embalagem-o-que-colocar",
+      "destination": "/guias/realidade-aumentada-e-virtual/qr-code-na-embalagem-o-que-colocar/index.html"
+    },
+    {
+      "source": "/guias/realidade-aumentada-e-virtual/ar-ou-vr-qual-escolher",
+      "destination": "/guias/realidade-aumentada-e-virtual/ar-ou-vr-qual-escolher/index.html"
+    },
+    {
+      "source": "/guias/sistemas",
+      "destination": "/guias/sistemas/index.html"
+    },
+    {
+      "source": "/guias/sistemas/sistema-pronto-ou-sob-medida",
+      "destination": "/guias/sistemas/sistema-pronto-ou-sob-medida/index.html"
+    },
+    {
+      "source": "/guias/sistemas/automatizar-atendimento-no-whatsapp",
+      "destination": "/guias/sistemas/automatizar-atendimento-no-whatsapp/index.html"
+    },
+    {
+      "source": "/guias/sistemas/sistema-para-academia",
+      "destination": "/guias/sistemas/sistema-para-academia/index.html"
+    },
+    {
+      "source": "/guias/3d",
+      "destination": "/guias/3d/index.html"
+    },
+    {
+      "source": "/guias/3d/mockup-3d-de-produto",
+      "destination": "/guias/3d/mockup-3d-de-produto/index.html"
+    },
+    {
+      "source": "/guias/3d/personagem-3d-para-marca",
+      "destination": "/guias/3d/personagem-3d-para-marca/index.html"
+    },
+    {
       "source": "/innovation-week/api/:path*",
       "destination": "https://inoovation-production-f1d5.up.railway.app/api/:path*"
     },

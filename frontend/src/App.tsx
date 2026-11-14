@@ -48,6 +48,8 @@ const LojaPedidoPage = lazyWithRetry(() => import('./pages/LojaPedidoPage'));
 const LojaConvitePage = lazyWithRetry(() => import('./pages/LojaConvitePage'));
 // Páginas de construção ("como foi feito") — GSAP, só quando alguém abre uma.
 const CasePage = lazyWithRetry(() => import('./pages/CasePage'));
+// Guias de SEO (frente S).
+const GuidePage = lazyWithRetry(() => import('./pages/GuidePage'));
 
 // Área interna (autenticação + Kanban de projetos) — chunk independente,
 // nenhum custo para as experiências públicas.
@@ -155,6 +157,8 @@ export default function App() {
         ))}
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/projetos" element={<ProjetosPage />} />
+        <Route path="/guias" element={<Suspense fallback={<TechnologyFallback />}><GuidePage /></Suspense>} />
+        <Route path="/guias/*" element={<Suspense fallback={<TechnologyFallback />}><GuidePage /></Suspense>} />
         <Route
           path="/projetos/:slug"
           element={

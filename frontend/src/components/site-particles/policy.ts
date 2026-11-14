@@ -37,6 +37,7 @@ export function wordFor(pathname: string): PageWord | null {
   if (p === '/contato') return { text: 'CONTATO', place: 'right' };
   if (p === '/projetos') return { text: 'PROJETOS', place: 'above' };
   if (p.startsWith('/projetos/')) return { text: 'BASTIDORES', place: 'above' };
+  if (p === '/guias' || p.startsWith('/guias/')) return { text: 'GUIAS', place: 'above' };
   if (p === '/precos') return { text: 'PREÇOS', place: 'above' };
   if (p === '/tech') return { text: 'TENKA TECH', place: 'above' };
   if (p === '/studios') return { text: 'TENKA STUDIOS', place: 'above' };
