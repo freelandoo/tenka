@@ -182,6 +182,10 @@ export const EVO_BRAZIL: CaseStudy = {
     { name: 'Blender (Python)', why: 'rig por medida e animação por código' },
     { name: 'Godot Web + Android', why: 'um projeto, duas plataformas' },
   ],
+  holograms: [
+    { name: 'Cat demon', model: `${PG}/models/catdemon_baby.glb`, color: '#ff6a0a', accent: '#ffd9bf' },
+    { name: 'Raposa de fogo', model: `${PG}/models/raposa_fogo.glb`, color: '#ff3d1f', accent: '#ffd2c2' },
+  ],
   cta: { label: 'Quero um jogo assim', to: '/games/jogos-mobile' },
 };
 
@@ -240,5 +244,6 @@ export const ASTRONAUT: CaseStudy = {
     { name: 'TypeScript + Vite', why: 'jogo leve que abre do QR' },
     { name: 'Hono + Postgres', why: 'ranking e eventos do jogo' },
   ],
+  holograms: [{ name: 'Astronauta', model: '/portfolio/studios/holo/astronauta.glb', color: '#ff1a1a', accent: '#ffd2cc' }],
   cta: { label: 'Quero um advergame', to: '/games/advergame-e-gamificacao' },
 };

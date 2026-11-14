@@ -44,6 +44,8 @@ export interface CaseStudy {
   steps: CaseStep[];
   chapters: CaseChapter[];
   stack: { name: string; why: string }[];
+  /** Modelos sem textura exibidos em holograma (páginas dos games). */
+  holograms?: { name: string; model: string; color: string; accent: string; faceFront?: number }[];
   /** Serviço da vitrine que vende algo assim. */
   cta: { label: string; to: string };
 }

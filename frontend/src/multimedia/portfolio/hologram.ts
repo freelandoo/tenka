@@ -235,10 +235,23 @@ export class Hologram {
     const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);
     const root = gltf.scene;
     root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root);
+    // A caixa sai da MESMA geometria que vai para a tela (geometria × matrixWorld).
+    // setFromObject diverge em malha com esqueleto, e o que ficava abaixo de zero
+    // caía no material sólido sem luz — metade do bicho saía preta.
+    const box = new THREE.Box3();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const g = mesh.geometry.clone();
+      g.applyMatrix4(mesh.matrixWorld);
+      g.computeBoundingBox();
+      if (g.boundingBox) box.union(g.boundingBox);
+      g.dispose();
+    });
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const s = 1 / size.y;
+    // Altura 1 para quem é de pé; quadrúpede comprido é limitado pelo comprimento.
+    const s = 1 / Math.max(size.y, size.x * 0.6, size.z * 0.6);
     const normalize = new THREE.Matrix4()
       .makeRotationY(faceFront)
       .multiply(new THREE.Matrix4().makeScale(s, s, s))

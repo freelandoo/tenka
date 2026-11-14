@@ -8,6 +8,7 @@ import { useGoogleFonts } from '../hooks/useGoogleFonts';
 import { caseBySlug, casePath } from '../cases';
 import SiteFooter from '../components/site/SiteFooter';
 import TabloidHeader from '../tabloid/TabloidHeader';
+import CaseHolograms from '../components/showroom/CaseHolograms';
 import NotFoundPage from './NotFoundPage';
 import '../tabloid/tabloid.css';
 import './case.css';
@@ -206,6 +207,15 @@ export default function CasePage() {
             </div>
           </section>
         ))}
+
+        {item.holograms && item.holograms.length > 0 && (
+          <section className="cs-section">
+            <SectionHead index={next()} eyebrow="Modelos" title="Em holograma" />
+            <div data-cs-in>
+              <CaseHolograms items={item.holograms} />
+            </div>
+          </section>
+        )}
 
         <section className="cs-section">
           <SectionHead index={next()} eyebrow="Pilha" title="Técnicas e bibliotecas" />

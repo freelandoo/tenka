@@ -1,0 +1,22 @@
+.ch-holo { display: grid; gap: 14px; }
+.ch-holo__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.ch-holo__tabs button {
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font: 700 11px/1 'Space Mono', 'IBM Plex Mono', monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease, background 200ms ease;
+}
+.ch-holo__tabs button.is-on,
+.ch-holo__tabs button:hover { border-color: var(--ch-color); color: #fff; background: color-mix(in srgb, var(--ch-color) 14%, transparent); }
+.ch-holo__stage { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.12); background: #05070a; touch-action: pan-y; }
+.ch-holo__backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ch-holo__stage canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; cursor: grab; }
+.ch-holo__phase,
+.ch-holo__name { position: absolute; margin: 0; font: 700 10px/1 'Space Mono', 'IBM Plex Mono', monospace; letter-spacing: 0.22em; color: rgba(255, 255, 255, 0.7); pointer-events: none; }
+.ch-holo__phase { left: 14px; top: 14px; }
+.ch-holo__name { right: 14px; bottom: 14px; color: var(--ch-color); }
