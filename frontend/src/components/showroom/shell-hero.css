@@ -1,0 +1,22 @@
+/* Hero das páginas de serviço com a vitrine (H4). */
+.sh-hero { position: relative; overflow: hidden; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.sh-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 24px;
+  max-width: 1320px;
+  min-height: min(86vh, 820px);
+  margin: 0 auto;
+  padding: 56px 32px 48px;
+}
+.sh-hero__copy { position: relative; z-index: 3; }
+.sh-hero__stage { position: relative; z-index: 2; height: min(64vh, 560px); }
+.sh-hero__stage .sr-stage { --sr-w: min(40vw, 640px); }
+@media (max-width: 960px) {
+  .sh-hero__inner { grid-template-columns: 1fr; min-height: 0; padding: 40px 20px 32px; }
+  .sh-hero__stage { height: 330px; }
+  .sh-hero__stage .sr-stage { --sr-w: 74vw; }
+}

@@ -4,6 +4,9 @@ import { ROUTES } from '../../seo/routes';
 import { trackContactClick } from '../../lib/analytics';
 import { useSeo } from '../../seo/useSeo';
 import SiteFooter from './SiteFooter';
+import { ShowroomBackdrop, ShowroomStage } from '../showroom/ShowroomHero';
+import type { Work } from '../../works';
+import '../showroom/shell-hero.css';
 
 /**
  * Casca das páginas institucionais (/sobre, /projetos, /contato).
@@ -26,6 +29,8 @@ interface SiteShellProps {
   accent: string;
   /** Trilha, renderizada acima do título. Só as páginas de serviço usam. */
   breadcrumb?: ReactNode;
+  /** Vitrine de trabalhos reais no hero (páginas de serviço, frente H4). */
+  works?: Work[];
   children?: ReactNode;
 }
 
@@ -33,6 +38,7 @@ export default function SiteShell({
   path,
   accent,
   breadcrumb,
+  works,
   children,
 }: SiteShellProps) {
   const route = ROUTES.find((item) => item.path === path);
@@ -77,23 +83,52 @@ export default function SiteShell({
         </div>
       </header>
 
+      {works && works.length > 0 && (
+        <section className="sh-hero" aria-labelledby="page-title">
+          <ShowroomBackdrop poster={works[0].poster} video={works[0].video} />
+          <div className="sh-hero__inner">
+            <div className="sh-hero__copy">
+              {breadcrumb}
+              <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.35em]" style={{ color: accent }}>
+                TENKA GROUP
+              </p>
+              <h1
+                id="page-title"
+                className="mt-4 font-display uppercase leading-[0.9]"
+                style={{ fontSize: 'clamp(32px, 4.6vw, 62px)', letterSpacing: '-0.03em' }}
+              >
+                {route.h1}
+              </h1>
+              <p className="mt-6 max-w-xl text-[15px] leading-[1.7] text-white/75">{route.intro}</p>
+            </div>
+            <div className="sh-hero__stage">
+              <ShowroomStage works={works} accent={accent} />
+            </div>
+          </div>
+        </section>
+      )}
+
       <main className="mx-auto max-w-6xl px-5 pb-24 pt-14 sm:px-8 sm:pt-20">
-        {breadcrumb}
-        <p
-          className="mt-1 text-[11px] font-bold uppercase tracking-[0.35em]"
-          style={{ color: accent }}
-        >
-          TENKA GROUP
-        </p>
-        <h1
-          className="mt-4 max-w-4xl font-display uppercase leading-[0.9]"
-          style={{ fontSize: 'clamp(34px, 6vw, 68px)', letterSpacing: '-0.03em' }}
-        >
-          {route.h1}
-        </h1>
-        <p className="mt-6 max-w-2xl text-[15px] leading-[1.7] text-white/70">
-          {route.intro}
-        </p>
+        {!works?.length && (
+          <>
+            {breadcrumb}
+            <p
+              className="mt-1 text-[11px] font-bold uppercase tracking-[0.35em]"
+              style={{ color: accent }}
+            >
+              TENKA GROUP
+            </p>
+            <h1
+              className="mt-4 max-w-4xl font-display uppercase leading-[0.9]"
+              style={{ fontSize: 'clamp(34px, 6vw, 68px)', letterSpacing: '-0.03em' }}
+            >
+              {route.h1}
+            </h1>
+            <p className="mt-6 max-w-2xl text-[15px] leading-[1.7] text-white/70">
+              {route.intro}
+            </p>
+          </>
+        )}
 
         {children}
       </main>

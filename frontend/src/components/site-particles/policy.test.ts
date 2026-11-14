@@ -19,7 +19,7 @@ describe('partículas do site', () => {
     expect(wordFor('/')).toEqual({ text: 'GAMES', place: 'home' });
     expect(wordFor('/sobre/')?.text).toBe('SOBRE');
     expect(wordFor('/games/jogos-mobile')?.text).toBe('TENKA GAMES');
-    expect(wordFor('/tech/sites')).toEqual({ text: 'TENKA TECH', place: 'right' });
+    expect(wordFor('/tech/sites')).toEqual({ text: 'TENKA TECH', place: 'above' });
     expect(wordFor('/studios')).toEqual({ text: 'TENKA STUDIOS', place: 'above' });
     expect(wordFor('/politica-de-privacidade')).toBeNull();
   });

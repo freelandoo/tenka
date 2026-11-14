@@ -40,9 +40,9 @@ export function wordFor(pathname: string): PageWord | null {
   if (p === '/precos') return { text: 'PREÇOS', place: 'above' };
   if (p === '/tech') return { text: 'TENKA TECH', place: 'above' };
   if (p === '/studios') return { text: 'TENKA STUDIOS', place: 'above' };
-  if (p.startsWith('/games/')) return { text: 'TENKA GAMES', place: 'right' };
-  if (p.startsWith('/tech/')) return { text: 'TENKA TECH', place: 'right' };
-  if (p.startsWith('/studios/')) return { text: 'TENKA STUDIOS', place: 'right' };
+  if (p.startsWith('/games/')) return { text: 'TENKA GAMES', place: 'above' };
+  if (p.startsWith('/tech/')) return { text: 'TENKA TECH', place: 'above' };
+  if (p.startsWith('/studios/')) return { text: 'TENKA STUDIOS', place: 'above' };
   return null;
 }
 

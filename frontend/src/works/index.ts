@@ -64,3 +64,33 @@ export const HERO_BACKDROP: Record<WorkDivision, { poster: string; video?: strin
 };
 
 export const isExternal = (href: string) => /^https?:\/\//.test(href);
+
+/**
+ * Vitrine de cada página de serviço (H4): os trabalhos reais que mais se
+ * aproximam do tópico, o primeiro é o fundo. Onde a TENKA ainda não tem
+ * projeto daquele tipo (treinamento em VR, maquete arquitetônica), a vitrine
+ * mostra o trabalho 3D/games mais próximo — a página nunca diz que é do tópico.
+ * Subpáginas (normas, "quanto custa") herdam a do pai pelo prefixo.
+ */
+const SERVICE_WORKS: Record<string, string[]> = {
+  '/tech/sites': ['gs', 'hidrovap', 'excelencia', 'rh', 'vivaar'],
+  '/tech/sistemas-sob-medida': ['coliseu', 'freelandoo', 'mm-dominios'],
+  '/tech/automacoes-e-agentes-de-ia': ['freelandoo', 'coliseu'],
+  '/tech/aplicativos': ['coliseu', 'freelandoo', 'mm-jetpack'],
+  '/studios/animacao-3d': ['rotulo', 'innovation', 'casaviews', 'personagens-catdemon'],
+  '/studios/maquete-eletronica-3d': ['mm-dominios', 'gs', 'excelencia', 'innovation'],
+  '/studios/mockup-3d-de-produto': ['gs', 'excelencia', 'rotulo', 'innovation'],
+  '/studios/identidade-visual-e-branding': ['rh', 'vivaar', 'innovation', 'casaviews'],
+  '/games/treinamento-em-realidade-virtual': ['mm-dominios', 'evo', 'astronaut', 'mm-personagem'],
+  '/games/ativacao-de-marca-em-realidade-virtual': ['innovation', 'astronaut', 'casaviews', 'evo'],
+  '/games/advergame-e-gamificacao': ['astronaut', 'mm-jetpack', 'mm-minijogos', 'innovation'],
+  '/games/jogos-mobile': ['mm-jetpack', 'mm-minijogos', 'evo', 'astronaut'],
+};
+
+export function worksForService(path: string): Work[] {
+  const key = Object.keys(SERVICE_WORKS)
+    .filter((k) => path === k || path.startsWith(`${k}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!key) return [];
+  return SERVICE_WORKS[key].map((id) => WORKS.find((w) => w.id === id)).filter((w): w is Work => Boolean(w));
+}

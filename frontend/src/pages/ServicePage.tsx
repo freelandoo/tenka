@@ -3,6 +3,7 @@ import SiteShell, { ShellSection } from '../components/site/SiteShell';
 import { routeFor, normalizePath } from '../seo/routes';
 import { serviceContentFor, servicesUnder } from '../seo/services';
 import NotFoundPage from './NotFoundPage';
+import { worksForService } from '../works';
 
 /**
  * Template único das páginas de serviço.
@@ -27,6 +28,7 @@ export default function ServicePage() {
     <SiteShell
       path={path}
       accent={accent}
+      works={worksForService(path)}
       breadcrumb={
         <nav
           aria-label="Trilha"
