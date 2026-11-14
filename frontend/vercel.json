@@ -214,6 +214,26 @@
       "destination": "/projetos/vivaar-climatizacao/index.html"
     },
     {
+      "source": "/projetos/freelandoo",
+      "destination": "/projetos/freelandoo/index.html"
+    },
+    {
+      "source": "/projetos/sistema-coliseu",
+      "destination": "/projetos/sistema-coliseu/index.html"
+    },
+    {
+      "source": "/projetos/meu-mundo",
+      "destination": "/projetos/meu-mundo/index.html"
+    },
+    {
+      "source": "/projetos/evo-brazil",
+      "destination": "/projetos/evo-brazil/index.html"
+    },
+    {
+      "source": "/projetos/astronaut-jetpack",
+      "destination": "/projetos/astronaut-jetpack/index.html"
+    },
+    {
       "source": "/innovation-week/api/:path*",
       "destination": "https://inoovation-production-f1d5.up.railway.app/api/:path*"
     },
