@@ -133,13 +133,13 @@ void main() {
   gl_Position = clip;
 
   float star = step(0.97, aSeed.x) * 2.2;
-  float size = mix(0.75 + aSeed.x * 0.8, 1.8 + aSeed.x * 3.0 + star, ee) * (1.0 + f * 1.4);
+  float size = mix(0.95 + aSeed.x * 0.8, 1.8 + aSeed.x * 3.0 + star, ee) * (1.0 + f * 1.4);
   gl_PointSize = size * uPixelRatio * (34.0 / -mv.z);
 
   vHot = f;
   // Espalhadas, as partículas esmaecem na coluna de leitura (o texto mora ali).
   vRead = mix(1.0, mix(0.3, 1.0, smoothstep(0.35, 0.9, abs(ndc.x))), ee);
-  vMix = mix(0.35 + aSeed.z * 0.5, aSeed.z, ee);
+  vMix = mix(0.05 + aSeed.z * 0.25, aSeed.z, ee);
   vAlpha = mix(0.8 + 0.2 * aSeed.y, (0.45 + 0.55 * aSeed.y) * (0.5 + depth * 0.5), ee);
 }
 `;

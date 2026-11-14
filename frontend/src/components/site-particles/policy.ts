@@ -57,7 +57,7 @@ export function accentFor(pathname: string): string {
 export type Tier = 'high' | 'mid' | 'low';
 
 export function particleBudget(tier: Tier): { count: number; dpr: number } {
-  if (tier === 'high') return { count: 3200, dpr: Math.min(1.5, window.devicePixelRatio || 1) };
-  if (tier === 'mid') return { count: 2400, dpr: Math.min(1.25, window.devicePixelRatio || 1) };
-  return { count: 1500, dpr: 1 };
+  if (tier === 'high') return { count: 5600, dpr: Math.min(1.5, window.devicePixelRatio || 1) };
+  if (tier === 'mid') return { count: 4000, dpr: Math.min(1.25, window.devicePixelRatio || 1) };
+  return { count: 2400, dpr: 1 };
 }
