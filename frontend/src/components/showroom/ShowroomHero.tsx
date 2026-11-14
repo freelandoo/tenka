@@ -55,10 +55,11 @@ export function ShowroomStage({ works, accent }: { works: Work[]; accent: string
                 <span>{work.name}</span>
               </div>
               <div className="sr-card__media">
-                {rel === 0 && work.video ? (
-                  <video key={work.video} src={work.video} poster={work.poster} autoPlay muted loop playsInline preload="metadata" />
+                {/* 9:16: a versão gravada no celular; sem ela, a imagem larga enquadrada pelo centro. */}
+                {rel === 0 && (work.vVideo ?? work.video) ? (
+                  <video key={work.vVideo ?? work.video} src={work.vVideo ?? work.video} poster={work.vPoster ?? work.poster} autoPlay muted loop playsInline preload="metadata" />
                 ) : (
-                  <img src={work.poster} alt={rel === 0 ? `${work.name} — ${work.kind}` : ''} loading={Math.abs(rel) <= 1 ? 'eager' : 'lazy'} decoding="async" />
+                  <img src={work.vPoster ?? work.poster} alt={rel === 0 ? `${work.name} — ${work.kind}` : ''} loading={Math.abs(rel) <= 1 ? 'eager' : 'lazy'} decoding="async" />
                 )}
               </div>
             </div>
