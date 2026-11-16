@@ -97,7 +97,9 @@ export default function LojaPedidoPage() {
                 : next
                   ? multi
                     ? 'Falta pouco. São alguns passos e você faz um de cada vez: conclua o passo destacado abaixo no Mercado Pago e, assim que ele confirmar, o próximo abre aqui sozinho. Pode fechar e voltar por este link quando quiser — nada se perde.'
-                    : 'Falta concluir o pagamento abaixo no Mercado Pago. Assim que ele confirmar, esta página atualiza sozinha.'
+                    : next.kind === 'subscription'
+                      ? 'Falta autorizar a assinatura abaixo no Mercado Pago: você cadastra o cartão e ela passa a debitar sozinha. Esta página atualiza quando confirmar.'
+                      : 'Falta concluir o pagamento abaixo no Mercado Pago. Assim que ele confirmar, esta página atualiza sozinha.'
                   : 'Recebemos. Assim que o Mercado Pago confirmar, esta página atualiza sozinha.'}
             </p>
 
@@ -105,7 +107,7 @@ export default function LojaPedidoPage() {
               <p className="tf-mono lj-order__progress">{paidCount} de {steps.length} concluído{paidCount === 1 ? '' : 's'}</p>
             )}
 
-            <ul className="lj-order__charges">
+            <ul className="lj-order__charges" aria-label="Etapas do pagamento">
               {order.charges.map((c, i) => (
                 <li key={`${c.kind}-${i}`} data-status={c.status} data-current={c === next}>
                   <span className="lj-order__badge" aria-hidden="true">{c.status === 'paid' ? '✓' : i + 1}</span>
