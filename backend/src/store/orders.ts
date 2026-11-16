@@ -118,6 +118,11 @@ export async function failOrder(db: Queryable, orderId: string): Promise<void> {
   await db.query(`update public.store_orders set status = 'failed', updated_at = now() where id = $1 and status = 'pending'`, [orderId]);
 }
 
+export async function findChargeById(db: Queryable, chargeId: string): Promise<ChargeRow | null> {
+  const { rows } = await db.query<ChargeRow>(`select ${CHARGE_COLS} from public.store_charges where id = $1`, [chargeId]);
+  return rows[0] ?? null;
+}
+
 export async function findCharge(db: Queryable, orderId: string, kind: ChargeKind): Promise<ChargeRow | null> {
   const { rows } = await db.query<ChargeRow>(`select ${CHARGE_COLS} from public.store_charges where order_id = $1 and kind = $2`, [orderId, kind]);
   return rows[0] ?? null;

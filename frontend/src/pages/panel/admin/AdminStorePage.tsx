@@ -93,8 +93,6 @@ function BundleBar({ selected, products, onClear }: { selected: Set<string>; pro
   const chosen = products.filter((p) => selected.has(p.slug));
   if (chosen.length === 0) return null;
   const recurring = chosen.filter((p) => p.recurring).length;
-  // Regra do back: só uma mensalidade por pedido. Avisa antes de gerar um link que seria recusado.
-  const tooManySubs = recurring > 1;
   const url = `${window.location.origin}/loja/pagar?p=${chosen.map((p) => p.slug).join(',')}`;
   async function copy() {
     if (await copyToClipboard(url)) {
@@ -111,18 +109,17 @@ function BundleBar({ selected, products, onClear }: { selected: Set<string>; pro
         </button>
       </div>
       <p className="panel-card__text">{chosen.map((p) => p.name).join(' + ')}</p>
-      {tooManySubs ? (
-        <p className="panel-card__text" style={{ color: 'var(--tf-acc, #c33)' }}>
-          Um link cobra no máximo uma recorrência. Deixe só uma assinatura no conjunto.
+      {recurring > 1 && (
+        <p className="panel-card__text">
+          {recurring} recorrências: o cliente autoriza o cartão de cada uma (uma por vez) e o Mercado Pago debita sozinho no ciclo de cada.
         </p>
-      ) : (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-          <button type="button" className="panel-btn panel-btn--primary" onClick={() => void copy()}>
-            {copied ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
-            {copied ? 'Link copiado' : 'Copiar link do conjunto'}
-          </button>
-        </div>
       )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+        <button type="button" className="panel-btn panel-btn--primary" onClick={() => void copy()}>
+          {copied ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
+          {copied ? 'Link copiado' : 'Copiar link do conjunto'}
+        </button>
+      </div>
     </div>
   );
 }

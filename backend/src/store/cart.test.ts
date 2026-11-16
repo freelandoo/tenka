@@ -27,6 +27,8 @@ const CATALOG: ProductRow[] = [
   row({ slug: 'hospedagem', name: 'Hospedagem', kind: 'subscription', price_cents: 6000, interval_months: 1, addon_only: true }),
   row({ slug: 'hospedagem-gmn', name: 'Hospedagem + GMN', kind: 'subscription', category: 'google', price_cents: 9990, interval_months: 1, addon_only: true }),
   row({ slug: 'google-meu-negocio', name: 'GMN', kind: 'subscription', category: 'google', price_cents: 3990, interval_months: 1, setup_fee_cents: 15000 }),
+  row({ slug: 'plano-mensal', name: 'Plano mensal', kind: 'subscription', category: 'loja', price_cents: 9990, interval_months: 1 }),
+  row({ slug: 'dominio-anual', name: 'Domínio', kind: 'subscription', category: 'loja', price_cents: 8000, interval_months: 12 }),
   row({ slug: 'sinal-vr', name: 'VR', kind: 'deposit', price_cents: null }),
 ];
 
@@ -58,6 +60,29 @@ describe('carrinho no servidor', () => {
     expect(planCart(['google-meu-negocio'], semTaxa)).toEqual({ ok: false, error: 'produto-indisponivel', slug: 'google-meu-negocio' });
   });
 
+  it('várias recorrências: uma assinatura por produto, somadas', () => {
+    const r = planCart(['plano-mensal', 'dominio-anual'], CATALOG);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.charges.map((c) => [c.kind, c.amountCents, c.intervalMonths])).toEqual([
+      ['subscription', 9990, 1],
+      ['subscription', 8000, 12],
+    ]);
+    expect(r.plan.recurringCents).toBe(17990);
+    expect(r.plan.totalCents).toBe(17990);
+  });
+
+  it('avulso + mensal + anual: uma cobrança avulsa e duas assinaturas', () => {
+    const r = planCart(['sinal-vr', 'plano-mensal', 'dominio-anual'], [
+      ...CATALOG.filter((p) => p.slug !== 'sinal-vr'),
+      row({ slug: 'sinal-vr', name: 'VR', kind: 'deposit', price_cents: 50000 }),
+    ]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.charges.map((c) => c.kind)).toEqual(['payment', 'subscription', 'subscription']);
+    expect(r.plan.totalCents).toBe(50000 + 9990 + 8000);
+  });
+
   it('o preço vem do catálogo, nunca do pedido', () => {
     const r = planCart(['site-essencial', 'hospedagem-gmn'], CATALOG);
     expect(r.ok && r.plan.totalCents).toBe(30000 + 9990);
@@ -83,10 +108,12 @@ describe('referência externa', () => {
   const id = '6f1c3a52-7d1e-4f3b-9a3e-2b8c1d0e9f10';
   it('ida e volta', () => {
     expect(externalReference(id, 'subscription')).toBe(`tenka:${id}:subscription`);
+    expect(externalReference(id, 'subscription', id)).toBe(`tenka:${id}:subscription:${id}`);
     expect(parseExternalReference(`tenka:${id}:payment`)).toEqual({ orderId: id, kind: 'payment' });
+    expect(parseExternalReference(`tenka:${id}:subscription:${id}`)).toEqual({ orderId: id, kind: 'subscription', chargeId: id });
   });
   it('recusa o que não é da TENKA ou está malformado', () => {
-    for (const ref of [null, '', 'freelandoo:123', `tenka:${id}`, `tenka:${id}:outro`, 'tenka:nao-uuid:payment']) {
+    for (const ref of [null, '', 'freelandoo:123', `tenka:${id}`, `tenka:${id}:outro`, 'tenka:nao-uuid:payment', `tenka:${id}:subscription:nao-uuid`, `tenka:${id}:payment:${id}:extra`]) {
       expect(parseExternalReference(ref)).toBeNull();
     }
   });

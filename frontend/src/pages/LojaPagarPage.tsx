@@ -54,11 +54,12 @@ function PagarInner() {
 
   const base = cartTotals(products);
   const fee = cardFeeBps > 0 ? formatBps(cardFeeBps) : null;
-  // Mesma regra do back: a taxa entra só no avulso pago no cartão; a mensalidade sai no valor cheio.
+  // Mesma regra do back: a taxa entra só no avulso pago no cartão; a recorrência sai no valor cheio.
   const oneTimeCents = method === 'card' ? grossUp(base.oneTimeCents, cardFeeBps) : base.oneTimeCents;
-  const monthlyCents = base.monthlyCents;
-  // Um pedido tem no máximo uma mensalidade: o ciclo dela dá o rótulo do total.
-  const recurringCycle = cycleWord(products.find((p) => p.kind === 'subscription')?.intervalMonths);
+  // Recorrências podem ter ciclos diferentes (ex.: mensalidade + domínio anual): separa por ciclo.
+  const subs = products.filter((p) => p.kind === 'subscription');
+  const monthlyCents = subs.filter((p) => p.intervalMonths !== 12).reduce((s, p) => s + (p.priceCents ?? 0), 0);
+  const yearlyCents = subs.filter((p) => p.intervalMonths === 12).reduce((s, p) => s + (p.priceCents ?? 0), 0);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -132,9 +133,17 @@ function PagarInner() {
         )}
         {monthlyCents > 0 && (
           <div>
-            <dt>Por {recurringCycle}</dt>
+            <dt>Por mês</dt>
             <dd>
               R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão</small>
+            </dd>
+          </div>
+        )}
+        {yearlyCents > 0 && (
+          <div>
+            <dt>Por ano</dt>
+            <dd>
+              R$ {formatCents(yearlyCents)} <small className="tf-mono">no cartão</small>
             </dd>
           </div>
         )}
@@ -154,9 +163,10 @@ function PagarInner() {
           <input name="phone" type="tel" maxLength={30} autoComplete="tel" defaultValue={params.get('whatsapp') ?? ''} />
         </label>
         <input name="website" tabIndex={-1} autoComplete="off" className="lj-cart__hp" aria-hidden="true" />
-        {monthlyCents > 0 && (
+        {subs.length > 0 && (
           <p className="lj-cart__hint">
-            A mensalidade é autorizada no cartão pelo Mercado Pago com o mesmo e-mail{base.oneTimeCents > 0 ? ', depois do primeiro pagamento' : ''}.
+            {subs.length > 1 ? 'As recorrências são autorizadas' : 'A recorrência é autorizada'} no cartão pelo Mercado Pago
+            com o mesmo e-mail{base.oneTimeCents > 0 ? ', depois do primeiro pagamento' : ''}. Cada uma debita sozinha no seu ciclo.
           </p>
         )}
         {error && <p className="lj-cart__error" role="alert">{error}</p>}

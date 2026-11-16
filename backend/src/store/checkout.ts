@@ -93,8 +93,9 @@ export async function checkout(
 
   try {
     for (const charge of charges) {
-      const plan = planned.plan.charges.find((c) => c.kind === charge.kind)!;
       if (charge.kind === 'payment') {
+        // Só existe uma cobrança avulsa por pedido, então casar por tipo é seguro.
+        const plan = planned.plan.charges.find((c) => c.kind === 'payment')!;
         const pref = await deps.mp.createPreference(
           {
             items: plan.lines.map((l) => ({
@@ -120,17 +121,18 @@ export async function checkout(
         await attachCheckout(deps.db, charge.id, pref.id, pref.init_point ?? null);
         charge.checkout_url = pref.init_point ?? null;
       } else {
+        // Campos da própria cobrança: um pedido pode ter mais de uma assinatura (find por tipo pegaria a errada).
         const pre = await deps.mp.createPreapproval(
           {
-            reason: `TENKA — ${plan.description}`.slice(0, 250),
-            external_reference: externalReference(order.id, 'subscription'),
+            reason: `TENKA — ${charge.description}`.slice(0, 250),
+            external_reference: externalReference(order.id, 'subscription', charge.id),
             payer_email: input.customer.email,
             back_url: backUrl,
             status: 'pending',
             auto_recurring: {
-              frequency: plan.intervalMonths ?? 1,
+              frequency: charge.interval_months ?? 1,
               frequency_type: 'months',
-              transaction_amount: centsToReais(plan.amountCents),
+              transaction_amount: centsToReais(charge.amount_cents),
               currency_id: 'BRL',
             },
             ...(notify ? { notification_url: notify } : {}),

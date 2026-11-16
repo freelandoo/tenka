@@ -28,7 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function chargeTitle(c: OrderCharge): string {
-  return c.kind === 'subscription' ? `Mensalidade — ${c.description}` : c.description;
+  if (c.kind !== 'subscription') return c.description;
+  return `${c.intervalMonths === 12 ? 'Assinatura anual' : 'Mensalidade'} — ${c.description}`;
 }
 
 export default function LojaPedidoPage() {
@@ -122,7 +123,9 @@ export default function LojaPedidoPage() {
             )}
             {next && (
               <a className="tf-btn" href={next.checkoutUrl!} rel="noreferrer">
-                {next.kind === 'subscription' ? 'Autorizar a mensalidade no Mercado Pago' : 'Pagar no Mercado Pago'}
+                {next.kind === 'subscription'
+                  ? `Autorizar a ${next.intervalMonths === 12 ? 'assinatura anual' : 'mensalidade'} no Mercado Pago`
+                  : 'Pagar no Mercado Pago'}
                 <span className="tf-arrow" aria-hidden="true">↗</span>
               </a>
             )}

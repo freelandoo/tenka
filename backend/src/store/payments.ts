@@ -25,6 +25,7 @@ import { externalReference, parseExternalReference } from './cart';
 import {
   claimEvent,
   findCharge,
+  findChargeById,
   findChargeByProviderRef,
   finishEvent,
   getOrder,
@@ -64,6 +65,8 @@ async function settle(deps: PaymentDeps, orderId: string, detail: string): Promi
 async function chargeForReference(deps: PaymentDeps, ref: unknown): Promise<ChargeRow | null> {
   const parsed = parseExternalReference(ref);
   if (!parsed) return null;
+  // Com chargeId (pedido com mais de uma assinatura) a cobrança é exata; sem ele, a única do tipo.
+  if (parsed.chargeId) return findChargeById(deps.db, parsed.chargeId);
   return findCharge(deps.db, parsed.orderId, parsed.kind);
 }
 

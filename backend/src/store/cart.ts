@@ -63,18 +63,23 @@ export function planCart(slugs: string[], products: ProductRow[]): { ok: true; p
   }
 
   const subscriptions = rows.filter((r) => r.kind === 'subscription');
-  if (subscriptions.length > 1) return { ok: false, error: 'uma-mensalidade-por-pedido' };
-  const sub = subscriptions[0];
+  // Várias assinaturas no mesmo pedido viram várias assinaturas no MP (ex.: mensalidade + domínio anual).
+  // A hospedagem de site (addon_only) é a exceção: no máximo uma, porque hospedagem x combo não convivem.
+  const siteHostings = subscriptions.filter((r) => r.addon_only);
+  if (siteHostings.length > 1) return { ok: false, error: 'uma-mensalidade-por-pedido' };
 
   const sites = rows.filter((r) => stringList(r.addons).length > 0);
-  if (sub?.addon_only && !sites.some((s) => stringList(s.addons).includes(sub.slug))) {
-    return { ok: false, error: 'mensalidade-exige-site', slug: sub.slug };
+  for (const s of siteHostings) {
+    if (!sites.some((site) => stringList(site.addons).includes(s.slug))) {
+      return { ok: false, error: 'mensalidade-exige-site', slug: s.slug };
+    }
   }
-  // Site sem mensalidade não fica no ar; o GMN avulso junto de site é o combo de 99,90.
+  // Site sem a mensalidade dele não fica no ar; o GMN avulso junto de site é o combo de 99,90.
   if (sites.length > 0) {
-    if (!sub) return { ok: false, error: 'site-exige-mensalidade' };
-    if (!stringList(sites[0]!.addons).includes(sub.slug)) {
-      return { ok: false, error: sub.slug === 'google-meu-negocio' ? 'use-o-combo-site-gmn' : 'mensalidade-exige-site', slug: sub.slug };
+    const addons = stringList(sites[0]!.addons);
+    if (!subscriptions.some((s) => addons.includes(s.slug))) {
+      const gmn = subscriptions.find((s) => s.slug === 'google-meu-negocio');
+      return { ok: false, error: gmn ? 'use-o-combo-site-gmn' : 'site-exige-mensalidade', slug: gmn?.slug };
     }
   }
 
@@ -98,24 +103,21 @@ export function planCart(slugs: string[], products: ProductRow[]): { ok: true; p
       lines: oneTime,
     });
   }
-  if (sub) {
+  // Uma assinatura (preapproval) por produto recorrente — cada uma com seu ciclo e seu cartão autorizado.
+  for (const s of subscriptions) {
     charges.push({
       kind: 'subscription',
-      amountCents: sub.price_cents as number,
-      intervalMonths: sub.interval_months ?? 1,
-      description: sub.name,
-      lines: lines.filter((l) => l.slug === sub.slug),
+      amountCents: s.price_cents as number,
+      intervalMonths: s.interval_months ?? 1,
+      description: s.name,
+      lines: lines.filter((l) => l.slug === s.slug),
     });
   }
+  const recurringCents = subscriptions.reduce((sum, s) => sum + (s.price_cents as number), 0);
 
   return {
     ok: true,
-    plan: {
-      lines,
-      charges,
-      totalCents: oneTimeCents + (sub?.price_cents ?? 0),
-      recurringCents: sub?.price_cents ?? 0,
-    },
+    plan: { lines, charges, totalCents: oneTimeCents + recurringCents, recurringCents },
   };
 }
 
@@ -158,7 +160,7 @@ export function applyCardFee(plan: CartPlan, bps: number, method: PayMethod | un
     extraLines.push({ ...line, slug: `${CARD_FEE_SLUG}:${c.kind}` });
     return { ...c, amountCents: c.amountCents + fee, lines: [...c.lines, line] };
   });
-  const recurringCents = charges.find((c) => c.kind === 'subscription')?.amountCents ?? 0;
+  const recurringCents = charges.filter((c) => c.kind === 'subscription').reduce((s, c) => s + c.amountCents, 0);
   return {
     lines: [...plan.lines, ...extraLines],
     charges,
@@ -170,18 +172,22 @@ export function applyCardFee(plan: CartPlan, bps: number, method: PayMethod | un
 /** `tenka:<order_id>:<kind>` — o prefixo é o que a Freelandoo usa para repassar o aviso. */
 export const EXTERNAL_REF_PREFIX = 'tenka:';
 
-export function externalReference(orderId: string, kind: PlannedCharge['kind']): string {
-  return `${EXTERNAL_REF_PREFIX}${orderId}:${kind}`;
+/** `chargeId` desambigua pedidos com mais de uma assinatura (duas preapprovals, mesma ref sem ele). */
+export function externalReference(orderId: string, kind: PlannedCharge['kind'], chargeId?: string): string {
+  return `${EXTERNAL_REF_PREFIX}${orderId}:${kind}${chargeId ? `:${chargeId}` : ''}`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function parseExternalReference(ref: unknown): { orderId: string; kind: PlannedCharge['kind'] } | null {
+export function parseExternalReference(ref: unknown): { orderId: string; kind: PlannedCharge['kind']; chargeId?: string } | null {
   if (typeof ref !== 'string' || !ref.startsWith(EXTERNAL_REF_PREFIX)) return null;
-  const [orderId, kind] = ref.slice(EXTERNAL_REF_PREFIX.length).split(':');
+  const parts = ref.slice(EXTERNAL_REF_PREFIX.length).split(':');
+  if (parts.length > 3) return null;
+  const [orderId, kind, chargeId] = parts;
   if (!orderId || !UUID.test(orderId)) return null;
   if (kind !== 'payment' && kind !== 'subscription') return null;
-  return { orderId, kind };
+  if (chargeId !== undefined && !UUID.test(chargeId)) return null;
+  return chargeId ? { orderId, kind, chargeId } : { orderId, kind };
 }
 
 /** Status do pedido a partir das cobranças. */

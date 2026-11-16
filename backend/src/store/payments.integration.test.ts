@@ -124,10 +124,10 @@ describe('checkout', () => {
     expect(pref.payload.external_reference).toBe(`tenka:${r.orderId}:payment`);
     expect(pref.payload.notification_url).toBe('https://api.tenka.test/webhooks/mercadopago');
     expect((pref.payload.items as { unit_price: number }[])[0]!.unit_price).toBe(650);
-    expect(pref.payload.payment_methods).toEqual({ installments: 12 });
+    expect(pref.payload.payment_methods).toEqual({ installments: 6 });
 
     const pre = mp.createdPreapprovals[0]!;
-    expect(pre.payload.external_reference).toBe(`tenka:${r.orderId}:subscription`);
+    expect(pre.payload.external_reference).toBe(`tenka:${r.orderId}:subscription:${charges[1]!.id}`);
     expect(pre.payload.payer_email).toBe('maria@example.com');
     expect((pre.payload.auto_recurring as { transaction_amount: number }).transaction_amount).toBe(60);
   });
