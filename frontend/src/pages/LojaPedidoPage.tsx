@@ -66,6 +66,11 @@ export default function LojaPedidoPage() {
   }, [id, token]);
 
   const next = order?.charges.find((c) => c.status === 'pending' && c.checkoutUrl);
+  const steps = order?.charges ?? [];
+  const multi = steps.length > 1;
+  const paidCount = steps.filter((c) => c.status === 'paid').length;
+  const labelFor = (c: OrderCharge) =>
+    c.status === 'paid' ? 'Pago' : c === next ? 'Pague agora' : c.status === 'pending' ? 'Em seguida' : STATUS_LABEL[c.status] ?? c.status;
 
   return (
     <div className="tf-root pc lj" data-division="tech">
@@ -88,23 +93,30 @@ export default function LojaPedidoPage() {
             </h1>
             <p className="lj-hero__lead">
               {order.status === 'paid'
-                ? `Obrigado, ${order.customerName.split(' ')[0]}! A equipe da TENKA vai falar com você pelo WhatsApp para começar.`
+                ? `Tudo certo, ${order.customerName.split(' ')[0]}! Está tudo pago. A equipe da TENKA vai falar com você pelo WhatsApp para começar.`
                 : next
-                  ? 'Falta concluir o pagamento abaixo no Mercado Pago. Assim que ele confirmar, esta página atualiza sozinha.'
-                  : 'Assim que o Mercado Pago confirmar, esta página atualiza sozinha.'}
+                  ? multi
+                    ? 'Falta pouco. São alguns passos e você faz um de cada vez: conclua o passo destacado abaixo no Mercado Pago e, assim que ele confirmar, o próximo abre aqui sozinho. Pode fechar e voltar por este link quando quiser — nada se perde.'
+                    : 'Falta concluir o pagamento abaixo no Mercado Pago. Assim que ele confirmar, esta página atualiza sozinha.'
+                  : 'Recebemos. Assim que o Mercado Pago confirmar, esta página atualiza sozinha.'}
             </p>
 
+            {multi && order.status !== 'paid' && (
+              <p className="tf-mono lj-order__progress">{paidCount} de {steps.length} concluído{paidCount === 1 ? '' : 's'}</p>
+            )}
+
             <ul className="lj-order__charges">
-              {order.charges.map((c) => (
-                <li key={c.kind} data-status={c.status}>
-                  <span>
+              {order.charges.map((c, i) => (
+                <li key={`${c.kind}-${i}`} data-status={c.status} data-current={c === next}>
+                  <span className="lj-order__badge" aria-hidden="true">{c.status === 'paid' ? '✓' : i + 1}</span>
+                  <span className="lj-order__desc">
                     <strong>{chargeTitle(c)}</strong>
                     <small className="tf-mono">
                       R$ {formatCents(c.amountCents)}
                       {c.kind === 'subscription' ? (c.intervalMonths === 12 ? ' por ano' : ' por mês') : ''}
                     </small>
                   </span>
-                  <span className="tf-mono lj-order__status">{STATUS_LABEL[c.status] ?? c.status}</span>
+                  <span className="tf-mono lj-order__status">{labelFor(c)}</span>
                 </li>
               ))}
             </ul>
@@ -128,6 +140,11 @@ export default function LojaPedidoPage() {
                   : 'Pagar no Mercado Pago'}
                 <span className="tf-arrow" aria-hidden="true">↗</span>
               </a>
+            )}
+            {next && (
+              <p className="tf-mono lj-order__secure">
+                Ambiente seguro do Mercado Pago. Você pode fechar e voltar por este link a qualquer momento.
+              </p>
             )}
             <p className="tf-mono lj-order__help">
               Dúvida?{' '}

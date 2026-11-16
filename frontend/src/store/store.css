@@ -165,11 +165,20 @@
 .lj-order { min-height: 70vh; padding-bottom: 80px; }
 .lj-order__title { margin: 22px 0 0; font-size: clamp(40px, 7vw, 96px); line-height: 0.95; }
 .lj-order__charges { display: grid; gap: 0; max-width: 680px; margin: 32px 0 28px; padding: 0; list-style: none; border-top: 1px solid var(--tf-faint); }
-.lj-order__charges li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--tf-faint); }
+.lj-order__charges li { display: flex; align-items: center; gap: 14px; padding: 16px 4px; border-bottom: 1px solid var(--tf-faint); transition: background 0.2s ease; }
 .lj-order__charges strong { display: block; }
 .lj-order__charges small { color: var(--tf-dim); }
-.lj-order__status { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tf-dim); text-align: right; }
+.lj-order__desc { flex: 1 1 auto; min-width: 0; }
+.lj-order__badge { flex: 0 0 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--tf-faint); font-size: 13px; color: var(--tf-dim); }
+.lj-order__charges li[data-status='paid'] .lj-order__badge { border-color: var(--tf-acc); color: var(--tf-acc); }
+.lj-order__charges li[data-status='paid'] .lj-order__desc strong { color: var(--tf-dim); }
+.lj-order__charges li[data-current='true'] { background: color-mix(in srgb, var(--tf-acc) 8%, transparent); border-radius: 6px; }
+.lj-order__charges li[data-current='true'] .lj-order__badge { border-color: var(--tf-acc); background: var(--tf-acc); color: var(--tf-bg); }
+.lj-order__status { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tf-dim); text-align: right; white-space: nowrap; }
 .lj-order__charges li[data-status='paid'] .lj-order__status { color: var(--tf-acc); }
+.lj-order__charges li[data-current='true'] .lj-order__status { color: var(--tf-ink); }
+.lj-order__progress { margin: 0 0 -8px; color: var(--tf-dim); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.lj-order__secure { margin-top: 14px; color: var(--tf-dim); font-size: 11px; }
 .lj-order__help { margin-top: 28px; color: var(--tf-dim); font-size: 12px; }
 .lj-order__help a, .lj-order .lj-hero__lead a { color: var(--tf-acc); }
 
