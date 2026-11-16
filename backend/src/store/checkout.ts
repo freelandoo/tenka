@@ -7,7 +7,7 @@
  */
 
 import { centsToReais, mpConfig, type MercadoPagoApi } from '../payments/mercadopago';
-import { externalReference, planCart, type CartError } from './cart';
+import { applyCardFee, externalReference, planCart, type CartError, type PayMethod } from './cart';
 import { PAYMENT_LINK_HOURS } from './payments';
 import { attachCheckout, createOrder, failOrder, loadProducts, type ChargeRow, type Customer, type Queryable } from './orders';
 
@@ -44,19 +44,47 @@ export function orderPageUrl(orderId: string, token: string): string {
   return `${SITE_URL}/loja/pedido/${orderId}?t=${token}`;
 }
 
+/**
+ * Pix: só Pix (sem cartão nem boleto), à vista. Cartão: sem Pix nem boleto,
+ * até 12x — os juros do parcelamento o MP cobra do comprador.
+ * Sem método (taxa zerada): tudo liberado, como era antes do repasse.
+ */
+export function paymentMethodsFor(method: PayMethod | undefined): Record<string, unknown> {
+  if (method === 'pix') {
+    return {
+      excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'prepaid_card' }, { id: 'ticket' }],
+      installments: 1,
+    };
+  }
+  if (method === 'card') {
+    return { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'ticket' }], installments: MAX_INSTALLMENTS };
+  }
+  return { installments: MAX_INSTALLMENTS };
+}
+
 export type CheckoutResult =
   | { ok: true; orderId: string; token: string; nextUrl: string | null; statusUrl: string }
   | { ok: false; status: number; error: CartError | 'pagamento-indisponivel' | 'falha-no-mercado-pago'; slug?: string; message?: string };
 
 export async function checkout(
-  deps: { db: Queryable; mp: Pick<MercadoPagoApi, 'createPreference' | 'createPreapproval'>; now?: Date },
-  input: { items: string[]; customer: Customer },
+  deps: {
+    db: Queryable;
+    mp: Pick<MercadoPagoApi, 'createPreference' | 'createPreapproval'>;
+    now?: Date;
+    /** Taxa do cartão repassada ao comprador, em pontos-base (498 = 4,98%). */
+    cardFeeBps?: number;
+  },
+  input: { items: string[]; customer: Customer; method?: PayMethod },
 ): Promise<CheckoutResult> {
   if (!mpConfig()) return { ok: false, status: 503, error: 'pagamento-indisponivel' };
 
   const products = await loadProducts(deps.db, input.items);
   const planned = planCart(input.items, products);
   if (!planned.ok) return { ok: false, status: 400, error: planned.error, slug: planned.slug };
+  const feeBps = deps.cardFeeBps ?? 0;
+  // Com repasse ligado, sem escolha explícita vale cartão: Pix sem taxa é opção, não brecha.
+  const method: PayMethod | undefined = feeBps > 0 ? (input.method ?? 'card') : input.method;
+  planned.plan = applyCardFee(planned.plan, feeBps, method);
 
   const { order, charges } = await createOrder(deps.db, input.customer, planned.plan);
   const backUrl = orderPageUrl(order.id, order.public_token);
@@ -80,7 +108,7 @@ export async function checkout(
             payer: { name: input.customer.name, email: input.customer.email },
             back_urls: { success: backUrl, failure: backUrl, pending: backUrl },
             ...(isPublicHttps(backUrl) ? { auto_return: 'approved' } : {}),
-            payment_methods: { installments: MAX_INSTALLMENTS },
+            payment_methods: paymentMethodsFor(method),
             statement_descriptor: 'TENKA',
             expires: true,
             expiration_date_from: now.toISOString(),

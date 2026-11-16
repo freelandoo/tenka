@@ -13,7 +13,7 @@ type StoreStatus = CatalogStatus & {
   reload: () => Promise<void>;
 };
 
-const OFF: CatalogStatus = { payments: false, purchasable: new Set(), custom: [] };
+const OFF: CatalogStatus = { payments: false, purchasable: new Set(), custom: [], cardFeeBps: 0 };
 const StatusContext = createContext<StoreStatus>({ ...OFF, reload: async () => {} });
 
 export function StoreStatusProvider({ children }: { children: ReactNode }) {

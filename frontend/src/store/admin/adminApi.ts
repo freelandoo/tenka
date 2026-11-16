@@ -53,6 +53,14 @@ export async function deleteAdminProduct(id: string): Promise<void> {
   await apiRequest(`/admin/store/products/${id}`, { method: 'DELETE' });
 }
 
+export async function getStoreSettings(): Promise<{ cardFeeBps: number }> {
+  return apiRequest<{ cardFeeBps: number }>('/admin/store/settings');
+}
+
+export async function saveStoreSettings(cardFeeBps: number): Promise<{ cardFeeBps: number }> {
+  return apiRequest<{ cardFeeBps: number }>('/admin/store/settings', { method: 'PUT', body: { cardFeeBps } });
+}
+
 /** Admin logado neste navegador? Sem sessão salva, nem pergunta ao servidor. */
 export async function isAdminSession(): Promise<boolean> {
   if (!loadTokens()) return false;

@@ -36,6 +36,7 @@ import {
 import { clientOnly } from '../auth/middleware';
 import { AuthError, login } from '../auth/service';
 import { SITE_URL } from '../store/checkout';
+import { readCardFeeBps } from '../db/settings';
 
 const checkoutSchema = z.object({
   items: z.array(z.string().trim().min(1).max(60)).min(1).max(8),
@@ -44,6 +45,8 @@ const checkoutSchema = z.object({
     email: z.string().trim().toLowerCase().email().max(180),
     phone: z.string().trim().max(30).default(''),
   }),
+  /** Avulso: Pix (preço cheio) ou cartão (com a taxa repassada). */
+  method: z.enum(['pix', 'card']).optional(),
   /** Honeypot. */
   website: z.string().max(200).optional(),
 });
@@ -109,7 +112,7 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
           order by sort, slug`,
       );
       reply.header('Cache-Control', 'public, max-age=60');
-      return { products: rows.map(toPublicProduct), payments: Boolean(mpConfig()) };
+      return { products: rows.map(toPublicProduct), payments: Boolean(mpConfig()), cardFeeBps: await readCardFeeBps() };
     } catch (err) {
       req.log.error({ err }, 'falha ao ler o catálogo');
       return reply.code(503).send({ error: 'catalogo-indisponivel' });
@@ -141,7 +144,7 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
     if (rateLimited(clientIp(req))) return reply.code(429).send({ error: 'muitas-tentativas' });
 
     try {
-      const result = await checkout({ db: getPool(), mp: mercadoPago }, parsed.data);
+      const result = await checkout({ db: getPool(), mp: mercadoPago, cardFeeBps: await readCardFeeBps() }, parsed.data);
       if (!result.ok) {
         if (result.status >= 500) req.log.warn({ error: result.error, message: result.message }, 'loja.checkout.falha');
         return reply.code(result.status).send({ error: result.error, slug: result.slug });

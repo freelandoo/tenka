@@ -34,5 +34,16 @@ export async function deleteSetting(key: string): Promise<void> {
   await getPool().query('delete from public.app_settings where key = $1', [key]);
 }
 
+/** Taxa do cartão repassada ao comprador na loja: `{ bps: 498 }` = 4,98%. */
+export const STORE_CARD_FEE_KEY = 'store_card_fee';
+/** Sem configuração salva: taxa padrão do MP para receber na hora no cartão. */
+export const DEFAULT_CARD_FEE_BPS = 498;
+
+export async function readCardFeeBps(): Promise<number> {
+  const v = await readSetting<{ bps?: unknown }>(STORE_CARD_FEE_KEY).catch(() => null);
+  const bps = Number(v?.bps);
+  return Number.isInteger(bps) && bps >= 0 && bps < 3000 ? bps : DEFAULT_CARD_FEE_BPS;
+}
+
 /** Chave da autorização OAuth do Google (ver src/google/calendar.ts). */
 export const GOOGLE_OAUTH_KEY = 'google_oauth';

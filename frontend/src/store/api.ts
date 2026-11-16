@@ -13,6 +13,8 @@ export interface CatalogStatus {
   purchasable: Set<string>;
   /** Produtos cadastrados pelo painel (só existem na API). */
   custom: StoreProduct[];
+  /** Taxa do cartão repassada ao comprador (498 = 4,98%). */
+  cardFeeBps: number;
 }
 
 interface ApiProduct {
@@ -50,18 +52,21 @@ export function toStoreProduct(p: ApiProduct): StoreProduct {
 export async function fetchCatalogStatus(signal?: AbortSignal, fresh = false): Promise<CatalogStatus> {
   const r = await fetch(`${API_BASE_URL}/store/products`, { signal, cache: fresh ? 'reload' : 'default' });
   if (!r.ok) throw new Error(`catálogo ${r.status}`);
-  const data = (await r.json()) as { payments?: boolean; products?: ApiProduct[] };
+  const data = (await r.json()) as { payments?: boolean; products?: ApiProduct[]; cardFeeBps?: number };
   const products = data.products ?? [];
   return {
     payments: Boolean(data.payments),
     purchasable: new Set(products.filter((p) => p.purchasable).map((p) => p.slug)),
     custom: products.filter((p) => p.custom).map(toStoreProduct),
+    cardFeeBps: Number(data.cardFeeBps) > 0 ? Number(data.cardFeeBps) : 0,
   };
 }
 
 export interface CheckoutInput {
   items: string[];
   customer: { name: string; email: string; phone: string };
+  /** Avulso: Pix (preço cheio) ou cartão (com a taxa). */
+  method?: 'pix' | 'card';
   website?: string;
 }
 

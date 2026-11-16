@@ -178,6 +178,17 @@ export function isPurchasable(p: StoreProduct): boolean {
   return true;
 }
 
+/** Mesmo cálculo do back (`grossUp`): valor que deixa `cents` líquidos depois da taxa. */
+export function grossUp(cents: number, bps: number): number {
+  if (!(bps > 0)) return cents;
+  return Math.ceil((cents * 10_000) / (10_000 - bps));
+}
+
+/** 498 → "4,98". */
+export function formatBps(bps: number): string {
+  return (bps / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
 /** Ciclo da assinatura em palavra: 12 → "ano"; o resto → "mês". */
 export function cycleWord(intervalMonths: number | null | undefined): 'ano' | 'mês' {
   return intervalMonths === 12 ? 'ano' : 'mês';

@@ -119,6 +119,60 @@ export function planCart(slugs: string[], products: ProductRow[]): { ok: true; p
   };
 }
 
+// ------------------------------------------------- taxa do cartão (repasse)
+
+export type PayMethod = 'pix' | 'card';
+
+/** Linha da taxa no pedido (não é produto). */
+export const CARD_FEE_SLUG = 'taxa-cartao';
+
+/**
+ * Valor "cheio" que, depois de o MP descontar `bps` (4,98% = 498), deixa
+ * exatamente `cents` líquidos. Arredonda para cima: nunca sobra centavo de taxa
+ * com a TENKA.
+ */
+export function grossUp(cents: number, bps: number): number {
+  if (!(bps > 0)) return cents;
+  return Math.ceil((cents * 10_000) / (10_000 - bps));
+}
+
+export function feeLabel(bps: number): string {
+  return `Taxa do cartão (${(bps / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%)`;
+}
+
+/**
+ * Repassa a taxa do cartão ao comprador:
+ *  - assinatura: o MP só cobra no cartão → a taxa entra sempre;
+ *  - avulso: entra só se o comprador escolheu cartão (no Pix o preço é o cheio).
+ * Juros do parcelamento NÃO entram aqui: o MP calcula e cobra do comprador na
+ * hora de parcelar (a preferência não oferece parcela sem juros).
+ */
+export function applyCardFee(plan: CartPlan, bps: number, method: PayMethod | undefined): CartPlan {
+  if (!(bps > 0)) return plan;
+  const extraLines: CartLine[] = [];
+  const charges = plan.charges.map((c) => {
+    const card = c.kind === 'subscription' || method === 'card';
+    if (!card) return c;
+    const fee = grossUp(c.amountCents, bps) - c.amountCents;
+    if (fee <= 0) return c;
+    const line: CartLine = { slug: CARD_FEE_SLUG, name: feeLabel(bps), kind: 'fixed', unitCents: fee };
+    extraLines.push({ ...line, slug: `${CARD_FEE_SLUG}:${c.kind}` });
+    return {
+      ...c,
+      amountCents: c.amountCents + fee,
+      description: c.kind === 'subscription' ? `${c.description} + taxa do cartão`.slice(0, 250) : c.description,
+      lines: [...c.lines, line],
+    };
+  });
+  const recurringCents = charges.find((c) => c.kind === 'subscription')?.amountCents ?? 0;
+  return {
+    lines: [...plan.lines, ...extraLines],
+    charges,
+    totalCents: charges.reduce((s, c) => s + c.amountCents, 0),
+    recurringCents,
+  };
+}
+
 /** `tenka:<order_id>:<kind>` — o prefixo é o que a Freelandoo usa para repassar o aviso. */
 export const EXTERNAL_REF_PREFIX = 'tenka:';
 

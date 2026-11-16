@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { ShoppingBag, X } from 'lucide-react';
 import { CART_SITE_SUBSCRIPTIONS, cart, cartProducts, cartTotals, useCart } from './cart';
 import { checkoutErrorMessage, postCheckout } from './api';
-import { cycleWord, formatCents } from './catalog';
+import { cycleWord, formatBps, formatCents, grossUp } from './catalog';
 import { cartDrawer, useStoreStatus } from './status';
 
 /**
@@ -11,7 +11,8 @@ import { cartDrawer, useStoreStatus } from './status';
  * /loja/pedido/:id, que mostra o que falta (ex.: autorizar a mensalidade).
  */
 export default function CartDrawer() {
-  const { payments } = useStoreStatus();
+  const { payments, cardFeeBps } = useStoreStatus();
+  const [method, setMethod] = useState<'pix' | 'card'>('pix');
   const slugs = useCart();
   const open = useSyncExternalStore(cartDrawer.subscribe, cartDrawer.get, () => false);
   const [busy, setBusy] = useState(false);
@@ -29,7 +30,11 @@ export default function CartDrawer() {
   if (!payments) return null;
 
   const products = cartProducts(slugs);
-  const { oneTimeCents, monthlyCents } = cartTotals(products);
+  const base = cartTotals(products);
+  // Mesma regra do back: assinatura sempre no cartão (leva a taxa); avulso só no cartão.
+  const oneTimeCents = method === 'card' ? grossUp(base.oneTimeCents, cardFeeBps) : base.oneTimeCents;
+  const monthlyCents = grossUp(base.monthlyCents, cardFeeBps);
+  const fee = cardFeeBps > 0 ? formatBps(cardFeeBps) : null;
   const hasSite = products.some((p) => p.category === 'sites' && p.kind === 'fixed');
   // Um pedido tem no máximo uma assinatura: o ciclo dela dá o rótulo do total.
   const recurringCycle = cycleWord(products.find((p) => p.kind === 'subscription')?.intervalMonths);
@@ -48,6 +53,7 @@ export default function CartDrawer() {
         email: String(form.get('email') ?? ''),
         phone: String(form.get('phone') ?? ''),
       },
+      method: base.oneTimeCents > 0 ? method : 'card',
       website: String(form.get('website') ?? '') || undefined,
     });
     if (!r.ok) {
@@ -124,17 +130,39 @@ export default function CartDrawer() {
                   </fieldset>
                 )}
 
+                {base.oneTimeCents > 0 && fee && (
+                  <fieldset className="lj-cart__subs">
+                    <legend className="tf-mono">Como pagar</legend>
+                    <label>
+                      <input type="radio" name="method" checked={method === 'pix'} onChange={() => setMethod('pix')} />
+                      Pix — R$ {formatCents(base.oneTimeCents)} à vista
+                    </label>
+                    <label>
+                      <input type="radio" name="method" checked={method === 'card'} onChange={() => setMethod('card')} />
+                      Cartão de crédito — R$ {formatCents(grossUp(base.oneTimeCents, cardFeeBps))} (+{fee}% de taxa), em até 12x
+                    </label>
+                  </fieldset>
+                )}
+
                 <dl className="lj-cart__totals">
                   {oneTimeCents > 0 && (
                     <div>
                       <dt>Agora</dt>
-                      <dd>R$ {formatCents(oneTimeCents)} <small className="tf-mono">em até 12x no cartão</small></dd>
+                      <dd>
+                        R$ {formatCents(oneTimeCents)}{' '}
+                        <small className="tf-mono">
+                          {!fee ? 'em até 12x no cartão' : method === 'pix' ? 'no Pix' : 'no cartão, em até 12x (juros do parcelamento por sua conta)'}
+                        </small>
+                      </dd>
                     </div>
                   )}
                   {monthlyCents > 0 && (
                     <div>
                       <dt>Por {recurringCycle}</dt>
-                      <dd>R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão</small></dd>
+                      <dd>
+                        R$ {formatCents(monthlyCents)}{' '}
+                        <small className="tf-mono">no cartão{fee ? ` (inclui ${fee}% de taxa)` : ''}</small>
+                      </dd>
                     </div>
                   )}
                 </dl>

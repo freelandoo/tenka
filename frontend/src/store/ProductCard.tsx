@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, ImageOff, Pencil } from 'lucide-react';
 import { trackContactClick } from '../lib/analytics';
 import { whatsappUrl } from '../config/contact';
-import { SITE_SUBSCRIPTIONS, cycleWord, formatCents, type StoreProduct } from './catalog';
+import { SITE_SUBSCRIPTIONS, cycleWord, formatBps, formatCents, type StoreProduct } from './catalog';
 import { ProductMedia } from './media';
 import { cart } from './cart';
 import { cartDrawer, useCanBuy, useStoreStatus } from './status';
@@ -27,7 +27,7 @@ export default function ProductCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const canBuy = useCanBuy(product.slug);
-  const { payments } = useStoreStatus();
+  const { payments, cardFeeBps } = useStoreStatus();
   const pickedInCart = payments && ADDON_ONLY.has(product.slug);
   const price = product.priceCents;
   const monthly = product.kind === 'subscription';
@@ -88,6 +88,13 @@ export default function ProductCard({
         {product.custom && monthly && (
           <p className="tf-mono lj-card__note">
             Assinatura {cycle === 'ano' ? 'anual · cobrada todo ano' : 'mensal · cobrada todo mês'} no cartão
+          </p>
+        )}
+        {canBuy && cardFeeBps > 0 && (
+          <p className="tf-mono lj-card__note">
+            {monthly
+              ? `+ ${formatBps(cardFeeBps)}% de taxa do cartão`
+              : `Preço no Pix · no cartão + ${formatBps(cardFeeBps)}% de taxa, em até 12x`}
           </p>
         )}
         {product.kind === 'deposit' && (
