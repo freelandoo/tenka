@@ -5,36 +5,41 @@ import { useNoindex } from '../seo/useSeo';
 import { whatsappUrl } from '../config/contact';
 import TabloidHeader from '../tabloid/TabloidHeader';
 import { checkoutErrorMessage, postCheckout } from '../store/api';
-import { cycleWord, findProduct, formatBps, formatCents, grossUp } from '../store/catalog';
+import { cartProducts, cartTotals } from '../store/cart';
+import { cycleWord, formatBps, formatCents, grossUp } from '../store/catalog';
 import { StoreStatusProvider, useStoreStatus } from '../store/status';
 import '../tabloid/tabloid.css';
 import '../pricing/precos.css';
 import '../store/store.css';
 
 /**
- * `/loja/pagar/:slug` — link de pagamento de um produto só. O admin gera e manda
- * para o cliente; ele cai aqui, preenche os dados e vai pro Mercado Pago. Mesmo
- * checkout da gaveta (manda só o slug), página inteira e sem carrinho. noindex.
- * Pré-preenche nome/email/whatsapp pela query (?nome=&email=&whatsapp=).
+ * `/loja/pagar/:slug` ou `/loja/pagar?p=a,b,c` — link de pagamento de um ou mais
+ * produtos. O admin gera e manda pro cliente; ele cai aqui, preenche os dados e
+ * vai pro Mercado Pago. Mesmo checkout da gaveta (manda só slugs), página inteira
+ * e sem carrinho. noindex. Pré-preenche nome/email/whatsapp pela query.
+ * O servidor valida (máx. 8, uma mensalidade por pedido) — erro vira aviso aqui.
  */
 function PagarInner() {
-  const { slug = '' } = useParams();
+  const { slug } = useParams();
   const [params] = useSearchParams();
-  // Ler `custom` re-renderiza quando o catálogo chega: aí o findProduct acha o produto do painel.
+  // Ler `custom` re-renderiza quando o catálogo chega: aí o cartProducts acha os produtos do painel.
   const { payments, purchasable, cardFeeBps, custom } = useStoreStatus();
   const [method, setMethod] = useState<'pix' | 'card'>('pix');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   void custom;
-  const product = findProduct(slug);
-  const canBuy = Boolean(product) && payments && purchasable.has(slug);
+  // Slugs do caminho e/ou da query `?p=a,b,c`, sem repetir, na ordem em que o admin pôs.
+  const slugs = [...new Set([...(slug ? [slug] : []), ...(params.get('p') ?? '').split(',')].map((s) => s.trim()).filter(Boolean))];
+  const products = cartProducts(slugs);
+  const allFound = products.length === slugs.length && slugs.length > 0;
+  const canBuy = allFound && payments && slugs.every((s) => purchasable.has(s));
 
   useEffect(() => {
-    document.title = product ? `Pagar — ${product.name} — TENKA` : 'Pagamento — TENKA';
-  }, [product]);
+    document.title = products.length === 1 ? `Pagar — ${products[0]!.name} — TENKA` : 'Pagamento — TENKA';
+  }, [products]);
 
-  if (!product || !canBuy) {
+  if (!canBuy) {
     return (
       <section className="lj-hero lj-order">
         <span className="tf-ribbon">Pagamento</span>
@@ -47,13 +52,13 @@ function PagarInner() {
     );
   }
 
-  const recurring = product.kind === 'subscription';
-  const baseCents = product.priceCents ?? 0;
-  const oneTimeBase = recurring ? 0 : baseCents;
+  const base = cartTotals(products);
   const fee = cardFeeBps > 0 ? formatBps(cardFeeBps) : null;
   // Mesma regra do back: assinatura sempre no cartão (com taxa); avulso só com taxa no cartão.
-  const oneTimeCents = method === 'card' ? grossUp(oneTimeBase, cardFeeBps) : oneTimeBase;
-  const monthlyCents = recurring ? grossUp(baseCents, cardFeeBps) : 0;
+  const oneTimeCents = method === 'card' ? grossUp(base.oneTimeCents, cardFeeBps) : base.oneTimeCents;
+  const monthlyCents = grossUp(base.monthlyCents, cardFeeBps);
+  // Um pedido tem no máximo uma mensalidade: o ciclo dela dá o rótulo do total.
+  const recurringCycle = cycleWord(products.find((p) => p.kind === 'subscription')?.intervalMonths);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,13 +66,13 @@ function PagarInner() {
     setBusy(true);
     setError(null);
     const r = await postCheckout({
-      items: [slug],
+      items: slugs,
       customer: {
         name: String(form.get('name') ?? ''),
         email: String(form.get('email') ?? ''),
         phone: String(form.get('phone') ?? ''),
       },
-      method: oneTimeBase > 0 ? method : 'card',
+      method: base.oneTimeCents > 0 ? method : 'card',
       website: String(form.get('website') ?? '') || undefined,
     });
     if (!r.ok) {
@@ -78,22 +83,37 @@ function PagarInner() {
     window.location.assign(r.nextUrl ?? r.statusUrl);
   }
 
+  const title = products.length === 1 ? products[0]!.name : 'Finalize o pagamento';
+
   return (
     <section className="lj-hero lj-order">
       <span className="tf-ribbon">Pagamento TENKA</span>
-      <h1 className="tf-display lj-order__title">{product.name}</h1>
-      {product.description && <p className="lj-hero__lead" style={{ whiteSpace: 'pre-line' }}>{product.description}</p>}
+      <h1 className="tf-display lj-order__title">{title}</h1>
 
-      {oneTimeBase > 0 && fee && (
+      <ul className="lj-cart__items" style={{ maxWidth: 520 }}>
+        {products.map((p) => (
+          <li key={p.slug}>
+            <span>
+              <strong>{p.name}</strong>
+              <small className="tf-mono">
+                R$ {formatCents(p.priceCents ?? 0)}
+                {p.kind === 'subscription' ? ` /${cycleWord(p.intervalMonths)}` : ''}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {base.oneTimeCents > 0 && fee && (
         <fieldset className="lj-cart__subs" style={{ maxWidth: 520 }}>
           <legend className="tf-mono">Como pagar</legend>
           <label>
             <input type="radio" name="method" checked={method === 'pix'} onChange={() => setMethod('pix')} />
-            Pix — R$ {formatCents(oneTimeBase)} à vista
+            Pix — R$ {formatCents(base.oneTimeCents)} à vista
           </label>
           <label>
             <input type="radio" name="method" checked={method === 'card'} onChange={() => setMethod('card')} />
-            Cartão de crédito — R$ {formatCents(grossUp(oneTimeBase, cardFeeBps))} (+{fee}% de taxa), em até 12x
+            Cartão de crédito — R$ {formatCents(grossUp(base.oneTimeCents, cardFeeBps))} (+{fee}% de taxa), em até 12x
           </label>
         </fieldset>
       )}
@@ -112,7 +132,7 @@ function PagarInner() {
         )}
         {monthlyCents > 0 && (
           <div>
-            <dt>Por {cycleWord(product.intervalMonths)}</dt>
+            <dt>Por {recurringCycle}</dt>
             <dd>
               R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão{fee ? ` (inclui ${fee}% de taxa)` : ''}</small>
             </dd>
@@ -136,7 +156,7 @@ function PagarInner() {
         <input name="website" tabIndex={-1} autoComplete="off" className="lj-cart__hp" aria-hidden="true" />
         {monthlyCents > 0 && (
           <p className="lj-cart__hint">
-            A mensalidade é autorizada no cartão pelo Mercado Pago com o mesmo e-mail.
+            A mensalidade é autorizada no cartão pelo Mercado Pago com o mesmo e-mail{base.oneTimeCents > 0 ? ', depois do primeiro pagamento' : ''}.
           </p>
         )}
         {error && <p className="lj-cart__error" role="alert">{error}</p>}

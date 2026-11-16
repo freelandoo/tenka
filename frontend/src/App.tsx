@@ -185,7 +185,15 @@ export default function App() {
             </Suspense>
           }
         />
-        {/* Link de pagamento de um produto só (gerado no painel, noindex). */}
+        {/* Link de pagamento de um ou mais produtos (gerado no painel, noindex). */}
+        <Route
+          path="/loja/pagar"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <LojaPagarPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/loja/pagar/:slug"
           element={
