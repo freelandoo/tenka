@@ -4,7 +4,7 @@
  * e o checkout cobrar outro.
  *
  * Recorrente = `subscription` mensal ou anual (preapproval do MP com ciclo de
- * 1 ou 12 meses: o cartão é cobrado a cada ciclo). Única = `fixed` (preference, até 12x). O checkout já sabe cobrar
+ * 1 ou 12 meses: o cartão é cobrado a cada ciclo). Única = `fixed` (preference, até 6x). O checkout já sabe cobrar
  * os dois; aqui só nasce a linha certa.
  */
 

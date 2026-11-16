@@ -94,7 +94,7 @@ export default function ProductCard({
           <p className="tf-mono lj-card__note">
             {monthly
               ? `+ ${formatBps(cardFeeBps)}% de taxa do cartão`
-              : `Preço no Pix · no cartão + ${formatBps(cardFeeBps)}% de taxa, em até 12x`}
+              : `Preço no Pix · no cartão + ${formatBps(cardFeeBps)}% de taxa, em até 6x`}
           </p>
         )}
         {product.kind === 'deposit' && (

@@ -139,7 +139,7 @@ export default function CartDrawer() {
                     </label>
                     <label>
                       <input type="radio" name="method" checked={method === 'card'} onChange={() => setMethod('card')} />
-                      Cartão de crédito — R$ {formatCents(grossUp(base.oneTimeCents, cardFeeBps))} (+{fee}% de taxa), em até 12x
+                      Cartão de crédito — R$ {formatCents(grossUp(base.oneTimeCents, cardFeeBps))} (+{fee}% de taxa), em até 6x
                     </label>
                   </fieldset>
                 )}
@@ -151,7 +151,7 @@ export default function CartDrawer() {
                       <dd>
                         R$ {formatCents(oneTimeCents)}{' '}
                         <small className="tf-mono">
-                          {!fee ? 'em até 12x no cartão' : method === 'pix' ? 'no Pix' : 'no cartão, em até 12x (juros do parcelamento por sua conta)'}
+                          {!fee ? 'em até 6x no cartão' : method === 'pix' ? 'no Pix' : 'no cartão, em até 6x (juros do parcelamento por sua conta)'}
                         </small>
                       </dd>
                     </div>

@@ -19,7 +19,7 @@ import './productEditor.css';
  * só para admin) e no painel (/painel/admin/loja).
  *
  * Recorrente = assinatura do Mercado Pago: o comprador autoriza o cartão uma
- * vez e o valor é descontado todo mês (mensal) ou todo ano (anual). Única = pagamento de uma vez (até 12x).
+ * vez e o valor é descontado todo mês (mensal) ou todo ano (anual). Única = pagamento de uma vez (até 6x).
  */
 export default function ProductEditor({
   product,
@@ -186,7 +186,7 @@ export default function ProductEditor({
             <label className={!recurring ? 'is-on' : ''}>
               <input type="radio" name="kind" checked={!recurring} onChange={() => setRecurring(false)} />
               <strong>Opção única</strong>
-              <small>Paga uma vez pelo Mercado Pago — cartão em até 12x.</small>
+              <small>Paga uma vez pelo Mercado Pago — cartão em até 6x.</small>
             </label>
             <label className={recurring ? 'is-on' : ''}>
               <input type="radio" name="kind" checked={recurring} onChange={() => setRecurring(true)} />

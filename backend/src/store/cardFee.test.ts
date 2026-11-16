@@ -40,10 +40,10 @@ describe('repasse da taxa do cartão', () => {
     expect(applyCardFee(plan, 0, 'card')).toBe(plan);
   });
 
-  it('preferência: Pix só Pix à vista; cartão sem Pix nem boleto, até 12x', () => {
+  it('preferência: Pix só Pix à vista; cartão sem Pix nem boleto, até 6x', () => {
     expect(paymentMethodsFor('pix')).toMatchObject({ installments: 1 });
     expect(JSON.stringify(paymentMethodsFor('pix'))).toContain('credit_card');
-    expect(paymentMethodsFor('card')).toEqual({ excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'ticket' }], installments: 12 });
-    expect(paymentMethodsFor(undefined)).toEqual({ installments: 12 });
+    expect(paymentMethodsFor('card')).toEqual({ excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'ticket' }], installments: 6 });
+    expect(paymentMethodsFor(undefined)).toEqual({ installments: 6 });
   });
 });

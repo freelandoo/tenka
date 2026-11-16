@@ -27,7 +27,7 @@ function PaymentNote() {
     <p className="tf-mono lj-hero__soon" data-hero-in>
       <span className="tf-dot" />{' '}
       {payments
-        ? 'Pagamento pelo Mercado Pago: Pix à vista ou cartão em até 12x; mensalidade no cartão.'
+        ? 'Pagamento pelo Mercado Pago: Pix à vista ou cartão em até 6x; mensalidade no cartão.'
         : 'Pagamento on-line pelo Mercado Pago chegando. Por enquanto, cada item fecha pelo WhatsApp.'}
     </p>
   );

@@ -13,8 +13,8 @@ import { attachCheckout, createOrder, failOrder, loadProducts, type ChargeRow, t
 
 export const SITE_URL = (process.env.STORE_SITE_URL || 'https://www.tenkagroup.com.br').replace(/\/+$/, '');
 
-/** Parcelas no cartão (avulso). Juros de parcelamento ficam com o comprador, regra padrão do MP. */
-export const MAX_INSTALLMENTS = 12;
+/** Parcelas no cartão (avulso). Juros do parcelamento ficam com o comprador (config da conta no MP). */
+export const MAX_INSTALLMENTS = 6;
 
 /** `auto_return` e `notification_url` exigem URL pública https — localhost faz o MP RECUSAR a preferência. */
 export function isPublicHttps(url: string | undefined | null): boolean {
@@ -46,7 +46,7 @@ export function orderPageUrl(orderId: string, token: string): string {
 
 /**
  * Pix: só Pix (sem cartão nem boleto), à vista. Cartão: sem Pix nem boleto,
- * até 12x — os juros do parcelamento o MP cobra do comprador.
+ * até 6x — os juros do parcelamento o MP cobra do comprador.
  * Sem método (taxa zerada): tudo liberado, como era antes do repasse.
  */
 export function paymentMethodsFor(method: PayMethod | undefined): Record<string, unknown> {
