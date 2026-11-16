@@ -172,3 +172,24 @@
 .lj-order__charges li[data-status='paid'] .lj-order__status { color: var(--tf-acc); }
 .lj-order__help { margin-top: 28px; color: var(--tf-dim); font-size: 12px; }
 .lj-order__help a, .lj-order .lj-hero__lead a { color: var(--tf-acc); }
+
+/* ------------------------------------------- produtos cadastrados pelo painel */
+.lj-media__empty { display: grid; place-items: center; color: var(--tf-dim); }
+.lj-card__desc { white-space: pre-line; }
+.lj-card__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 14px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--tf-acc);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.lj-admin-add { margin-top: 22px; }
+.lj-admin-empty { color: var(--tf-dim); font-size: 12px; letter-spacing: 0.08em; }

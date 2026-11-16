@@ -4,21 +4,58 @@
  */
 
 import { API_BASE_URL } from '../lib/api/client';
+import type { StoreProduct } from './catalog';
 
 export interface CatalogStatus {
   /** O checkout do Mercado Pago está ligado no back (credenciais configuradas). */
   payments: boolean;
   /** Slugs que o back aceita vender agora. */
   purchasable: Set<string>;
+  /** Produtos cadastrados pelo painel (só existem na API). */
+  custom: StoreProduct[];
 }
 
-export async function fetchCatalogStatus(signal?: AbortSignal): Promise<CatalogStatus> {
-  const r = await fetch(`${API_BASE_URL}/store/products`, { signal });
+interface ApiProduct {
+  slug: string;
+  name: string;
+  kind: StoreProduct['kind'];
+  category: StoreProduct['category'];
+  tagline: string;
+  priceCents: number | null;
+  intervalMonths: number | null;
+  purchasable: boolean;
+  custom?: boolean;
+  description?: string;
+  thumbnailUrl?: string | null;
+}
+
+export function toStoreProduct(p: ApiProduct): StoreProduct {
+  return {
+    slug: p.slug,
+    name: p.name,
+    kind: p.kind,
+    category: p.category,
+    tagline: p.tagline ?? '',
+    priceCents: p.priceCents,
+    intervalMonths: p.intervalMonths ?? undefined,
+    features: [],
+    model: 'browser',
+    custom: true,
+    description: p.description ?? '',
+    thumbnailUrl: p.thumbnailUrl ? `${API_BASE_URL}${p.thumbnailUrl}` : null,
+  };
+}
+
+/** `fresh`: ignora o cache de 60 s (logo depois de o admin cadastrar). */
+export async function fetchCatalogStatus(signal?: AbortSignal, fresh = false): Promise<CatalogStatus> {
+  const r = await fetch(`${API_BASE_URL}/store/products`, { signal, cache: fresh ? 'reload' : 'default' });
   if (!r.ok) throw new Error(`catálogo ${r.status}`);
-  const data = (await r.json()) as { payments?: boolean; products?: { slug: string; purchasable: boolean }[] };
+  const data = (await r.json()) as { payments?: boolean; products?: ApiProduct[] };
+  const products = data.products ?? [];
   return {
     payments: Boolean(data.payments),
-    purchasable: new Set((data.products ?? []).filter((p) => p.purchasable).map((p) => p.slug)),
+    purchasable: new Set(products.filter((p) => p.purchasable).map((p) => p.slug)),
+    custom: products.filter((p) => p.custom).map(toStoreProduct),
   };
 }
 

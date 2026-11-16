@@ -135,6 +135,7 @@ export default function MobileMenu({
             admin — não é item de menu de visitante. */}
         {[
           { to: '/precos', label: 'Preços' },
+          { to: '/loja', label: 'Loja' },
           { to: '/projetos', label: 'Projetos' },
           { to: '/sobre', label: 'Sobre' },
           { to: '/contato', label: 'Contato' },

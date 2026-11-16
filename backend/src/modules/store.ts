@@ -2,6 +2,7 @@
  * Loja pública.
  *
  *  GET  /store/products          catálogo (L1)
+ *  GET  /store/products/:slug/thumbnail   imagem do produto cadastrado no painel
  *  POST /store/checkout          carrinho → pedido → link do MP ($1/L2)
  *  GET  /store/orders/:id?t=     acompanhamento do pedido (link com segredo)
  *  POST /webhooks/mercadopago    aviso do MP (direto ou repassado pela Freelandoo)
@@ -19,6 +20,7 @@ import { z } from 'zod';
 import { getPool } from '../db/pool';
 import { toPublicProduct, type ProductRow } from '../store/catalog';
 import { checkout } from '../store/checkout';
+import { readThumbnail } from '../store/adminProducts';
 import { getOrder, getOrderCharges } from '../store/orders';
 import { processNotification, reconcile, type PaymentDeps } from '../store/payments';
 import { mercadoPago, mpConfig, setMercadoPagoLogger, verifyWebhookSignature } from '../payments/mercadopago';
@@ -99,7 +101,9 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
     try {
       const { rows } = await getPool().query<ProductRow>(
         `select id, slug, name, kind, category, tagline, price_cents, interval_months,
-                setup_fee_cents, from_cents, features, addons, addon_only, featured, active, sort
+                setup_fee_cents, from_cents, features, addons, addon_only, featured, active, sort,
+                description, custom, thumbnail is not null as has_thumbnail,
+                floor(extract(epoch from updated_at))::bigint as version
            from public.products
           where active
           order by sort, slug`,
@@ -109,6 +113,24 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       req.log.error({ err }, 'falha ao ler o catálogo');
       return reply.code(503).send({ error: 'catalogo-indisponivel' });
+    }
+  });
+
+  app.get('/store/products/:slug/thumbnail', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return reply.code(404).send({ error: 'sem-imagem' });
+    try {
+      const thumb = await readThumbnail(getPool(), slug);
+      if (!thumb) return reply.code(404).send({ error: 'sem-imagem' });
+      // `?v=` muda a cada edição: com ele, o cache pode ser eterno.
+      const versioned = Boolean((req.query as { v?: string }).v);
+      reply.header('Cache-Control', versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
+      reply.header('Content-Type', thumb.type);
+      reply.header('X-Content-Type-Options', 'nosniff');
+      return reply.send(thumb.bytes);
+    } catch (err) {
+      req.log.error({ err }, 'loja.thumbnail.erro');
+      return reply.code(503).send({ error: 'indisponivel' });
     }
   });
 

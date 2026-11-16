@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ImageOff, Pencil } from 'lucide-react';
 import { trackContactClick } from '../lib/analytics';
 import { whatsappUrl } from '../config/contact';
 import { SITE_SUBSCRIPTIONS, formatCents, type StoreProduct } from './catalog';
@@ -13,7 +13,18 @@ const ADDON_ONLY = new Set(SITE_SUBSCRIPTIONS.map((p) => p.slug));
  * Card de produto. Com o checkout ligado no back, "Adicionar ao carrinho";
  * sem ele (ou para o que ainda não tem valor), o WhatsApp com o produto escrito.
  */
-export default function ProductCard({ product, index, compact = false }: { product: StoreProduct; index: number; compact?: boolean }) {
+export default function ProductCard({
+  product,
+  index,
+  compact = false,
+  onEdit,
+}: {
+  product: StoreProduct;
+  index: number;
+  compact?: boolean;
+  /** Só para admin: abre o editor deste produto (cadastrado pelo painel). */
+  onEdit?: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const canBuy = useCanBuy(product.slug);
   const { payments } = useStoreStatus();
@@ -29,13 +40,24 @@ export default function ProductCard({ product, index, compact = false }: { produ
   return (
     <article
       className={`lj-card${product.featured ? ' lj-card--featured' : ''}${compact ? ' lj-card--compact' : ''}`}
-      data-tf-in
+      // Produto do painel chega depois da animação de entrada: sem o atributo, não fica invisível.
+      data-tf-in={product.custom ? undefined : true}
       data-product={product.slug}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
       <div className="lj-media">
-        <ProductMedia product={product} hovered={hovered} />
+        {product.custom ? (
+          product.thumbnailUrl ? (
+            <img className="lj-media__video" src={product.thumbnailUrl} alt="" loading="lazy" decoding="async" />
+          ) : (
+            <div className="lj-media__slot lj-media__empty" aria-hidden="true">
+              <ImageOff size={28} />
+            </div>
+          )
+        ) : (
+          <ProductMedia product={product} hovered={hovered} />
+        )}
         <span className="tf-mono lj-media__tag" aria-hidden="true">
           ITM_{String(index + 1).padStart(2, '0')}
         </span>
@@ -48,7 +70,8 @@ export default function ProductCard({ product, index, compact = false }: { produ
 
       <div className="lj-card__body">
         <h3 className="lj-card__name">{product.name}</h3>
-        <p className="lj-card__tagline">{product.tagline}</p>
+        {product.tagline && <p className="lj-card__tagline">{product.tagline}</p>}
+        {product.description && <p className="lj-card__tagline lj-card__desc">{product.description}</p>}
 
         <p className="lj-card__price" aria-label={priceLabel}>
           {price == null ? (
@@ -61,6 +84,9 @@ export default function ProductCard({ product, index, compact = false }: { produ
             </>
           )}
         </p>
+        {product.custom && monthly && (
+          <p className="tf-mono lj-card__note">Assinatura · cobrada todo mês no cartão</p>
+        )}
         {product.kind === 'deposit' && (
           <p className="tf-mono lj-card__note">Sinal de briefing · o valor do projeto vem no orçamento</p>
         )}
@@ -104,6 +130,11 @@ export default function ProductCard({ product, index, compact = false }: { produ
             {price == null ? 'Pedir orçamento' : 'Quero este'}
             <span className="tf-arrow" aria-hidden="true">↗</span>
           </a>
+        )}
+        {onEdit && (
+          <button type="button" className="tf-mono lj-card__edit" onClick={onEdit}>
+            <Pencil size={13} aria-hidden="true" /> Editar produto
+          </button>
         )}
       </div>
     </article>

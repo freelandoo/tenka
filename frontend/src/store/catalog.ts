@@ -12,7 +12,7 @@
 import { HOSTING, PLANS } from '../pricing/plans';
 
 export type ProductKind = 'fixed' | 'subscription' | 'deposit';
-export type ProductCategory = 'sites' | 'google' | 'games' | 'sistemas' | 'ar' | 'vr';
+export type ProductCategory = 'sites' | 'google' | 'games' | 'sistemas' | 'ar' | 'vr' | 'loja';
 /** Qual modelo 3D o card mostra. */
 export type ProductModel = 'browser' | 'server' | 'pin' | 'controller' | 'graph' | 'phone' | 'headset';
 
@@ -32,6 +32,11 @@ export interface StoreProduct {
   /** Nível do modelo (o site Experiência é mais elaborado que o Essencial). */
   tier?: 1 | 2 | 3;
   featured?: boolean;
+  /** Cadastrado pelo painel: vem da API, não deste arquivo. */
+  custom?: boolean;
+  description?: string;
+  /** URL absoluta da imagem (já com a base da API). */
+  thumbnailUrl?: string | null;
 }
 
 const plan = (id: (typeof PLANS)[number]['id']) => {
@@ -145,6 +150,26 @@ export const DEPOSIT_PRODUCTS: StoreProduct[] = [
 ];
 
 export const STORE_PRODUCTS: StoreProduct[] = [...SITE_PRODUCTS, ...SITE_SUBSCRIPTIONS, GMN, ...DEPOSIT_PRODUCTS];
+
+// ----------------------------------------- produtos cadastrados pelo painel
+
+/**
+ * Os produtos do painel só existem na API. O carrinho e a gaveta precisam
+ * achá-los fora do React, então a resposta do catálogo registra aqui.
+ */
+let customProducts: StoreProduct[] = [];
+
+export function registerCustomProducts(list: StoreProduct[]): void {
+  customProducts = list;
+}
+
+export function getCustomProducts(): StoreProduct[] {
+  return customProducts;
+}
+
+export function findProduct(slug: string): StoreProduct | undefined {
+  return STORE_PRODUCTS.find((p) => p.slug === slug) ?? customProducts.find((p) => p.slug === slug);
+}
 
 /** Mesma regra do back (`isPurchasable`): sem valor definido não vende. */
 export function isPurchasable(p: StoreProduct): boolean {

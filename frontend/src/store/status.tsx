@@ -4,25 +4,40 @@
  * nunca mostrar botão de pagar que pode quebrar depois do clique.
  */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchCatalogStatus, type CatalogStatus } from './api';
+import { registerCustomProducts } from './catalog';
 
-const OFF: CatalogStatus = { payments: false, purchasable: new Set() };
-const StatusContext = createContext<CatalogStatus>(OFF);
+type StoreStatus = CatalogStatus & {
+  /** Relê o catálogo sem cache (depois de o admin cadastrar ou editar). */
+  reload: () => Promise<void>;
+};
+
+const OFF: CatalogStatus = { payments: false, purchasable: new Set(), custom: [] };
+const StatusContext = createContext<StoreStatus>({ ...OFF, reload: async () => {} });
 
 export function StoreStatusProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<CatalogStatus>(OFF);
+  const apply = useCallback((s: CatalogStatus) => {
+    // Registra ANTES do setState: carrinho e gaveta leem o registro no render.
+    registerCustomProducts(s.custom);
+    setStatus(s);
+  }, []);
   useEffect(() => {
     const ctrl = new AbortController();
     fetchCatalogStatus(ctrl.signal)
-      .then(setStatus)
+      .then(apply)
       .catch(() => {});
     return () => ctrl.abort();
-  }, []);
-  return <StatusContext.Provider value={status}>{children}</StatusContext.Provider>;
+  }, [apply]);
+  const reload = useCallback(async () => {
+    apply(await fetchCatalogStatus(undefined, true));
+  }, [apply]);
+  const value = useMemo(() => ({ ...status, reload }), [status, reload]);
+  return <StatusContext.Provider value={value}>{children}</StatusContext.Provider>;
 }
 
-export function useStoreStatus(): CatalogStatus {
+export function useStoreStatus(): StoreStatus {
   return useContext(StatusContext);
 }
 

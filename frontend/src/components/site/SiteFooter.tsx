@@ -24,6 +24,7 @@ const FOOTER_LABELS: Record<string, string> = {
   '/studios': 'Studios',
   '/tech': 'Tech',
   '/precos': 'Preços',
+  '/loja': 'Loja',
   '/projetos': 'Projetos',
   '/sobre': 'Sobre',
   '/contato': 'Contato',

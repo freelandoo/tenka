@@ -8,7 +8,7 @@
  */
 
 export type ProductKind = 'fixed' | 'subscription' | 'deposit';
-export type ProductCategory = 'sites' | 'google' | 'games' | 'sistemas' | 'ar' | 'vr';
+export type ProductCategory = 'sites' | 'google' | 'games' | 'sistemas' | 'ar' | 'vr' | 'loja';
 
 export interface ProductRow {
   id: string;
@@ -27,6 +27,11 @@ export interface ProductRow {
   featured: boolean;
   active: boolean;
   sort: number;
+  /** 0048 — cadastrados pelo painel. Opcionais: o checkout não lê. */
+  description?: string;
+  custom?: boolean;
+  has_thumbnail?: boolean;
+  version?: number | string;
 }
 
 export interface PublicProduct {
@@ -45,6 +50,11 @@ export interface PublicProduct {
   featured: boolean;
   /** Dá para pôr no carrinho agora (todos os valores necessários definidos). */
   purchasable: boolean;
+  description: string;
+  /** Cadastrado pelo painel (a vitrine estática não conhece; o front monta da API). */
+  custom: boolean;
+  /** Caminho relativo à API, com `?v=` para o cache ser eterno. */
+  thumbnailUrl: string | null;
 }
 
 function stringList(value: unknown): string[] {
@@ -82,5 +92,8 @@ export function toPublicProduct(row: ProductRow): PublicProduct {
     addonOnly: row.addon_only,
     featured: row.featured,
     purchasable: isPurchasable(row),
+    description: row.description ?? '',
+    custom: Boolean(row.custom),
+    thumbnailUrl: row.has_thumbnail ? `/store/products/${row.slug}/thumbnail?v=${row.version ?? 0}` : null,
   };
 }

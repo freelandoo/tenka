@@ -11,6 +11,7 @@ import TabloidHeader from '../tabloid/TabloidHeader';
 import ProductCard from '../store/ProductCard';
 import { StoreStage } from '../store/media';
 import CartDrawer from '../store/CartDrawer';
+import CustomProducts from '../store/CustomProducts';
 import { StoreStatusProvider, useStoreStatus } from '../store/status';
 import { DEPOSIT_PRODUCTS, GMN, SITE_PRODUCTS, SITE_SUBSCRIPTIONS } from '../store/catalog';
 import '../tabloid/tabloid.css';
@@ -145,6 +146,8 @@ export default function LojaPage() {
               ))}
             </div>
           </section>
+
+          <CustomProducts firstIndex={10} />
 
           <section className="pc-section lj-final">
             <div className="pc-final__cta" data-tf-in>

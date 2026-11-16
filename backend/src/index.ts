@@ -20,6 +20,7 @@ import { meetingRoutes } from './modules/meetings';
 import { financeRoutes } from './modules/finance';
 import { cardAuthorizationRoutes } from './modules/cardAuthorizations';
 import { storeReconcileJob, storeRoutes } from './modules/store';
+import { storeAdminRoutes } from './modules/storeAdmin';
 import { financeWorker } from './finance/worker';
 import { reconciliationJob } from './finance/reconciliationJob';
 import { realtimeBus } from './realtime/bus';
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
   await app.register(cardAuthorizationRoutes);
   // Loja pública: catálogo (L1). Independente do financeiro do Asaas.
   await app.register(storeRoutes);
+  await app.register(storeAdminRoutes);
   // Webhook da Evolution: não passa por auth de painel (valida x-webhook-secret).
   await app.register(webhookRoutes);
 

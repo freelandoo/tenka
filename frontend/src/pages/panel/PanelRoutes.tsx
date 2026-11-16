@@ -24,6 +24,7 @@ import AdminClientsPage from './admin/AdminClientsPage';
 import AdminUsersPage from './admin/AdminUsersPage';
 import AdminFinancePage from './admin/AdminFinancePage';
 import AdminSitePage from './admin/AdminSitePage';
+import AdminStorePage from './admin/AdminStorePage';
 import AdminSettingsPage from './admin/AdminSettingsPage';
 import '../../styles/panel.css';
 
@@ -171,6 +172,14 @@ export default function PanelRoutes() {
               element={
                 <RequireAdmin>
                   <AdminSitePage />
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="admin/loja"
+              element={
+                <RequireAdmin>
+                  <AdminStorePage />
                 </RequireAdmin>
               }
             />

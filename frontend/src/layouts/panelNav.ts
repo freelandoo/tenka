@@ -74,6 +74,7 @@ export function panelNavFor(role: PanelRole | null): PanelNavGroup[] {
         { to: '/painel/admin/clientes', label: 'Clientes', icon: Building2 },
         { to: '/painel/admin/usuarios', label: 'Usuários', icon: Users },
         { to: '/painel/admin/financeiro', label: 'Financeiro', icon: Wallet },
+        { to: '/painel/admin/loja', label: 'Loja', icon: ShoppingBag },
         { to: '/painel/admin/site', label: 'Site', icon: LayoutPanelLeft },
         { to: '/painel/admin/configuracoes', label: 'Configurações', icon: Settings },
       ],

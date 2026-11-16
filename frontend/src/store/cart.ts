@@ -5,11 +5,13 @@
  *
  *  - um site por pedido, e site exige uma mensalidade (hospedagem ou combo);
  *  - uma mensalidade por pedido;
- *  - GMN avulso + site = vira o combo "Hospedagem + Google Meu Negócio".
+ *  - GMN avulso + site = vira o combo "Hospedagem + Google Meu Negócio";
+ *  - produto recorrente do painel também é mensalidade: o mais recente entre
+ *    ele e (site/mensalidade) vence, porque o pedido só tem uma assinatura.
  */
 
 import { useSyncExternalStore } from 'react';
-import { GMN, SITE_PRODUCTS, SITE_SUBSCRIPTIONS, STORE_PRODUCTS, type StoreProduct } from './catalog';
+import { GMN, SITE_PRODUCTS, SITE_SUBSCRIPTIONS, findProduct, type StoreProduct } from './catalog';
 
 const KEY = 'tenka:loja:carrinho';
 const COMBO = 'hospedagem-gmn';
@@ -17,7 +19,8 @@ const HOSTING = 'hospedagem';
 
 const SITE_SLUGS = new Set(SITE_PRODUCTS.map((p) => p.slug));
 const SUB_SLUGS = new Set([...SITE_SUBSCRIPTIONS.map((p) => p.slug), GMN.slug]);
-const KNOWN = new Set(STORE_PRODUCTS.map((p) => p.slug));
+/** Produto do painel ainda não carregado não é descartado: a API chega depois. */
+const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 let items: string[] = read();
 const listeners = new Set<() => void>();
@@ -26,7 +29,7 @@ function read(): string[] {
   try {
     const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? normalize(parsed.filter((s): s is string => typeof s === 'string' && KNOWN.has(s))) : [];
+    return Array.isArray(parsed) ? normalize(parsed.filter((s): s is string => typeof s === 'string' && SLUG.test(s)).slice(0, 8)) : [];
   } catch {
     return [];
   }
@@ -45,16 +48,33 @@ function write(next: string[]) {
 /** Aplica as regras do carrinho a uma lista qualquer. */
 export function normalize(list: string[]): string[] {
   const unique = [...new Set(list)];
-  const site = [...unique].reverse().find((s) => SITE_SLUGS.has(s));
-  let sub = [...unique].reverse().find((s) => SUB_SLUGS.has(s));
+  const lastIndex = (pred: (s: string) => boolean) => {
+    for (let i = unique.length - 1; i >= 0; i--) if (pred(unique[i]!)) return i;
+    return -1;
+  };
+  const isCustomSub = (s: string) => !SUB_SLUGS.has(s) && findProduct(s)?.custom === true && findProduct(s)?.kind === 'subscription';
+  const iSite = lastIndex((s) => SITE_SLUGS.has(s));
+  const iSub = lastIndex((s) => SUB_SLUGS.has(s));
+  const iCustom = lastIndex(isCustomSub);
+  let site: string | undefined = unique[iSite];
+  let sub: string | undefined = unique[iSub];
+  let customSub: string | undefined = unique[iCustom];
+  if (customSub) {
+    if (iCustom > Math.max(iSite, iSub)) {
+      site = undefined;
+      sub = undefined;
+    } else {
+      customSub = undefined;
+    }
+  }
   if (site) {
     if (sub === GMN.slug) sub = COMBO;
     if (!sub) sub = HOSTING;
   } else if (sub === COMBO || sub === HOSTING) {
     sub = undefined; // mensalidade de site sem site não existe
   }
-  const rest = unique.filter((s) => !SITE_SLUGS.has(s) && !SUB_SLUGS.has(s));
-  return [...(site ? [site] : []), ...(sub ? [sub] : []), ...rest];
+  const rest = unique.filter((s) => !SITE_SLUGS.has(s) && !SUB_SLUGS.has(s) && !isCustomSub(s));
+  return [...(site ? [site] : []), ...(sub ? [sub] : []), ...(customSub ? [customSub] : []), ...rest];
 }
 
 export const cart = {
@@ -85,7 +105,7 @@ export function useCart(): string[] {
 }
 
 export function cartProducts(slugs: string[]): StoreProduct[] {
-  return slugs.map((s) => STORE_PRODUCTS.find((p) => p.slug === s)).filter((p): p is StoreProduct => Boolean(p));
+  return slugs.map((s) => findProduct(s)).filter((p): p is StoreProduct => Boolean(p));
 }
 
 /** Total da 1ª cobrança (avulso + taxas) e da mensalidade, para exibir. O servidor recalcula. */

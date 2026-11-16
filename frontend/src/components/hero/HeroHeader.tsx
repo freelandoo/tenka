@@ -75,6 +75,12 @@ export default function HeroHeader({
               Preços
             </Link>
             <Link
+              to="/loja"
+              className="min-h-[44px] py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white transition-colors hover:text-white"
+            >
+              Loja
+            </Link>
+            <Link
               to="/projetos"
               className="min-h-[44px] py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70 transition-colors hover:text-white"
             >

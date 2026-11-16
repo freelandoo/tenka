@@ -39,7 +39,8 @@ export default function CartDrawer() {
     setBusy(true);
     setError(null);
     const r = await postCheckout({
-      items: slugs,
+      // Só o que a vitrine conhece (um produto do painel apagado fica de fora).
+      items: products.map((p) => p.slug),
       customer: {
         name: String(form.get('name') ?? ''),
         email: String(form.get('email') ?? ''),
@@ -58,9 +59,9 @@ export default function CartDrawer() {
 
   return (
     <>
-      {slugs.length > 0 && !open && (
+      {products.length > 0 && !open && (
         <button type="button" className="lj-cart-fab tf-mono" onClick={() => cartDrawer.set(true)}>
-          <ShoppingBag size={18} aria-hidden="true" /> Carrinho <b>{slugs.length}</b>
+          <ShoppingBag size={18} aria-hidden="true" /> Carrinho <b>{products.length}</b>
         </button>
       )}
       {open && (
