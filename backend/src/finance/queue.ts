@@ -74,13 +74,17 @@ export async function queueProjectCheckoutOperation(
 ): Promise<boolean> {
   const sessionId = randomUUID();
   const session = await client.query(
-    `insert into public.project_payment_checkout_sessions
+    `with requested_session as (
+       select $1::uuid as id
+     )
+     insert into public.project_payment_checkout_sessions
        (id, project_payment_id, amount_cents, max_installments,
         external_reference, created_by)
-     select $1, pp.id, pp.amount_cents, 6,
-            'project-payment:' || pp.id::text || ':checkout:' || $1::text,
+     select requested_session.id, pp.id, pp.amount_cents, 6,
+            'project-payment:' || pp.id::text || ':checkout:' || requested_session.id::text,
             public.current_user_id()
        from public.project_payments pp
+       cross join requested_session
       where pp.id = $2
         and not exists (
           select 1 from public.project_payment_checkout_sessions cs
