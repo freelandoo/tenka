@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, ImageOff, Pencil, Plus } from 'lucide-react';
+import { Check, ExternalLink, ImageOff, Link2, Pencil, Plus } from 'lucide-react';
 import { PortalError, PortalHeader, PortalLoading } from '../../../features/portal/PortalPieces';
 import { API_BASE_URL } from '../../../lib/api/client';
 import { getStoreSettings, listAdminProducts, saveStoreSettings, type AdminProduct } from '../../../store/admin/adminApi';
@@ -56,6 +56,28 @@ function CardFeeSetting() {
         {state === 'error' && <span>Valor inválido ou falha ao salvar (use de 0 a 29,99).</span>}
       </div>
     </div>
+  );
+}
+
+/** Copia o link de pagamento do produto (manda pro cliente; ele paga direto no Mercado Pago). */
+function ShareLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/loja/pagar/${slug}`;
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt('Copie o link de pagamento:', url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <button type="button" className="panel-btn" onClick={() => void copy()} title={url}>
+      {copied ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
+      {copied ? 'Link copiado' : 'Compartilhar'}
+    </button>
   );
 }
 
@@ -158,6 +180,7 @@ export default function AdminStorePage() {
                 <button type="button" className="panel-btn" onClick={() => setEditing(p)}>
                   <Pencil size={14} aria-hidden="true" /> Editar
                 </button>
+                {p.active && <ShareLink slug={p.slug} />}
               </div>
             </article>
           ))}
