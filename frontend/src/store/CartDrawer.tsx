@@ -31,9 +31,9 @@ export default function CartDrawer() {
 
   const products = cartProducts(slugs);
   const base = cartTotals(products);
-  // Mesma regra do back: assinatura sempre no cartão (leva a taxa); avulso só no cartão.
+  // Mesma regra do back: a taxa entra só no avulso pago no cartão; a mensalidade sai no valor cheio.
   const oneTimeCents = method === 'card' ? grossUp(base.oneTimeCents, cardFeeBps) : base.oneTimeCents;
-  const monthlyCents = grossUp(base.monthlyCents, cardFeeBps);
+  const monthlyCents = base.monthlyCents;
   const fee = cardFeeBps > 0 ? formatBps(cardFeeBps) : null;
   const hasSite = products.some((p) => p.category === 'sites' && p.kind === 'fixed');
   // Um pedido tem no máximo uma assinatura: o ciclo dela dá o rótulo do total.
@@ -161,7 +161,7 @@ export default function CartDrawer() {
                       <dt>Por {recurringCycle}</dt>
                       <dd>
                         R$ {formatCents(monthlyCents)}{' '}
-                        <small className="tf-mono">no cartão{fee ? ` (inclui ${fee}% de taxa)` : ''}</small>
+                        <small className="tf-mono">no cartão</small>
                       </dd>
                     </div>
                   )}

@@ -32,9 +32,10 @@ function CardFeeSetting() {
     <div className="panel-card" style={{ marginBottom: 20 }}>
       <h2 className="panel-card__title">Taxa do cartão repassada ao cliente</h2>
       <p className="panel-card__text">
-        Somada ao preço quando a pessoa paga no cartão (no Pix fica o preço normal) e em toda assinatura. O valor é
-        calculado para você receber o preço cheio depois da taxa do Mercado Pago. Os juros do parcelamento o próprio
-        Mercado Pago cobra do comprador. Use a taxa do seu plano no Mercado Pago (padrão: 4,98% para receber na hora).
+        Somada ao preço só quando a pessoa paga o valor único no cartão (no Pix e nas mensalidades fica o preço
+        normal). O valor é calculado para você receber o preço cheio depois da taxa do Mercado Pago. Os juros do
+        parcelamento o próprio Mercado Pago cobra do comprador. Use a taxa do seu plano no Mercado Pago (padrão: 4,98%
+        para receber na hora).
       </p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
         <input

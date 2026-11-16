@@ -141,28 +141,22 @@ export function feeLabel(bps: number): string {
 }
 
 /**
- * Repassa a taxa do cartão ao comprador:
- *  - assinatura: o MP só cobra no cartão → a taxa entra sempre;
- *  - avulso: entra só se o comprador escolheu cartão (no Pix o preço é o cheio).
+ * Repassa a taxa do cartão ao comprador SÓ no avulso pago no cartão:
+ *  - avulso + cartão: entra a taxa (no Pix o preço é o cheio);
+ *  - mensalidade: sai sempre no valor cheio — a taxa é por conta da TENKA.
  * Juros do parcelamento NÃO entram aqui: o MP calcula e cobra do comprador na
  * hora de parcelar (a preferência não oferece parcela sem juros).
  */
 export function applyCardFee(plan: CartPlan, bps: number, method: PayMethod | undefined): CartPlan {
-  if (!(bps > 0)) return plan;
+  if (!(bps > 0) || method !== 'card') return plan;
   const extraLines: CartLine[] = [];
   const charges = plan.charges.map((c) => {
-    const card = c.kind === 'subscription' || method === 'card';
-    if (!card) return c;
+    if (c.kind === 'subscription') return c;
     const fee = grossUp(c.amountCents, bps) - c.amountCents;
     if (fee <= 0) return c;
     const line: CartLine = { slug: CARD_FEE_SLUG, name: feeLabel(bps), kind: 'fixed', unitCents: fee };
     extraLines.push({ ...line, slug: `${CARD_FEE_SLUG}:${c.kind}` });
-    return {
-      ...c,
-      amountCents: c.amountCents + fee,
-      description: c.kind === 'subscription' ? `${c.description} + taxa do cartão`.slice(0, 250) : c.description,
-      lines: [...c.lines, line],
-    };
+    return { ...c, amountCents: c.amountCents + fee, lines: [...c.lines, line] };
   });
   const recurringCents = charges.find((c) => c.kind === 'subscription')?.amountCents ?? 0;
   return {

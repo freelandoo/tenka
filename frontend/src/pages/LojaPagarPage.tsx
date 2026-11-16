@@ -54,9 +54,9 @@ function PagarInner() {
 
   const base = cartTotals(products);
   const fee = cardFeeBps > 0 ? formatBps(cardFeeBps) : null;
-  // Mesma regra do back: assinatura sempre no cartão (com taxa); avulso só com taxa no cartão.
+  // Mesma regra do back: a taxa entra só no avulso pago no cartão; a mensalidade sai no valor cheio.
   const oneTimeCents = method === 'card' ? grossUp(base.oneTimeCents, cardFeeBps) : base.oneTimeCents;
-  const monthlyCents = grossUp(base.monthlyCents, cardFeeBps);
+  const monthlyCents = base.monthlyCents;
   // Um pedido tem no máximo uma mensalidade: o ciclo dela dá o rótulo do total.
   const recurringCycle = cycleWord(products.find((p) => p.kind === 'subscription')?.intervalMonths);
 
@@ -134,7 +134,7 @@ function PagarInner() {
           <div>
             <dt>Por {recurringCycle}</dt>
             <dd>
-              R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão{fee ? ` (inclui ${fee}% de taxa)` : ''}</small>
+              R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão</small>
             </dd>
           </div>
         )}

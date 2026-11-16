@@ -23,17 +23,17 @@ describe('repasse da taxa do cartão', () => {
     expect(grossUp(65000, 0)).toBe(65000);
   });
 
-  it('cartão: taxa no avulso e na assinatura', () => {
+  it('cartão: taxa só no avulso; a mensalidade sai no valor cheio', () => {
     const p = applyCardFee(plan, 498, 'card');
-    expect(p.charges.map((c) => c.amountCents)).toEqual([68407, 6315]);
+    expect(p.charges.map((c) => c.amountCents)).toEqual([68407, 6000]);
     expect(p.charges[0]!.lines.at(-1)).toMatchObject({ slug: 'taxa-cartao', name: 'Taxa do cartão (4,98%)', unitCents: 3407 });
-    expect(p.charges[1]!.description).toBe('Hospedagem + taxa do cartão');
-    expect(p).toMatchObject({ totalCents: 68407 + 6315, recurringCents: 6315 });
+    expect(p.charges[1]!.description).toBe('Hospedagem');
+    expect(p).toMatchObject({ totalCents: 68407 + 6000, recurringCents: 6000 });
   });
 
-  it('Pix: avulso sem taxa; a assinatura (só cartão) leva a taxa', () => {
+  it('Pix: nada leva taxa (nem avulso nem mensalidade)', () => {
     const p = applyCardFee(plan, 498, 'pix');
-    expect(p.charges.map((c) => c.amountCents)).toEqual([65000, 6315]);
+    expect(p).toBe(plan);
   });
 
   it('taxa zerada não mexe em nada', () => {
