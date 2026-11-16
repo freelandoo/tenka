@@ -178,6 +178,11 @@ export function isPurchasable(p: StoreProduct): boolean {
   return true;
 }
 
+/** Ciclo da assinatura em palavra: 12 → "ano"; o resto → "mês". */
+export function cycleWord(intervalMonths: number | null | undefined): 'ano' | 'mês' {
+  return intervalMonths === 12 ? 'ano' : 'mês';
+}
+
 const BRL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** `3990` → `"39,90"`; `30000` → `"300"` (inteiro some com os centavos). */

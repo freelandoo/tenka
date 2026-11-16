@@ -100,7 +100,7 @@ export default function LojaPedidoPage() {
                     <strong>{chargeTitle(c)}</strong>
                     <small className="tf-mono">
                       R$ {formatCents(c.amountCents)}
-                      {c.kind === 'subscription' ? ' por mês' : ''}
+                      {c.kind === 'subscription' ? (c.intervalMonths === 12 ? ' por ano' : ' por mês') : ''}
                     </small>
                   </span>
                   <span className="tf-mono lj-order__status">{STATUS_LABEL[c.status] ?? c.status}</span>

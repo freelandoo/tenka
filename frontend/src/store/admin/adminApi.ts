@@ -12,6 +12,8 @@ export interface AdminProduct {
   description: string;
   priceCents: number;
   recurring: boolean;
+  /** 1 = mensal, 12 = anual; `null` na opção única. */
+  intervalMonths: number | null;
   active: boolean;
   hasThumbnail: boolean;
   version: number;
@@ -29,6 +31,7 @@ export interface ProductPayload {
   description: string;
   priceCents: number;
   recurring: boolean;
+  intervalMonths: 1 | 12;
   active: boolean;
   /** `undefined` não mexe; `null` remove. */
   thumbnail?: ThumbnailUpload | null;

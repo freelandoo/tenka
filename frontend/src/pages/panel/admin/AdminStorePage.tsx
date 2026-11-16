@@ -38,7 +38,7 @@ export default function AdminStorePage() {
       <PortalHeader
         eyebrow="Loja TENKA"
         title="Produtos da vitrine"
-        description="Cadastre o que vende na /loja: nome, descrição, valor, thumbnail e se a cobrança é única ou recorrente (assinatura mensal no cartão pelo Mercado Pago)."
+        description="Cadastre o que vende na /loja: nome, descrição, valor, thumbnail e se a cobrança é única ou recorrente (assinatura mensal ou anual no cartão pelo Mercado Pago)."
       />
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -87,7 +87,11 @@ export default function AdminStorePage() {
                   </div>
                   <p className="panel-card__text">
                     R$ {formatCents(p.priceCents)}
-                    {p.recurring ? ' por mês · recorrente (assinatura no cartão)' : ' · pagamento único'}
+                    {p.recurring
+                      ? p.intervalMonths === 12
+                        ? ' por ano · recorrente anual (assinatura no cartão)'
+                        : ' por mês · recorrente mensal (assinatura no cartão)'
+                      : ' · pagamento único'}
                   </p>
                   {p.description && (
                     <p className="panel-card__text" style={{ whiteSpace: 'pre-line' }}>

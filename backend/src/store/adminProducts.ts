@@ -3,8 +3,8 @@
  * da 0045 é espelhado no front e editar aqui faria a vitrine anunciar um preço
  * e o checkout cobrar outro.
  *
- * Recorrente = `subscription` mensal (preapproval do MP: o cartão é cobrado
- * todo mês). Única = `fixed` (preference, até 12x). O checkout já sabe cobrar
+ * Recorrente = `subscription` mensal ou anual (preapproval do MP com ciclo de
+ * 1 ou 12 meses: o cartão é cobrado a cada ciclo). Única = `fixed` (preference, até 12x). O checkout já sabe cobrar
  * os dois; aqui só nasce a linha certa.
  */
 
@@ -25,12 +25,17 @@ export const productInputSchema = z.object({
   /** Centavos. */
   priceCents: z.number().int().min(100).max(100_000_000),
   recurring: z.boolean(),
+  /** Ciclo da recorrência: 1 = mensal, 12 = anual. Ignorado na opção única. */
+  intervalMonths: z.union([z.literal(1), z.literal(12)]).default(1),
   active: z.boolean().default(true),
   /** `undefined` = não mexe; `null` = remove; objeto = troca. */
   thumbnail: thumbnailSchema.optional(),
 });
 
-export const productPatchSchema = productInputSchema.partial();
+export const productPatchSchema = productInputSchema.partial().extend({
+  // Sem default no PATCH: ausente = não mexe.
+  intervalMonths: z.union([z.literal(1), z.literal(12)]).optional(),
+});
 
 export type ProductInput = z.infer<typeof productInputSchema>;
 export type ProductPatch = z.infer<typeof productPatchSchema>;
@@ -42,6 +47,8 @@ export interface AdminProduct {
   description: string;
   priceCents: number;
   recurring: boolean;
+  /** 1 = mensal, 12 = anual; `null` na opção única. */
+  intervalMonths: number | null;
   active: boolean;
   hasThumbnail: boolean;
   version: number;
@@ -75,7 +82,7 @@ export function decodeThumbnail(input: { type: ThumbType; data: string }): { byt
   return ok ? { bytes, type: input.type } : null;
 }
 
-const COLS = `id, slug, name, description, price_cents, kind, active, thumbnail is not null as has_thumbnail,
+const COLS = `id, slug, name, description, price_cents, kind, interval_months, active, thumbnail is not null as has_thumbnail,
   floor(extract(epoch from updated_at))::bigint as version, created_at`;
 
 interface Row {
@@ -85,6 +92,7 @@ interface Row {
   description: string;
   price_cents: number | string;
   kind: string;
+  interval_months: number | null;
   active: boolean;
   has_thumbnail: boolean;
   version: number | string;
@@ -99,6 +107,7 @@ function toAdmin(r: Row): AdminProduct {
     description: r.description,
     priceCents: Number(r.price_cents),
     recurring: r.kind === 'subscription',
+    intervalMonths: r.kind === 'subscription' ? Number(r.interval_months ?? 1) : null,
     active: r.active,
     hasThumbnail: r.has_thumbnail,
     version: Number(r.version),
@@ -149,7 +158,7 @@ export async function createCustomProduct(db: Queryable, input: ProductInput): P
       input.recurring ? 'subscription' : 'fixed',
       input.description,
       input.priceCents,
-      input.recurring ? 1 : null,
+      input.recurring ? input.intervalMonths : null,
       input.active,
       thumb?.bytes ?? null,
       thumb?.type ?? null,
@@ -171,7 +180,11 @@ export async function updateCustomProduct(db: Queryable, id: string, patch: Prod
   if (patch.active !== undefined) set('active', patch.active);
   if (patch.recurring !== undefined) {
     set('kind', patch.recurring ? 'subscription' : 'fixed');
-    set('interval_months', patch.recurring ? 1 : null);
+    set('interval_months', patch.recurring ? (patch.intervalMonths ?? 1) : null);
+  } else if (patch.intervalMonths !== undefined) {
+    // Só troca o ciclo de quem já é recorrente (a constraint exige null na única).
+    params.push(patch.intervalMonths);
+    sets.push(`interval_months = case when kind = 'subscription' then $${params.length}::integer else null end`);
   }
   if (patch.thumbnail === null) {
     set('thumbnail', null);

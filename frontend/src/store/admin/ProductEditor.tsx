@@ -19,7 +19,7 @@ import './productEditor.css';
  * só para admin) e no painel (/painel/admin/loja).
  *
  * Recorrente = assinatura do Mercado Pago: o comprador autoriza o cartão uma
- * vez e o valor é descontado todo mês. Única = pagamento de uma vez (até 12x).
+ * vez e o valor é descontado todo mês (mensal) ou todo ano (anual). Única = pagamento de uma vez (até 12x).
  */
 export default function ProductEditor({
   product,
@@ -36,6 +36,7 @@ export default function ProductEditor({
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(product ? centsToInput(product.priceCents) : '');
   const [recurring, setRecurring] = useState(product?.recurring ?? false);
+  const [intervalMonths, setIntervalMonths] = useState<1 | 12>(product?.intervalMonths === 12 ? 12 : 1);
   const [active, setActive] = useState(product?.active ?? true);
   const [thumb, setThumb] = useState<ThumbnailUpload | null | undefined>(undefined);
   const [preview, setPreview] = useState<string | null>(
@@ -77,6 +78,7 @@ export default function ProductEditor({
       description: description.trim(),
       priceCents,
       recurring,
+      intervalMonths,
       active,
       ...(thumb !== undefined ? { thumbnail: thumb } : {}),
     };
@@ -169,7 +171,7 @@ export default function ProductEditor({
           </label>
 
           <label className="pe__field">
-            <span>Valor (R$){recurring ? ' por mês' : ''}</span>
+            <span>Valor (R$){recurring ? (intervalMonths === 12 ? ' por ano' : ' por mês') : ''}</span>
             <input
               inputMode="decimal"
               value={price}
@@ -189,9 +191,25 @@ export default function ProductEditor({
             <label className={recurring ? 'is-on' : ''}>
               <input type="radio" name="kind" checked={recurring} onChange={() => setRecurring(true)} />
               <strong>Recorrente</strong>
-              <small>Assinatura no cartão de crédito: desconta o valor todo mês.</small>
+              <small>Assinatura no cartão de crédito: desconta o valor a cada ciclo.</small>
             </label>
           </fieldset>
+
+          {recurring && (
+            <fieldset className="pe__kind pe__cycle">
+              <legend>Ciclo da assinatura</legend>
+              <label className={intervalMonths === 1 ? 'is-on' : ''}>
+                <input type="radio" name="cycle" checked={intervalMonths === 1} onChange={() => setIntervalMonths(1)} />
+                <strong>Mensal</strong>
+                <small>Cobra todo mês.</small>
+              </label>
+              <label className={intervalMonths === 12 ? 'is-on' : ''}>
+                <input type="radio" name="cycle" checked={intervalMonths === 12} onChange={() => setIntervalMonths(12)} />
+                <strong>Anual</strong>
+                <small>Cobra uma vez por ano.</small>
+              </label>
+            </fieldset>
+          )}
 
           <label className="pe__check">
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

@@ -65,10 +65,11 @@ describe('produtos do painel', () => {
       description: 'Campanhas no Meta e no Google, relatório todo mês.',
       priceCents: 49900,
       recurring: true,
+      intervalMonths: 1,
       active: true,
       thumbnail: { type: 'image/webp', data: WEBP.toString('base64') },
     });
-    const one = await createCustomProduct(db, { name: 'Gestão de Tráfego', description: '', priceCents: 15000, recurring: false, active: true });
+    const one = await createCustomProduct(db, { name: 'Gestão de Tráfego', description: '', priceCents: 15000, recurring: false, intervalMonths: 1, active: true });
     expect(rec).toMatchObject({ slug: 'gestao-de-trafego', recurring: true, hasThumbnail: true, priceCents: 49900 });
     expect(one).toMatchObject({ slug: 'gestao-de-trafego-2', recurring: false, hasThumbnail: false });
 
@@ -114,6 +115,34 @@ describe('produtos do painel', () => {
       }),
       expect.any(String),
     );
+  });
+
+  it('anual nasce com ciclo de 12 meses e vai assim para o preapproval do MP', async () => {
+    const yearly = await createCustomProduct(db, {
+      name: 'Suporte Anual', description: '', priceCents: 120000, recurring: true, intervalMonths: 12, active: true,
+    });
+    expect(yearly).toMatchObject({ recurring: true, intervalMonths: 12 });
+    const mp = {
+      createPreference: vi.fn(async () => ({ id: 'pref-y', init_point: 'https://mp.test/pref' })),
+      createPreapproval: vi.fn(async () => ({ id: 'pre-y', init_point: 'https://mp.test/pre' })),
+    };
+    const r = await checkout(
+      { db, mp: mp as never },
+      { items: ['suporte-anual'], customer: { name: 'Fulana', email: 'fulana@exemplo.com', phone: '' } },
+    );
+    expect(r.ok).toBe(true);
+    expect(mp.createPreapproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_recurring: expect.objectContaining({ frequency: 12, frequency_type: 'months', transaction_amount: 1200 }),
+      }),
+      expect.any(String),
+    );
+    // Mensal <-> anual sem mexer no resto; e a única ignora o ciclo.
+    expect(await updateCustomProduct(db, yearly.id, { intervalMonths: 1 })).toMatchObject({ intervalMonths: 1 });
+    expect(await updateCustomProduct(db, yearly.id, { recurring: true, intervalMonths: 12 })).toMatchObject({ intervalMonths: 12 });
+    expect(await updateCustomProduct(db, yearly.id, { recurring: false, intervalMonths: 12 })).toMatchObject({ recurring: false, intervalMonths: null });
+    expect(await updateCustomProduct(db, yearly.id, { intervalMonths: 12 })).toMatchObject({ intervalMonths: null });
+    expect(await deleteCustomProduct(db, yearly.id)).toBe('has-orders');
   });
 
   it('editar troca preço, tipo e remove a imagem; seed não é editável', async () => {

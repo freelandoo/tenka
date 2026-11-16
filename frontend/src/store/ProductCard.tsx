@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, ImageOff, Pencil } from 'lucide-react';
 import { trackContactClick } from '../lib/analytics';
 import { whatsappUrl } from '../config/contact';
-import { SITE_SUBSCRIPTIONS, formatCents, type StoreProduct } from './catalog';
+import { SITE_SUBSCRIPTIONS, cycleWord, formatCents, type StoreProduct } from './catalog';
 import { ProductMedia } from './media';
 import { cart } from './cart';
 import { cartDrawer, useCanBuy, useStoreStatus } from './status';
@@ -31,7 +31,8 @@ export default function ProductCard({
   const pickedInCart = payments && ADDON_ONLY.has(product.slug);
   const price = product.priceCents;
   const monthly = product.kind === 'subscription';
-  const priceLabel = price == null ? 'Sob consulta' : `R$ ${formatCents(price)}${monthly ? ' por mês' : ''}`;
+  const cycle = cycleWord(product.intervalMonths);
+  const priceLabel = price == null ? 'Sob consulta' : `R$ ${formatCents(price)}${monthly ? ` por ${cycle}` : ''}`;
   const message =
     price == null
       ? `Olá! Vim pela loja e quero um orçamento de ${product.name}.`
@@ -80,12 +81,14 @@ export default function ProductCard({
             <>
               <span className="lj-card__currency">R$</span>
               <span className="tf-display lj-card__value">{formatCents(price)}</span>
-              {monthly && <span className="tf-mono lj-card__per">/mês</span>}
+              {monthly && <span className="tf-mono lj-card__per">/{cycle}</span>}
             </>
           )}
         </p>
         {product.custom && monthly && (
-          <p className="tf-mono lj-card__note">Assinatura · cobrada todo mês no cartão</p>
+          <p className="tf-mono lj-card__note">
+            Assinatura {cycle === 'ano' ? 'anual · cobrada todo ano' : 'mensal · cobrada todo mês'} no cartão
+          </p>
         )}
         {product.kind === 'deposit' && (
           <p className="tf-mono lj-card__note">Sinal de briefing · o valor do projeto vem no orçamento</p>

@@ -48,7 +48,7 @@ export default function PortalOrdersPage() {
   }, [load]);
 
   async function cancel(charge: PortalStoreCharge) {
-    if (!window.confirm(`Cancelar ${charge.description}? Ela continua valendo até o fim do mês já pago.`)) return;
+    if (!window.confirm(`Cancelar ${charge.description}? Ela continua valendo até o fim do período já pago.`)) return;
     setBusy(charge.id);
     try {
       await cancelMySubscription(charge.id);
@@ -68,7 +68,7 @@ export default function PortalOrdersPage() {
       <PortalHeader
         eyebrow="Loja TENKA"
         title="Pedidos e assinaturas"
-        description="O que você comprou na loja e as mensalidades ativas. Cancelar uma assinatura vale no fim do mês já pago."
+        description="O que você comprou na loja e as mensalidades ativas. Cancelar uma assinatura vale no fim do período já pago."
       />
 
       {orders.length === 0 ? (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { ShoppingBag, X } from 'lucide-react';
 import { CART_SITE_SUBSCRIPTIONS, cart, cartProducts, cartTotals, useCart } from './cart';
 import { checkoutErrorMessage, postCheckout } from './api';
-import { formatCents } from './catalog';
+import { cycleWord, formatCents } from './catalog';
 import { cartDrawer, useStoreStatus } from './status';
 
 /**
@@ -31,6 +31,8 @@ export default function CartDrawer() {
   const products = cartProducts(slugs);
   const { oneTimeCents, monthlyCents } = cartTotals(products);
   const hasSite = products.some((p) => p.category === 'sites' && p.kind === 'fixed');
+  // Um pedido tem no máximo uma assinatura: o ciclo dela dá o rótulo do total.
+  const recurringCycle = cycleWord(products.find((p) => p.kind === 'subscription')?.intervalMonths);
   const siteSub = slugs.find((s) => s === CART_SITE_SUBSCRIPTIONS.HOSTING || s === CART_SITE_SUBSCRIPTIONS.COMBO);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -86,7 +88,7 @@ export default function CartDrawer() {
                         <strong>{p.name}</strong>
                         <small className="tf-mono">
                           R$ {formatCents(p.priceCents ?? 0)}
-                          {p.kind === 'subscription' ? ' /mês' : ''}
+                          {p.kind === 'subscription' ? ` /${cycleWord(p.intervalMonths)}` : ''}
                         </small>
                       </span>
                       {!(hasSite && p.slug === siteSub) && (
@@ -131,7 +133,7 @@ export default function CartDrawer() {
                   )}
                   {monthlyCents > 0 && (
                     <div>
-                      <dt>Por mês</dt>
+                      <dt>Por {recurringCycle}</dt>
                       <dd>R$ {formatCents(monthlyCents)} <small className="tf-mono">no cartão</small></dd>
                     </div>
                   )}
