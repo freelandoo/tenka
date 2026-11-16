@@ -59,25 +59,70 @@ function CardFeeSetting() {
   );
 }
 
+async function copyToClipboard(url: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(url);
+    return true;
+  } catch {
+    window.prompt('Copie o link de pagamento:', url);
+    return false;
+  }
+}
+
 /** Copia o link de pagamento do produto (manda pro cliente; ele paga direto no Mercado Pago). */
 function ShareLink({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/loja/pagar/${slug}`;
   async function copy() {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      window.prompt('Copie o link de pagamento:', url);
-      return;
+    if (await copyToClipboard(`${window.location.origin}/loja/pagar/${slug}`)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <button type="button" className="panel-btn" onClick={() => void copy()} title={url}>
+    <button type="button" className="panel-btn" onClick={() => void copy()}>
       {copied ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
       {copied ? 'Link copiado' : 'Compartilhar'}
     </button>
+  );
+}
+
+/** Barra do conjunto: produtos marcados viram um link único /loja/pagar?p=a,b,c. */
+function BundleBar({ selected, products, onClear }: { selected: Set<string>; products: AdminProduct[]; onClear: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const chosen = products.filter((p) => selected.has(p.slug));
+  if (chosen.length === 0) return null;
+  const recurring = chosen.filter((p) => p.recurring).length;
+  // Regra do back: só uma mensalidade por pedido. Avisa antes de gerar um link que seria recusado.
+  const tooManySubs = recurring > 1;
+  const url = `${window.location.origin}/loja/pagar?p=${chosen.map((p) => p.slug).join(',')}`;
+  async function copy() {
+    if (await copyToClipboard(url)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+  return (
+    <div className="panel-card" style={{ position: 'sticky', top: 12, zIndex: 5, marginBottom: 20 }}>
+      <div className="panel-card__head">
+        <h2 className="panel-card__title">Conjunto para um link ({chosen.length})</h2>
+        <button type="button" className="panel-btn" onClick={onClear}>
+          Limpar
+        </button>
+      </div>
+      <p className="panel-card__text">{chosen.map((p) => p.name).join(' + ')}</p>
+      {tooManySubs ? (
+        <p className="panel-card__text" style={{ color: 'var(--tf-acc, #c33)' }}>
+          Um link cobra no máximo uma recorrência. Deixe só uma assinatura no conjunto.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+          <button type="button" className="panel-btn panel-btn--primary" onClick={() => void copy()}>
+            {copied ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
+            {copied ? 'Link copiado' : 'Copiar link do conjunto'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -90,6 +135,15 @@ export default function AdminStorePage() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null | 'new'>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (slug: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
 
   const load = useCallback(async () => {
     setError(false);
@@ -125,6 +179,8 @@ export default function AdminStorePage() {
       </div>
 
       <CardFeeSetting />
+
+      <BundleBar selected={selected} products={products} onClear={() => setSelected(new Set())} />
 
       {products.length === 0 ? (
         <div className="panel-empty">
@@ -181,6 +237,12 @@ export default function AdminStorePage() {
                   <Pencil size={14} aria-hidden="true" /> Editar
                 </button>
                 {p.active && <ShareLink slug={p.slug} />}
+                {p.active && (
+                  <label className="panel-btn" style={{ cursor: 'pointer', gap: 8 }}>
+                    <input type="checkbox" checked={selected.has(p.slug)} onChange={() => toggle(p.slug)} />
+                    No conjunto
+                  </label>
+                )}
               </div>
             </article>
           ))}
