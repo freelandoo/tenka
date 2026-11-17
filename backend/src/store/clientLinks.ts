@@ -108,14 +108,20 @@ export async function resolveClientLink(db: Queryable, token: string): Promise<R
 
 /**
  * Amarra o pedido recém-criado ao link (chamado no checkout feito por este link).
- * Sempre aponta para o pedido mais novo: um recomeço depois de um pedido morto
- * passa a valer. Token inválido/revogado é ignorado em silêncio.
+ * Aponta para o pedido novo só quando NÃO há pedido vivo amarrado — um recomeço
+ * depois de um pedido morto (expirado/falho/cancelado) passa a valer, mas um
+ * pedido vivo (pending/paid/refunded) nunca é substituído. Assim, quem tiver o
+ * token não desvia o link de um pedido já pago para um novo. Token inválido/
+ * revogado é ignorado em silêncio.
  */
 export async function bindOrderToClientLink(db: Queryable, token: string, orderId: string): Promise<void> {
   if (!/^[0-9a-f]{20,96}$/i.test(token)) return;
   await db.query(
-    `update public.store_client_links set order_id = $2, updated_at = now()
-      where token = $1 and revoked_at is null`,
+    `update public.store_client_links l set order_id = $2, updated_at = now()
+      where l.token = $1 and l.revoked_at is null
+        and (l.order_id is null
+             or not exists (select 1 from public.store_orders o
+                             where o.id = l.order_id and o.status in ('pending', 'paid', 'refunded')))`,
     [token, orderId],
   );
 }

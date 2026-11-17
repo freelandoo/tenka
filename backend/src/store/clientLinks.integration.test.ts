@@ -88,9 +88,19 @@ describe('link único por cliente', () => {
     await bindOrderToClientLink(db, link.token, pending.id);
     expect((await resolveClientLink(db, link.token))?.order).toEqual({ id: pending.id, token: pending.token, status: 'pending' });
 
+    // Pedido vivo não é substituído: quem tem o token não desvia de um pedido pago.
+    const other = await newOrder('pending');
+    await bindOrderToClientLink(db, link.token, other.id);
+    expect((await resolveClientLink(db, link.token))?.order?.id).toBe(pending.id);
+
     // Pedido expira e o cliente volta: o link deixa recomeçar (order some), mesmo token.
     await db.query(`update store_orders set status = 'expired' where id = $1`, [pending.id]);
     expect((await resolveClientLink(db, link.token))?.order).toBeNull();
+
+    // Agora que o anterior morreu, um pedido novo pode assumir.
+    const retry = await newOrder('pending');
+    await bindOrderToClientLink(db, link.token, retry.id);
+    expect((await resolveClientLink(db, link.token))?.order?.id).toBe(retry.id);
   });
 
   it('rotacionar troca o token: o antigo para de resolver', async () => {
