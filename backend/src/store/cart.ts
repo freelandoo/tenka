@@ -2,9 +2,9 @@
  * Carrinho → cobranças, no SERVIDOR. O front manda só slugs; todo valor sai
  * das linhas de `products` lidas aqui.
  *
- * Um pedido vira no máximo duas cobranças:
- *   payment      → tudo que é cobrado uma vez (sites, sinais, taxa de configuração)
- *   subscription → a mensalidade (uma só por pedido)
+ * Um pedido vira:
+ *   payment      → tudo que é cobrado uma vez, junto (sites, sinais, taxa de configuração)
+ *   subscription → uma cobrança por produto recorrente (mensalidade + domínio anual = duas)
  */
 
 import { isPurchasable, type ProductRow } from './catalog';

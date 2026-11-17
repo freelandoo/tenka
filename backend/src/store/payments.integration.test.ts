@@ -18,7 +18,7 @@ import { checkout } from './checkout';
 import { getOrder, getOrderCharges, type OrderRow, type Queryable } from './orders';
 import { processNotification, reconcile, type PaymentDeps } from './payments';
 
-const MIGRATIONS = ['0045_products.sql', '0046_store_orders.sql'];
+const MIGRATIONS = ['0045_products.sql', '0046_store_orders.sql', '0050_store_charges_multi_subscription.sql'];
 let pg: PGlite;
 let db: Queryable;
 
@@ -130,6 +130,21 @@ describe('checkout', () => {
     expect(pre.payload.external_reference).toBe(`tenka:${r.orderId}:subscription:${charges[1]!.id}`);
     expect(pre.payload.payer_email).toBe('maria@example.com');
     expect((pre.payload.auto_recurring as { transaction_amount: number }).transaction_amount).toBe(60);
+  });
+
+  it('aceita pedido com duas assinaturas (mensalidade + outra recorrência) no mesmo pedido', async () => {
+    // Produto avulso + duas cobranças recorrentes: era o caso que batia no
+    // unique(order_id, kind) e derrubava o checkout. Agora vira 1 payment + 2 subscriptions.
+    const r = await buy(['site-premium', 'hospedagem', 'google-meu-negocio']);
+    expect(r.ok).toBe(true);
+
+    const charges = await getOrderCharges(db, r.orderId);
+    expect(charges.map((c) => c.kind).sort()).toEqual(['payment', 'subscription', 'subscription']);
+    // Cada assinatura vira uma preapproval própria, com chargeId na referência (desambigua as duas).
+    expect(mp.createdPreapprovals).toHaveLength(2);
+    const refs = mp.createdPreapprovals.map((p) => p.payload.external_reference);
+    expect(new Set(refs).size).toBe(2);
+    for (const ref of refs) expect(ref).toMatch(new RegExp(`^tenka:${r.orderId}:subscription:`));
   });
 
   it('recusa produto sem valor definido sem criar nada no MP', async () => {
