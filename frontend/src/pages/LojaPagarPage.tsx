@@ -4,7 +4,7 @@ import { useGoogleFonts } from '../hooks/useGoogleFonts';
 import { useNoindex } from '../seo/useSeo';
 import { whatsappUrl } from '../config/contact';
 import TabloidHeader from '../tabloid/TabloidHeader';
-import { checkoutErrorMessage, postCheckout } from '../store/api';
+import { checkoutErrorMessage, fetchOrder, postCheckout } from '../store/api';
 import { cartProducts, cartTotals } from '../store/cart';
 import { cycleWord, formatBps, formatCents, grossUp } from '../store/catalog';
 import { StoreStatusProvider, useStoreStatus } from '../store/status';
@@ -27,6 +27,7 @@ function PagarInner() {
   const [method, setMethod] = useState<'pix' | 'card'>('pix');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
 
   void custom;
   // Slugs do caminho e/ou da query `?p=a,b,c`, sem repetir, na ordem em que o admin pôs.
@@ -34,10 +35,35 @@ function PagarInner() {
   const products = cartProducts(slugs);
   const allFound = products.length === slugs.length && slugs.length > 0;
   const canBuy = allFound && payments && slugs.every((s) => purchasable.has(s));
+  // Chave por conjunto: o mesmo link sempre lê/escreve o mesmo pedido em andamento neste aparelho.
+  const storeKey = `tenka:pagar:${[...slugs].sort().join(',')}`;
 
   useEffect(() => {
     document.title = products.length === 1 ? `Pagar — ${products[0]!.name} — TENKA` : 'Pagamento — TENKA';
   }, [products]);
+
+  // Voltou pelo mesmo link? Se há um pedido deste conjunto ainda pendente, oferece continuar em vez de refazer.
+  useEffect(() => {
+    if (!canBuy) return;
+    let saved: { orderId?: string; token?: string; statusUrl?: string } | null = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(storeKey) ?? 'null');
+    } catch {
+      saved = null;
+    }
+    if (!saved?.orderId || !saved.token) return;
+    let alive = true;
+    void fetchOrder(saved.orderId, saved.token)
+      .then((o) => {
+        if (!alive) return;
+        if (o && o.status === 'pending') setResumeUrl(saved!.statusUrl ?? `/loja/pedido/${saved!.orderId}?t=${saved!.token}`);
+        else try { localStorage.removeItem(storeKey); } catch { /* aba anônima */ }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [canBuy, storeKey]);
 
   if (!canBuy) {
     return (
@@ -81,6 +107,12 @@ function PagarInner() {
       setError(checkoutErrorMessage(r.error));
       return;
     }
+    // Guarda o pedido deste link: se a pessoa voltar pelo mesmo link, continua em vez de refazer.
+    try {
+      localStorage.setItem(storeKey, JSON.stringify({ orderId: r.orderId, token: r.token, statusUrl: r.statusUrl }));
+    } catch {
+      /* aba anônima / storage cheio: segue sem o "continuar" */
+    }
     window.location.assign(r.nextUrl ?? r.statusUrl);
   }
 
@@ -90,6 +122,19 @@ function PagarInner() {
     <section className="lj-hero lj-order">
       <span className="tf-ribbon">Pagamento TENKA</span>
       <h1 className="tf-display lj-order__title">{title}</h1>
+
+      {resumeUrl && (
+        <div className="lj-pay-resume" style={{ maxWidth: 520 }}>
+          <p className="tf-mono">Você já começou este pagamento neste aparelho.</p>
+          <a className="tf-btn lj-cart__pay" href={resumeUrl}>
+            Continuar de onde parou
+            <span className="tf-arrow" aria-hidden="true">↗</span>
+          </a>
+          <button type="button" className="lj-pay-resume__new tf-mono" onClick={() => setResumeUrl(null)}>
+            Ou começar um novo pagamento
+          </button>
+        </div>
+      )}
 
       <ul className="lj-cart__items" style={{ maxWidth: 520 }}>
         {products.map((p) => (
