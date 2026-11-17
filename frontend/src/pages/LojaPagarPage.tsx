@@ -7,6 +7,7 @@ import TabloidHeader from '../tabloid/TabloidHeader';
 import { checkoutErrorMessage, fetchOrder, postCheckout } from '../store/api';
 import { cartProducts, cartTotals } from '../store/cart';
 import { cycleWord, formatBps, formatCents, grossUp } from '../store/catalog';
+import { combinedInstallments, splitInstallments } from '../store/installments';
 import { StoreStatusProvider, useStoreStatus } from '../store/status';
 import '../tabloid/tabloid.css';
 import '../pricing/precos.css';
@@ -31,7 +32,10 @@ export function PagarInner({ link }: { link?: LinkContext }) {
   const [params] = useSearchParams();
   // Ler `custom` re-renderiza quando o catálogo chega: aí o cartProducts acha os produtos do painel.
   const { payments, purchasable, cardFeeBps, custom } = useStoreStatus();
-  const [method, setMethod] = useState<'pix' | 'card'>('pix');
+  // O cenário que precisa ficar claro é produto em 6x + mensalidade; Pix segue
+  // disponível para quem preferir à vista.
+  const [method, setMethod] = useState<'pix' | 'card'>('card');
+  const [installmentCount, setInstallmentCount] = useState(6);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
@@ -95,6 +99,8 @@ export function PagarInner({ link }: { link?: LinkContext }) {
   const subs = products.filter((p) => p.kind === 'subscription');
   const monthlyCents = subs.filter((p) => p.intervalMonths !== 12).reduce((s, p) => s + (p.priceCents ?? 0), 0);
   const yearlyCents = subs.filter((p) => p.intervalMonths === 12).reduce((s, p) => s + (p.priceCents ?? 0), 0);
+  const installmentAmounts = splitInstallments(grossUp(base.oneTimeCents, cardFeeBps), installmentCount);
+  const monthlyInstallments = combinedInstallments(grossUp(base.oneTimeCents, cardFeeBps), monthlyCents, installmentCount);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -172,6 +178,61 @@ export function PagarInner({ link }: { link?: LinkContext }) {
             Cartão de crédito — R$ {formatCents(grossUp(base.oneTimeCents, cardFeeBps))} (+{fee}% de taxa), em até 6x
           </label>
         </fieldset>
+      )}
+
+      {base.oneTimeCents > 0 && method === 'card' && (
+        <section className="lj-installments" style={{ maxWidth: 520 }} aria-labelledby="installments-title">
+          <div className="lj-installments__head">
+            <div>
+              <p id="installments-title" className="tf-mono">Prévia no cartão</p>
+              <strong>Veja quanto entra em cada mês</strong>
+            </div>
+            <label>
+              <span className="tf-mono">Produto</span>
+              <select value={installmentCount} onChange={(event) => setInstallmentCount(Number(event.target.value))}>
+                {[1, 2, 3, 4, 5, 6].map((count) => (
+                  <option key={count} value={count}>{count}x de R$ {formatCents(splitInstallments(grossUp(base.oneTimeCents, cardFeeBps), count)[0]!)}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {monthlyCents > 0 ? (
+            <>
+              <p className="lj-installments__lead">
+                Nos primeiros {installmentCount} {installmentCount === 1 ? 'mês' : 'meses'}, a parcela do produto e a mensalidade são cobradas separadamente no cartão.
+              </p>
+              <div className="lj-installments__table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Mês</th><th>Produto</th><th>Mensalidade</th><th>Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {monthlyInstallments.map((item) => (
+                      <tr key={item.month}>
+                        <th scope="row">{item.month}º</th>
+                        <td>R$ {formatCents(item.installmentCents)}</td>
+                        <td>R$ {formatCents(item.monthlyCents)}</td>
+                        <td><strong>R$ {formatCents(item.totalCents)}</strong></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row">Após o {installmentCount}º</th>
+                      <td>—</td>
+                      <td>R$ {formatCents(monthlyCents)}</td>
+                      <td><strong>R$ {formatCents(monthlyCents)}</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="lj-installments__lead">Produto em {installmentCount}x de R$ {formatCents(installmentAmounts[0]!)}, antes de eventuais juros do Mercado Pago.</p>
+          )}
+          <p className="lj-installments__notice">Esta é uma prévia sem juros. O número de parcelas e qualquer juro são confirmados no Mercado Pago.</p>
+        </section>
       )}
 
       <dl className="lj-cart__totals" style={{ maxWidth: 520 }}>
