@@ -53,6 +53,17 @@ export async function deleteAdminProduct(id: string): Promise<void> {
   await apiRequest(`/admin/store/products/${id}`, { method: 'DELETE' });
 }
 
+/**
+ * Cria (ou reaproveita) o link único e persistente de um cliente para um
+ * conjunto de produtos. Copiar de novo o mesmo par devolve o mesmo token.
+ */
+export async function createClientLink(clientId: string, slugs: string[]): Promise<{ id: string; token: string }> {
+  return apiRequest<{ id: string; token: string }>('/admin/store/client-links', {
+    method: 'POST',
+    body: { clientId, slugs },
+  });
+}
+
 export async function getStoreSettings(): Promise<{ cardFeeBps: number }> {
   return apiRequest<{ cardFeeBps: number }>('/admin/store/settings');
 }

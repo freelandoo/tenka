@@ -25,6 +25,12 @@ import {
   productPatchSchema,
   updateCustomProduct,
 } from '../store/adminProducts';
+import { getOrCreateClientLink, revokeClientLink, rotateClientLink } from '../store/clientLinks';
+
+const clientLinkSchema = z.object({
+  clientId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+  slugs: z.array(z.string().trim().min(1).max(60)).min(1).max(8),
+});
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Thumbnail vem em base64 dentro do JSON (≤ 800 KB decodificada). */
@@ -79,6 +85,35 @@ export async function storeAdminRoutes(app: FastifyInstance): Promise<void> {
     const r = await deleteCustomProduct(getPool(), id);
     if (r === 'not-found') return reply.code(404).send({ error: 'produto-nao-encontrado' });
     if (r === 'has-orders') return reply.code(409).send({ error: 'produto-com-pedidos' });
+    return reply.code(204).send();
+  });
+
+  // ------------------------------------- link único por cliente (conjunto)
+
+  app.post('/admin/store/client-links', adminOnly, async (req, reply) => {
+    const parsed = clientLinkSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'dados-invalidos' });
+    try {
+      const link = await getOrCreateClientLink(getPool(), parsed.data.clientId, parsed.data.slugs);
+      return reply.code(201).send({ id: link.id, token: link.token, slugs: link.slugs });
+    } catch (err) {
+      if ((err as { code?: string }).code === '23503') return reply.code(404).send({ error: 'cliente-nao-encontrado' });
+      throw err;
+    }
+  });
+
+  app.post('/admin/store/client-links/:id/rotate', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!UUID.test(id)) return reply.code(404).send({ error: 'link-nao-encontrado' });
+    const link = await rotateClientLink(getPool(), id);
+    if (!link) return reply.code(404).send({ error: 'link-nao-encontrado' });
+    return { id: link.id, token: link.token, slugs: link.slugs };
+  });
+
+  app.delete('/admin/store/client-links/:id', adminOnly, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!UUID.test(id)) return reply.code(404).send({ error: 'link-nao-encontrado' });
+    if (!(await revokeClientLink(getPool(), id))) return reply.code(404).send({ error: 'link-nao-encontrado' });
     return reply.code(204).send();
   });
 }

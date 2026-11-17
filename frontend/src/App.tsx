@@ -46,6 +46,7 @@ const PrecosPage = lazyWithRetry(() => import('./pages/PrecosPage'));
 const LojaPage = lazyWithRetry(() => import('./pages/LojaPage'));
 const LojaPedidoPage = lazyWithRetry(() => import('./pages/LojaPedidoPage'));
 const LojaPagarPage = lazyWithRetry(() => import('./pages/LojaPagarPage'));
+const LojaClienteLinkPage = lazyWithRetry(() => import('./pages/LojaClienteLinkPage'));
 const LojaConvitePage = lazyWithRetry(() => import('./pages/LojaConvitePage'));
 // Páginas de construção ("como foi feito") — GSAP, só quando alguém abre uma.
 const CasePage = lazyWithRetry(() => import('./pages/CasePage'));
@@ -199,6 +200,15 @@ export default function App() {
           element={
             <Suspense fallback={<TechnologyFallback />}>
               <LojaPagarPage />
+            </Suspense>
+          }
+        />
+        {/* Link único e persistente de um cliente para um conjunto (gerado no painel, noindex). */}
+        <Route
+          path="/loja/c/:token"
+          element={
+            <Suspense fallback={<TechnologyFallback />}>
+              <LojaClienteLinkPage />
             </Suspense>
           }
         />

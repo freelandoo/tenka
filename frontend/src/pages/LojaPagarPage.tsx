@@ -19,7 +19,14 @@ import '../store/store.css';
  * e sem carrinho. noindex. Pré-preenche nome/email/whatsapp pela query.
  * O servidor valida (máx. 8, uma mensalidade por pedido) — erro vira aviso aqui.
  */
-function PagarInner() {
+/** Contexto do link único por cliente: conjunto fixo, dados pré-preenchidos sem passar pela URL. */
+export interface LinkContext {
+  token: string;
+  slugs: string[];
+  customer: { name: string; email: string; phone: string };
+}
+
+export function PagarInner({ link }: { link?: LinkContext }) {
   const { slug } = useParams();
   const [params] = useSearchParams();
   // Ler `custom` re-renderiza quando o catálogo chega: aí o cartProducts acha os produtos do painel.
@@ -30,13 +37,15 @@ function PagarInner() {
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
 
   void custom;
-  // Slugs do caminho e/ou da query `?p=a,b,c`, sem repetir, na ordem em que o admin pôs.
-  const slugs = [...new Set([...(slug ? [slug] : []), ...(params.get('p') ?? '').split(',')].map((s) => s.trim()).filter(Boolean))];
+  // Link único: o conjunto vem dele. Senão, dos slugs do caminho e/ou da query `?p=a,b,c`.
+  const slugs = link
+    ? link.slugs
+    : [...new Set([...(slug ? [slug] : []), ...(params.get('p') ?? '').split(',')].map((s) => s.trim()).filter(Boolean))];
   const products = cartProducts(slugs);
   const allFound = products.length === slugs.length && slugs.length > 0;
   const canBuy = allFound && payments && slugs.every((s) => purchasable.has(s));
-  // Chave por conjunto: o mesmo link sempre lê/escreve o mesmo pedido em andamento neste aparelho.
-  const storeKey = `tenka:pagar:${[...slugs].sort().join(',')}`;
+  // Chave por link/conjunto: o mesmo link sempre lê/escreve o mesmo pedido em andamento neste aparelho.
+  const storeKey = link ? `tenka:pagar:link:${link.token}` : `tenka:pagar:${[...slugs].sort().join(',')}`;
 
   useEffect(() => {
     document.title = products.length === 1 ? `Pagar — ${products[0]!.name} — TENKA` : 'Pagamento — TENKA';
@@ -101,6 +110,7 @@ function PagarInner() {
       },
       method: base.oneTimeCents > 0 ? method : 'card',
       website: String(form.get('website') ?? '') || undefined,
+      linkToken: link?.token,
     });
     if (!r.ok) {
       setBusy(false);
@@ -197,15 +207,15 @@ function PagarInner() {
       <form className="lj-cart__form" style={{ maxWidth: 520 }} onSubmit={submit}>
         <label>
           <span className="tf-mono">Nome</span>
-          <input name="name" required minLength={2} maxLength={120} autoComplete="name" defaultValue={params.get('nome') ?? ''} />
+          <input name="name" required minLength={2} maxLength={120} autoComplete="name" defaultValue={link?.customer.name ?? params.get('nome') ?? ''} />
         </label>
         <label>
           <span className="tf-mono">E-mail</span>
-          <input name="email" type="email" required maxLength={180} autoComplete="email" defaultValue={params.get('email') ?? ''} />
+          <input name="email" type="email" required maxLength={180} autoComplete="email" defaultValue={link?.customer.email ?? params.get('email') ?? ''} />
         </label>
         <label>
           <span className="tf-mono">WhatsApp</span>
-          <input name="phone" type="tel" maxLength={30} autoComplete="tel" defaultValue={params.get('whatsapp') ?? ''} />
+          <input name="phone" type="tel" maxLength={30} autoComplete="tel" defaultValue={link?.customer.phone ?? params.get('whatsapp') ?? ''} />
         </label>
         <input name="website" tabIndex={-1} autoComplete="off" className="lj-cart__hp" aria-hidden="true" />
         {subs.length > 0 && (

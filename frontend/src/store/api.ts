@@ -68,6 +68,8 @@ export interface CheckoutInput {
   /** Avulso: Pix (preço cheio) ou cartão (com a taxa). */
   method?: 'pix' | 'card';
   website?: string;
+  /** Token do link único por cliente: amarra o pedido a esse link. */
+  linkToken?: string;
 }
 
 export type CheckoutResponse =
@@ -117,6 +119,21 @@ export async function fetchOrder(id: string, token: string): Promise<OrderView |
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`pedido ${r.status}`);
   return (await r.json()) as OrderView;
+}
+
+export interface ClientLinkView {
+  slugs: string[];
+  customer: { name: string; email: string; phone: string };
+  /** Pedido vivo deste link (pending/paid/refunded); `null` em link novo. */
+  order: { id: string; token: string; status: string } | null;
+}
+
+/** Resolve o link único por cliente (/loja/c/:token). `null` se revogado/inexistente. */
+export async function fetchClientLink(token: string): Promise<ClientLinkView | null> {
+  const r = await fetch(`${API_BASE_URL}/store/links/${encodeURIComponent(token)}`, { cache: 'no-store' });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`link ${r.status}`);
+  return (await r.json()) as ClientLinkView;
 }
 
 /** Mensagem humana para os códigos de erro do back. */

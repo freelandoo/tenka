@@ -22,6 +22,7 @@ import { toPublicProduct, type ProductRow } from '../store/catalog';
 import { checkout } from '../store/checkout';
 import { readThumbnail } from '../store/adminProducts';
 import { getOrder, getOrderCharges } from '../store/orders';
+import { bindOrderToClientLink, resolveClientLink } from '../store/clientLinks';
 import { processNotification, reconcile, type PaymentDeps } from '../store/payments';
 import { mercadoPago, mpConfig, setMercadoPagoLogger, verifyWebhookSignature } from '../payments/mercadopago';
 import {
@@ -49,6 +50,8 @@ const checkoutSchema = z.object({
   method: z.enum(['pix', 'card']).optional(),
   /** Honeypot. */
   website: z.string().max(200).optional(),
+  /** Token do link único por cliente: amarra o pedido criado a esse link (sem dado sensível). */
+  linkToken: z.string().regex(/^[0-9a-f]{20,96}$/i).optional(),
 });
 
 const WINDOW_MS = 10 * 60_000;
@@ -149,6 +152,12 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
         if (result.status >= 500) req.log.warn({ error: result.error, message: result.message }, 'loja.checkout.falha');
         return reply.code(result.status).send({ error: result.error, slug: result.slug });
       }
+      // Pedido via link único por cliente: guarda o pedido no link (falha aqui não derruba a compra).
+      if (parsed.data.linkToken) {
+        await bindOrderToClientLink(getPool(), parsed.data.linkToken, result.orderId).catch((err) =>
+          req.log.warn({ err }, 'loja.link.vinculo_pedido_falhou'),
+        );
+      }
       return reply.code(201).send(result);
     } catch (err) {
       req.log.error({ err }, 'loja.checkout.erro');
@@ -192,6 +201,21 @@ export async function storeRoutes(app: FastifyInstance): Promise<void> {
       };
     } catch (err) {
       req.log.error({ err }, 'loja.pedido.erro');
+      return reply.code(503).send({ error: 'indisponivel' });
+    }
+  });
+
+  // --------------------------------------- link único por cliente (abre o conjunto)
+
+  app.get('/store/links/:token', async (req, reply) => {
+    const { token } = req.params as { token: string };
+    reply.header('Cache-Control', 'no-store');
+    try {
+      const link = await resolveClientLink(getPool(), token);
+      if (!link) return reply.code(404).send({ error: 'link-invalido' });
+      return link;
+    } catch (err) {
+      req.log.error({ err }, 'loja.link.erro');
       return reply.code(503).send({ error: 'indisponivel' });
     }
   });
